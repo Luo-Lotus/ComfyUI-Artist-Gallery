@@ -1,0 +1,869 @@
+/**
+ * Artist Gallery Extension
+ * 创建悬浮可拖动的图库按钮
+ */
+
+import { app } from "../../scripts/app.js";
+
+app.registerExtension({
+    name: "ArtistGallery.GalleryButton",
+
+    async setup() {
+        // 创建悬浮按钮容器
+        const floatingButton = document.createElement("div");
+        floatingButton.id = "artist-gallery-floating-btn";
+        floatingButton.style.cssText = `
+            position: fixed;
+            bottom: 100px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            border: 3px solid #ffb6c1;
+            box-shadow: 0 4px 20px rgba(255, 107, 157, 0.4);
+            cursor: move;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            z-index: 9999;
+            user-select: none;
+            transition: box-shadow 0.2s, transform 0.1s;
+        `;
+
+        floatingButton.innerHTML = "🎨";
+
+        // 悬停效果
+        floatingButton.addEventListener("mouseenter", () => {
+            floatingButton.style.boxShadow = "0 6px 30px rgba(255, 107, 157, 0.6)";
+            floatingButton.style.transform = "scale(1.1)";
+        });
+
+        floatingButton.addEventListener("mouseleave", () => {
+            floatingButton.style.boxShadow = "0 4px 20px rgba(255, 107, 157, 0.4)";
+            floatingButton.style.transform = "scale(1)";
+        });
+
+        // 添加到页面
+        document.body.appendChild(floatingButton);
+
+        // 拖动功能
+        let isDragging = false;
+        let startX, startY, initialX, initialY;
+        let hasMoved = false;
+
+        floatingButton.addEventListener("mousedown", (e) => {
+            isDragging = true;
+            hasMoved = false;
+            startX = e.clientX;
+            startY = e.clientY;
+            initialX = floatingButton.offsetLeft;
+            initialY = floatingButton.offsetTop;
+            floatingButton.style.cursor = "grabbing";
+            floatingButton.style.transition = "none";
+        });
+
+        document.addEventListener("mousemove", (e) => {
+            if (!isDragging) return;
+
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+
+            // 检测是否真的移动了
+            if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+                hasMoved = true;
+            }
+
+            const newX = initialX + dx;
+            const newY = initialY + dy;
+
+            // 边界检测
+            const maxX = window.innerWidth - floatingButton.offsetWidth;
+            const maxY = window.innerHeight - floatingButton.offsetHeight;
+
+            floatingButton.style.left = Math.max(0, Math.min(newX, maxX)) + "px";
+            floatingButton.style.top = Math.max(0, Math.min(newY, maxY)) + "px";
+            floatingButton.style.right = "auto";
+            floatingButton.style.bottom = "auto";
+        });
+
+        document.addEventListener("mouseup", (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            floatingButton.style.cursor = "move";
+            floatingButton.style.transition = "box-shadow 0.2s, transform 0.1s";
+
+            // 如果没有移动，则视为点击
+            if (!hasMoved) {
+                openGalleryModal();
+            }
+
+            // 保存位置到 localStorage
+            saveButtonPosition();
+        });
+
+        // 加载保存的位置
+        loadButtonPosition();
+
+        // 创建模态框容器
+        let modalOverlay = null;
+        let modalContent = null;
+
+        async function openGalleryModal() {
+            // 如果已打开，关闭它
+            if (modalOverlay) {
+                closeModal();
+                return;
+            }
+
+            // 创建模态框遮罩
+            modalOverlay = document.createElement("div");
+            modalOverlay.id = "artist-gallery-modal";
+            modalOverlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.7);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+                opacity: 0;
+                transition: opacity 0.3s;
+                backdrop-filter: blur(4px);
+            `;
+
+            // 创建模态框内容
+            modalContent = document.createElement("div");
+            modalContent.style.cssText = `
+                width: 90vw;
+                height: 90vh;
+                max-width: 1800px;
+                background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+                border-radius: 20px;
+                box-shadow: 0 8px 32px rgba(255, 107, 157, 0.3);
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                transform: scale(0.9);
+                transition: transform 0.3s;
+            `;
+
+            // 创建头部工具栏
+            const header = document.createElement("div");
+            header.style.cssText = `
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 12px 16px;
+                background: rgba(255, 255, 255, 0.95);
+                border-bottom: 2px solid #ffb6c1;
+                flex-shrink: 0;
+            `;
+
+            header.innerHTML = `
+                <div style="font-size: 18px; font-weight: 700; color: #ff6b9d; margin-right: auto;">🎨 画师图库</div>
+                <button id="gallery-refresh-btn" style="
+                    padding: 6px 12px;
+                    border: 2px solid #ffb6c1;
+                    border-radius: 12px;
+                    background: #fff5f8;
+                    color: #ff6b9d;
+                    cursor: pointer;
+                    font-size: 13px;
+                    font-weight: 600;
+                    transition: all 0.2s;
+                ">🔄 刷新</button>
+                <button id="gallery-close-btn" style="
+                    padding: 6px 16px;
+                    border: 2px solid #ff6b9d;
+                    border-radius: 12px;
+                    background: #ff6b9d;
+                    color: white;
+                    cursor: pointer;
+                    font-size: 13px;
+                    font-weight: 600;
+                    transition: all 0.2s;
+                ">✕ 关闭</button>
+            `;
+
+            // 创建内容容器
+            const contentContainer = document.createElement("div");
+            contentContainer.id = "gallery-content";
+            contentContainer.style.cssText = `
+                flex: 1;
+                overflow-y: auto;
+                padding: 12px;
+            `;
+
+            // 显示加载中
+            contentContainer.innerHTML = `
+                <div style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    height: 100%;
+                    color: #ff6b9d;
+                    font-size: 16px;
+                    font-weight: 600;
+                ">
+                    <div style="
+                        width: 50px;
+                        height: 50px;
+                        border: 4px solid #ffb6c1;
+                        border-top-color: #ff6b9d;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                        margin-bottom: 20px;
+                    "></div>
+                    <div>正在加载图库...</div>
+                </div>
+                <style>
+                    @keyframes spin {
+                        to { transform: rotate(360deg); }
+                    }
+                </style>
+            `;
+
+            // 组装模态框
+            modalContent.appendChild(header);
+            modalContent.appendChild(contentContainer);
+            modalOverlay.appendChild(modalContent);
+            document.body.appendChild(modalOverlay);
+
+            // 添加动画
+            requestAnimationFrame(() => {
+                modalOverlay.style.opacity = "1";
+                modalContent.style.transform = "scale(1)";
+            });
+
+            // 绑定关闭事件
+            document.getElementById("gallery-close-btn").addEventListener("click", closeModal);
+            document.getElementById("gallery-refresh-btn").addEventListener("click", loadGalleryData);
+            modalOverlay.addEventListener("click", (e) => {
+                if (e.target === modalOverlay) closeModal();
+            });
+
+            // ESC 键关闭
+            const handleEscape = (e) => {
+                if (e.key === "Escape") closeModal();
+            };
+            document.addEventListener("keydown", handleEscape);
+
+            // 保存清理函数
+            modalOverlay._cleanup = () => {
+                document.removeEventListener("keydown", handleEscape);
+            };
+
+            // 加载图库数据
+            await loadGalleryData();
+        }
+
+        function closeModal() {
+            if (modalOverlay) {
+                // 执行清理
+                if (modalOverlay._cleanup) {
+                    modalOverlay._cleanup();
+                }
+
+                modalOverlay.style.opacity = "0";
+                modalContent.style.transform = "scale(0.9)";
+
+                setTimeout(() => {
+                    if (modalOverlay && modalOverlay.parentNode) {
+                        modalOverlay.parentNode.removeChild(modalOverlay);
+                    }
+                    modalOverlay = null;
+                    modalContent = null;
+                }, 300);
+            }
+        }
+
+        async function loadGalleryData() {
+            if (!modalContent) return;
+
+            const contentContainer = document.getElementById("gallery-content");
+            if (!contentContainer) return;
+
+            try {
+                // 获取数据
+                const response = await fetch("/artist_gallery/data");
+                const data = await response.json();
+
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                // 渲染图库
+                renderGallery(data, contentContainer);
+
+            } catch (error) {
+                console.error("Failed to load gallery:", error);
+                contentContainer.innerHTML = `
+                    <div style="
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        height: 100%;
+                        color: #ff6b9d;
+                        font-size: 16px;
+                        font-weight: 600;
+                        text-align: center;
+                        padding: 40px;
+                    ">
+                        <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+                        <div>加载图库失败</div>
+                        <div style="font-size: 14px; color: #ff9cbd; margin-top: 10px;">${error.message}</div>
+                    </div>
+                `;
+            }
+        }
+
+        function renderGallery(data, container) {
+            container.innerHTML = `
+                <style>
+                    .gallery-container * {
+                        box-sizing: border-box;
+                        margin: 0;
+                        padding: 0;
+                    }
+                    .gallery-header {
+                        display: flex;
+                        gap: 8px;
+                        flex-wrap: wrap;
+                        align-items: center;
+                        padding: 10px 14px;
+                        background: rgba(255, 255, 255, 0.9);
+                        border-radius: 16px;
+                        margin-bottom: 12px;
+                        box-shadow: 0 2px 8px rgba(255, 182, 159, 0.2);
+                    }
+                    .gallery-search {
+                        flex: 1;
+                        min-width: 200px;
+                        max-width: 400px;
+                    }
+                    .gallery-search input {
+                        width: 100%;
+                        padding: 8px 14px;
+                        border: 2px solid #ffb6c1;
+                        border-radius: 16px;
+                        background: #fff5f8;
+                        color: #4a4a4a;
+                        font-size: 13px;
+                        transition: all 0.2s;
+                    }
+                    .gallery-search input:focus {
+                        outline: none;
+                        border-color: #ff6b9d;
+                        background: #fff;
+                    }
+                    .gallery-btn {
+                        padding: 6px 12px;
+                        border: 2px solid #ffb6c1;
+                        border-radius: 12px;
+                        background: #fff5f8;
+                        color: #ff6b9d;
+                        cursor: pointer;
+                        font-size: 12px;
+                        font-weight: 600;
+                        transition: all 0.2s;
+                    }
+                    .gallery-btn:hover {
+                        background: #ffeef2;
+                        transform: translateY(-1px);
+                    }
+                    .gallery-btn.active {
+                        background: #ff6b9d;
+                        border-color: #ff6b9d;
+                        color: #fff;
+                    }
+                    .gallery-select {
+                        padding: 6px 12px;
+                        border: 2px solid #ffb6c1;
+                        border-radius: 12px;
+                        background: #fff5f8;
+                        color: #ff6b9d;
+                        font-size: 12px;
+                        font-weight: 600;
+                        cursor: pointer;
+                    }
+                    .gallery-stats {
+                        color: #ff9cbd;
+                        font-size: 12px;
+                        font-weight: 600;
+                    }
+                    .gallery-grid {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+                        gap: 14px;
+                    }
+                    .gallery-card {
+                        background: rgba(255, 255, 255, 0.95);
+                        border-radius: 16px;
+                        padding: 12px;
+                        box-shadow: 0 2px 12px rgba(255, 182, 159, 0.15);
+                        transition: all 0.2s;
+                    }
+                    .gallery-card:hover {
+                        transform: translateY(-2px);
+                        box-shadow: 0 4px 16px rgba(255, 182, 159, 0.25);
+                    }
+                    .gallery-card-header {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        margin-bottom: 10px;
+                        flex-wrap: wrap;
+                    }
+                    .gallery-artist-name {
+                        font-size: 14px;
+                        font-weight: 700;
+                        color: #ff6b9d;
+                        flex: 1;
+                        min-width: 0;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
+                    .gallery-artist-count {
+                        color: #ffb6c1;
+                        font-size: 11px;
+                        font-weight: 600;
+                        background: #fff5f8;
+                        padding: 3px 8px;
+                        border-radius: 10px;
+                    }
+                    .gallery-actions {
+                        display: flex;
+                        gap: 4px;
+                    }
+                    .gallery-icon-btn {
+                        padding: 4px 8px;
+                        border: 2px solid #e8e8e8;
+                        border-radius: 10px;
+                        background: #fff;
+                        color: #999;
+                        cursor: pointer;
+                        font-size: 11px;
+                        font-weight: 600;
+                        transition: all 0.2s;
+                    }
+                    .gallery-icon-btn:hover {
+                        border-color: #ffb6c1;
+                        color: #ff6b9d;
+                    }
+                    .gallery-icon-btn.fav-active {
+                        color: #ffd700;
+                        border-color: #ffd700;
+                        background: #fffbe6;
+                    }
+                    .gallery-icon-btn.copied {
+                        color: #4caf50;
+                        border-color: #4caf50;
+                        background: #e8f5e9;
+                    }
+                    .gallery-image-container {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    .gallery-image-main {
+                        width: 100%;
+                        aspect-ratio: 16/9;
+                        border-radius: 12px;
+                        overflow: hidden;
+                    }
+                    .gallery-image-thumbnails {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+                        gap: 6px;
+                    }
+                    .gallery-image-item {
+                        aspect-ratio: 1;
+                        border-radius: 8px;
+                        overflow: hidden;
+                        cursor: pointer;
+                        background: #f8f8f8;
+                        transition: all 0.2s;
+                    }
+                    .gallery-image-item:hover {
+                        transform: scale(1.05);
+                        box-shadow: 0 2px 8px rgba(255, 107, 157, 0.3);
+                    }
+                    .gallery-image-item img {
+                        width: 100%;
+                        height: 100%;
+                        object-fit: cover;
+                    }
+                    .gallery-lightbox {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        background: rgba(0, 0, 0, 0.95);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        z-index: 10001;
+                        opacity: 0;
+                        pointer-events: none;
+                        transition: opacity 0.3s;
+                    }
+                    .gallery-lightbox.open {
+                        opacity: 1;
+                        pointer-events: auto;
+                    }
+                    .gallery-lightbox-content {
+                        position: relative;
+                        max-width: 90vw;
+                        max-height: 90vh;
+                    }
+                    .gallery-lightbox-img {
+                        max-width: 90vw;
+                        max-height: 85vh;
+                        object-fit: contain;
+                        border-radius: 12px;
+                    }
+                    .gallery-lightbox-close {
+                        position: absolute;
+                        top: -40px;
+                        right: 0;
+                        width: 32px;
+                        height: 32px;
+                        border: none;
+                        background: rgba(255, 255, 255, 0.2);
+                        color: #fff;
+                        font-size: 20px;
+                        cursor: pointer;
+                        border-radius: 50%;
+                        transition: all 0.2s;
+                    }
+                    .gallery-lightbox-close:hover {
+                        background: rgba(255, 255, 255, 0.3);
+                        transform: rotate(90deg);
+                    }
+                    .gallery-lightbox-nav {
+                        position: absolute;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        width: 40px;
+                        height: 40px;
+                        border: none;
+                        background: rgba(255, 255, 255, 0.2);
+                        color: #fff;
+                        font-size: 18px;
+                        cursor: pointer;
+                        border-radius: 50%;
+                        transition: all 0.2s;
+                    }
+                    .gallery-lightbox-nav:hover {
+                        background: rgba(255, 255, 255, 0.35);
+                        transform: translateY(-50%) scale(1.1);
+                    }
+                    .gallery-lightbox-prev { left: -50px; }
+                    .gallery-lightbox-next { right: -50px; }
+                    .gallery-lightbox-info {
+                        position: absolute;
+                        bottom: -30px;
+                        left: 0;
+                        right: 0;
+                        text-align: center;
+                        color: rgba(255, 255, 255, 0.8);
+                        font-size: 12px;
+                        font-weight: 600;
+                    }
+                </style>
+
+                <div class="gallery-container">
+                    <div class="gallery-header">
+                        <div class="gallery-search">
+                            <input type="text" id="gallery-search-input" placeholder="搜索画师..." />
+                        </div>
+                        <button class="gallery-btn" id="gallery-fav-btn">☆ 收藏</button>
+                        <select class="gallery-select" id="gallery-sort-select">
+                            <option value="name">名称</option>
+                            <option value="count">数量</option>
+                            <option value="time">时间</option>
+                        </select>
+                        <button class="gallery-btn" id="gallery-order-btn">⬇️</button>
+                        <div class="gallery-stats">
+                            <span id="gallery-current-count">0</span> / <span id="gallery-total-count">${data.totalCount}</span> 位
+                        </div>
+                    </div>
+                    <div class="gallery-grid" id="gallery-grid"></div>
+                </div>
+
+                <div class="gallery-lightbox" id="gallery-lightbox">
+                    <div class="gallery-lightbox-content">
+                        <button class="gallery-lightbox-close" id="lightbox-close">×</button>
+                        <img class="gallery-lightbox-img" id="lightbox-img" />
+                        <button class="gallery-lightbox-nav gallery-lightbox-prev" id="lightbox-prev">‹</button>
+                        <button class="gallery-lightbox-nav gallery-lightbox-next" id="lightbox-next">›</button>
+                        <div class="gallery-lightbox-info" id="lightbox-info"></div>
+                    </div>
+                </div>
+            `;
+
+            // 初始化状态
+            let searchQuery = '';
+            let sortBy = 'name';
+            let sortOrder = 'desc';
+            let showFavoritesOnly = false;
+            let favorites = loadFavorites();
+            let currentLightbox = { artistIndex: 0, imageIndex: 0 };
+
+            // 画师数据（添加收藏状态）
+            const artists = data.artists.map(a => ({...a}));
+
+            function getImageUrl(path) {
+                // 使用 ComfyUI 的 view 端点
+                const parts = path.split(/[/\\]/);
+                const filename = parts[parts.length - 1];
+                const subfolder = parts.slice(0, -1).join('/');
+
+                const params = new URLSearchParams({ filename });
+                if (subfolder) {
+                    params.append('subfolder', subfolder);
+                }
+                return `/view?${params.toString()}`;
+            }
+
+            function loadFavorites() {
+                try {
+                    const saved = localStorage.getItem('artist-favorites');
+                    return saved ? new Set(JSON.parse(saved)) : new Set();
+                } catch {
+                    return new Set();
+                }
+            }
+
+            function saveFavorites(favs) {
+                localStorage.setItem('artist-favorites', JSON.stringify([...favs]));
+            }
+
+            function getFilteredArtists() {
+                let result = [...artists];
+
+                if (searchQuery) {
+                    const query = searchQuery.toLowerCase();
+                    result = result.filter(a => a.name.toLowerCase().includes(query));
+                }
+
+                if (showFavoritesOnly) {
+                    result = result.filter(a => favorites.has(a.name));
+                }
+
+                result.sort((a, b) => {
+                    let comparison = 0;
+                    if (sortBy === 'name') {
+                        comparison = a.name.localeCompare(b.name, 'zh-CN');
+                    } else if (sortBy === 'count') {
+                        comparison = a.imageCount - b.imageCount;
+                    } else if (sortBy === 'time') {
+                        const aTime = Math.max(...a.images.map(img => img.mtime));
+                        const bTime = Math.max(...b.images.map(img => img.mtime));
+                        comparison = aTime - bTime;
+                    }
+                    return sortOrder === 'asc' ? comparison : -comparison;
+                });
+
+                return result;
+            }
+
+            function renderCards() {
+                const filtered = getFilteredArtists();
+                const grid = document.getElementById('gallery-grid');
+                document.getElementById('gallery-current-count').textContent = filtered.length;
+
+                if (filtered.length === 0) {
+                    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 60px; color: #ff9cbd; font-size: 16px; font-weight: 600;">🔍 没有找到匹配的画师</div>';
+                    return;
+                }
+
+                grid.innerHTML = filtered.map((artist, artistIndex) => `
+                    <div class="gallery-card">
+                        <div class="gallery-card-header">
+                            <span class="gallery-artist-name" title="${artist.name}">${artist.displayName}</span>
+                            <span class="gallery-artist-count">${artist.imageCount}张</span>
+                            <div class="gallery-actions">
+                                <button class="gallery-icon-btn copy-btn" data-artist="${artist.name}">📋</button>
+                                <button class="gallery-icon-btn ${favorites.has(artist.name) ? 'fav-active' : ''}" data-fav="${artist.name}">
+                                    ${favorites.has(artist.name) ? '⭐' : '☆'}
+                                </button>
+                            </div>
+                        </div>
+                        <div class="gallery-image-container">
+                            <div class="gallery-image-main">
+                                <div class="gallery-image-item" data-main-artist="${artistIndex}">
+                                    <img src="${getImageUrl(artist.images[0].path)}" alt="${artist.name}" loading="lazy" />
+                                </div>
+                            </div>
+                            <div class="gallery-image-thumbnails">
+                                ${artist.images.slice(1).map((img, imgIndex) => `
+                                    <div class="gallery-image-item" data-thumb-artist="${artistIndex}" data-thumb-index="${imgIndex + 1}">
+                                        <img src="${getImageUrl(img.path)}" alt="${artist.name}" loading="lazy" />
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                // 绑定事件
+                grid.querySelectorAll('.copy-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const artistName = btn.dataset.artist;
+                        navigator.clipboard.writeText(`@${artistName}`).then(() => {
+                            btn.classList.add('copied');
+                            btn.textContent = '✓';
+                            setTimeout(() => {
+                                btn.classList.remove('copied');
+                                btn.textContent = '📋';
+                            }, 1500);
+                        });
+                    });
+                });
+
+                grid.querySelectorAll('[data-fav]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const artistName = btn.dataset.fav;
+                        if (favorites.has(artistName)) {
+                            favorites.delete(artistName);
+                            btn.classList.remove('fav-active');
+                            btn.textContent = '☆';
+                        } else {
+                            favorites.add(artistName);
+                            btn.classList.add('fav-active');
+                            btn.textContent = '⭐';
+                        }
+                        saveFavorites(favorites);
+                    });
+                });
+
+                grid.querySelectorAll('[data-main-artist]').forEach(item => {
+                    item.addEventListener('click', () => {
+                        openLightbox(parseInt(item.dataset.mainArtist), 0);
+                    });
+                });
+
+                grid.querySelectorAll('[data-thumb-artist]').forEach(item => {
+                    item.addEventListener('click', () => {
+                        openLightbox(parseInt(item.dataset.thumbArtist), parseInt(item.dataset.thumbIndex));
+                    });
+                });
+            }
+
+            function openLightbox(artistIndex, imageIndex) {
+                const filtered = getFilteredArtists();
+                const artist = filtered[artistIndex];
+                if (!artist || !artist.images[imageIndex]) return;
+
+                currentLightbox = { artistIndex, imageIndex };
+                const img = artist.images[imageIndex];
+                const lightbox = document.getElementById('gallery-lightbox');
+                const lightboxImg = document.getElementById('lightbox-img');
+                const lightboxInfo = document.getElementById('lightbox-info');
+
+                lightboxImg.src = getImageUrl(img.path);
+                lightboxInfo.textContent = `${artist.displayName} · ${imageIndex + 1} / ${artist.images.length}`;
+                lightbox.classList.add('open');
+            }
+
+            function closeLightbox() {
+                document.getElementById('gallery-lightbox').classList.remove('open');
+            }
+
+            function navigateLightbox(direction) {
+                const filtered = getFilteredArtists();
+                const artist = filtered[currentLightbox.artistIndex];
+                let newIndex = currentLightbox.imageIndex + direction;
+
+                if (newIndex < 0) newIndex = artist.images.length - 1;
+                if (newIndex >= artist.images.length) newIndex = 0;
+
+                openLightbox(currentLightbox.artistIndex, newIndex);
+            }
+
+            // 绑定搜索和筛选事件
+            document.getElementById('gallery-search-input').addEventListener('input', (e) => {
+                searchQuery = e.target.value;
+                renderCards();
+            });
+
+            document.getElementById('gallery-fav-btn').addEventListener('click', (e) => {
+                showFavoritesOnly = !showFavoritesOnly;
+                e.target.textContent = showFavoritesOnly ? '⭐ 全部' : '☆ 收藏';
+                e.target.classList.toggle('active', showFavoritesOnly);
+                renderCards();
+            });
+
+            document.getElementById('gallery-sort-select').addEventListener('change', (e) => {
+                sortBy = e.target.value;
+                renderCards();
+            });
+
+            document.getElementById('gallery-order-btn').addEventListener('click', (e) => {
+                sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+                e.target.textContent = sortOrder === 'asc' ? '⬆️' : '⬇️';
+                renderCards();
+            });
+
+            // Lightbox 事件
+            document.getElementById('lightbox-close').addEventListener('click', closeLightbox);
+            document.getElementById('lightbox-prev').addEventListener('click', () => navigateLightbox(-1));
+            document.getElementById('lightbox-next').addEventListener('click', () => navigateLightbox(1));
+            document.getElementById('gallery-lightbox').addEventListener('click', (e) => {
+                if (e.target.id === 'gallery-lightbox') closeLightbox();
+            });
+
+            // 键盘事件
+            const handleKey = (e) => {
+                if (!document.getElementById('gallery-lightbox').classList.contains('open')) return;
+                if (e.key === 'Escape') closeLightbox();
+                if (e.key === 'ArrowLeft') navigateLightbox(-1);
+                if (e.key === 'ArrowRight') navigateLightbox(1);
+            };
+            document.addEventListener('keydown', handleKey);
+
+            // 保存清理函数
+            if (modalOverlay) {
+                modalOverlay._cleanup = () => {
+                    document.removeEventListener('keydown', handleKey);
+                };
+            }
+
+            // 初始渲染
+            renderCards();
+        }
+
+        function saveButtonPosition() {
+            const pos = {
+                left: floatingButton.offsetLeft,
+                top: floatingButton.offsetTop
+            };
+            localStorage.setItem('artist-gallery-btn-pos', JSON.stringify(pos));
+        }
+
+        function loadButtonPosition() {
+            try {
+                const saved = localStorage.getItem('artist-gallery-btn-pos');
+                if (saved) {
+                    const pos = JSON.parse(saved);
+                    floatingButton.style.left = pos.left + "px";
+                    floatingButton.style.top = pos.top + "px";
+                    floatingButton.style.right = "auto";
+                    floatingButton.style.bottom = "auto";
+                }
+            } catch (e) {
+                console.error("Failed to load button position:", e);
+            }
+        }
+    }
+});
