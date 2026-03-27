@@ -5,13 +5,26 @@
       "name": "@tianliang duohe fangdongye",
       "displayName": "@tianliang duohe fangdongye",
       "createdAt": 1774544126025,
-      "imageCount": 7
+      "imageCount": 7,
+      "categoryId": "root",
+      "coverImageId": null
     },
     {
       "id": "77bb40a6-10f3-415d-a54c-8e03a0367409",
       "name": "@sy4",
       "displayName": "@sy4",
       "createdAt": 1774616679532,
+      "imageCount": 5,
+      "categoryId": "root",
+      "coverImageId": null
+    },
+    {
+      "id": "d6484a55-502e-49e3-8260-a54a561adaa2",
+      "name": "12",
+      "displayName": "1321",
+      "categoryId": "31d23c4f-6d5a-487f-8c6d-6cb865af61d5",
+      "coverImageId": null,
+      "createdAt": 1774623502397,
       "imageCount": 0
     }
   ]

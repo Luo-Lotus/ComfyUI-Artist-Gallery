@@ -1,0 +1,36 @@
+{
+  "categories": [
+    {
+      "id": "root",
+      "name": "all",
+      "displayName": "全部",
+      "parentId": null,
+      "order": 0,
+      "createdAt": 1774621730470
+    },
+    {
+      "id": "770bb0c5-3893-4f9e-bea9-1715134799f8",
+      "name": "test1",
+      "displayName": "测试1",
+      "parentId": "root",
+      "order": 0,
+      "createdAt": 1774621788203
+    },
+    {
+      "id": "31d23c4f-6d5a-487f-8c6d-6cb865af61d5",
+      "name": "folder2",
+      "displayName": "folder2",
+      "parentId": "root",
+      "order": 1,
+      "createdAt": 1774622694838
+    },
+    {
+      "id": "050a82fe-fda2-4b51-856e-441a65ab3e2b",
+      "name": "test56",
+      "displayName": "test65",
+      "parentId": "31d23c4f-6d5a-487f-8c6d-6cb865af61d5",
+      "order": 0,
+      "createdAt": 1774623035562
+    }
+  ]
+}

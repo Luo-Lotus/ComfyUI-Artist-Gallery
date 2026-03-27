@@ -76,6 +76,61 @@
         "width": 512,
         "height": 768
       }
+    },
+    {
+      "imagePath": "artist_gallery/AG_1774623632438_00000.png",
+      "artistIds": [
+        "77bb40a6-10f3-415d-a54c-8e03a0367409"
+      ],
+      "savedAt": 1774623632468,
+      "metadata": {
+        "width": 512,
+        "height": 768
+      }
+    },
+    {
+      "imagePath": "artist_gallery/AG_1774623646960_00000.png",
+      "artistIds": [
+        "77bb40a6-10f3-415d-a54c-8e03a0367409"
+      ],
+      "savedAt": 1774623646998,
+      "metadata": {
+        "width": 512,
+        "height": 768
+      }
+    },
+    {
+      "imagePath": "artist_gallery/AG_1774623661416_00000.png",
+      "artistIds": [
+        "77bb40a6-10f3-415d-a54c-8e03a0367409"
+      ],
+      "savedAt": 1774623661452,
+      "metadata": {
+        "width": 512,
+        "height": 768
+      }
+    },
+    {
+      "imagePath": "artist_gallery/AG_1774623685908_00000.png",
+      "artistIds": [
+        "77bb40a6-10f3-415d-a54c-8e03a0367409"
+      ],
+      "savedAt": 1774623685952,
+      "metadata": {
+        "width": 512,
+        "height": 768
+      }
+    },
+    {
+      "imagePath": "artist_gallery/AG_1774623700453_00000.png",
+      "artistIds": [
+        "77bb40a6-10f3-415d-a54c-8e03a0367409"
+      ],
+      "savedAt": 1774623700508,
+      "metadata": {
+        "width": 512,
+        "height": 768
+      }
     }
   ]
 }

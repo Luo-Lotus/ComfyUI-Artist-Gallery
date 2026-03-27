@@ -10,10 +10,7 @@ export async function addArtist(artistData) {
     const response = await fetch('/artist_gallery/artists', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            name: artistData.name.trim(),
-            displayName: artistData.displayName.trim() || artistData.name.trim(),
-        }),
+        body: JSON.stringify(artistData),
     });
     return await response.json();
 }
@@ -25,10 +22,7 @@ export async function updateArtist(artistId, artistData) {
     const response = await fetch(`/artist_gallery/artists/${artistId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            name: artistData.name.trim(),
-            displayName: artistData.displayName.trim() || artistData.name.trim(),
-        }),
+        body: JSON.stringify(artistData),
     });
     return await response.json();
 }

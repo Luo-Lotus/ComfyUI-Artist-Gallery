@@ -930,3 +930,396 @@
     border-top: 1px solid #eee;  /* 添加顶部边框分隔 */
     background: #fafafa;  /* 浅灰色背景区分 */
 }
+
+/* ============ 分类卡片样式 ============ */
+.category-card {
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 2px 8px rgba(255, 107, 157, 0.1);
+    border: 2px solid transparent;
+    position: relative;
+}
+
+.category-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(255, 107, 157, 0.2);
+    border-color: #ffb6c1;
+}
+
+.category-icon {
+    font-size: 48px;
+    flex-shrink: 0;
+}
+
+.category-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.category-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: #ff6b9d;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.category-meta {
+    font-size: 13px;
+    color: #999;
+}
+
+.category-actions {
+    display: none;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.category-card.hovered .category-actions {
+    display: flex;
+}
+
+.category-action-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: none;
+    background: #fff5f8;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.category-action-btn:hover {
+    background: #ffe0e9;
+    transform: scale(1.1);
+}
+
+.category-action-btn.delete-btn:hover {
+    background: #fee;
+    color: #ef4444;
+}
+
+/* ============ 面包屑导航样式 ============ */
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    background: rgba(255, 255, 255, 0.95);
+    border-bottom: 2px solid #ffb6c1;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.breadcrumb-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.breadcrumb-link {
+    background: none;
+    border: none;
+    color: #ff6b9d;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.breadcrumb-link:hover:not(:disabled) {
+    background: #fff5f8;
+    text-decoration: underline;
+}
+
+.breadcrumb-link:disabled {
+    color: #999;
+    cursor: default;
+    text-decoration: none;
+}
+
+.breadcrumb-separator {
+    color: #ffb6c1;
+    font-weight: 600;
+}
+
+/* ============ 画师详情模态框样式 ============ */
+.artist-detail-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10001;
+}
+
+.artist-detail-content {
+    width: 90vw;
+    height: 90vh;
+    background: #1a1a1a;
+    border-radius: 20px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.artist-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid #333;
+    background: #1a1a1a;
+}
+
+.artist-detail-header h2 {
+    margin: 0;
+    font-size: 20px;
+    color: #e0e0e0;
+}
+
+.artist-detail-header .close-btn {
+    background: none;
+    border: none;
+    color: #e0e0e0;
+    font-size: 24px;
+    cursor: pointer;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+
+.artist-detail-header .close-btn:hover {
+    background: #333;
+}
+
+.artist-detail-grid {
+    flex: 1;
+    padding: 24px;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+}
+
+.artist-detail-image-item {
+    aspect-ratio: 1;
+    overflow: hidden;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: transform 0.2s;
+    background: #2a2a2a;
+}
+
+.artist-detail-image-item:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(255, 107, 157, 0.3);
+}
+
+.artist-detail-image-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.artist-detail-empty {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: #888;
+}
+
+/* ============ 封面选择器样式 ============ */
+.cover-selector {
+    margin-top: 16px;
+}
+
+.cover-selector label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #ff6b9d;
+}
+
+.cover-selector-empty {
+    color: #999;
+    font-size: 14px;
+    text-align: center;
+    padding: 20px;
+    background: #f5f5f5;
+    border-radius: 8px;
+}
+
+.cover-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 8px;
+}
+
+.cover-item {
+    aspect-ratio: 1;
+    overflow: hidden;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    position: relative;
+    transition: all 0.2s;
+}
+
+.cover-item:hover {
+    border-color: #ffb6c1;
+    transform: scale(1.05);
+}
+
+.cover-item.selected {
+    border-color: #4a9eff;
+    box-shadow: 0 0 0 4px rgba(74, 158, 255, 0.2);
+}
+
+.cover-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.cover-badge {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    background: #4a9eff;
+    color: white;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+/* ============ 分类对话框样式 ============ */
+.category-dialog-content {
+    padding: 16px;
+}
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #ff6b9d;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 10px 12px;
+    background: #fff5f8;
+    border: 2px solid #ffb6c1;
+    border-radius: 8px;
+    color: #333;
+    font-size: 14px;
+    transition: border-color 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #ff6b9d;
+    background: white;
+}
+
+.form-group input:disabled {
+    background: #f5f5f5;
+    color: #999;
+    cursor: not-allowed;
+}
+
+.dialog-error {
+    background: #ef4444;
+    color: white;
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+
+/* ============ 封面图片样式（修改后的 GalleryCard） ============ */
+.gallery-image-cover {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+    border-radius: 12px;
+    cursor: pointer;
+    background: #2a2a2a;
+}
+
+.gallery-image-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s;
+}
+
+.gallery-image-cover:hover img {
+    transform: scale(1.05);
+}
+
+/* ============ ArtistSelector 分类选择样式 ============ */
+.artist-selector-category-section {
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.artist-selector-category-select {
+    flex: 1;
+    padding: 6px 8px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    color: #e0e0e0;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.artist-selector-category-select:hover {
+    border-color: #4a9eff;
+    background: #3a3a3a;
+}
+
+.artist-selector-category-select:focus {
+    outline: none;
+    border-color: #4a9eff;
+    box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
+}
+

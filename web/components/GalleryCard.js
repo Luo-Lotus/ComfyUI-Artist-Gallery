@@ -14,10 +14,15 @@ export function GalleryCard({
     onImageClick,
     onDelete,
     onEdit,
+    onSetCover,
 }) {
     const [copied, setCopied] = useState(false);
     const isFav = favorites.has(artist.name);
     const hasImages = artist.images && artist.images.length > 0;
+
+    // 获取封面图片路径
+    const coverImagePath = artist.coverImageId || (hasImages ? artist.images[0].path : null);
+    const coverImage = hasImages ? artist.images.find(img => img.path === coverImagePath) || artist.images[0] : null;
 
     // ============ 事件处理 ============
 
@@ -74,60 +79,26 @@ export function GalleryCard({
     };
 
     /**
-     * 渲染主图
+     * 渲染封面图片
      */
-    const renderMainImage = () => {
-        return h(
-            'div',
-            { class: 'gallery-image-main' },
-            h(
-                'div',
-                {
-                    class: 'gallery-image-item',
-                    onClick: () => onImageClick(artistIndex, 0),
-                },
-                h('img', {
-                    src: buildImageUrl(artist.images[0].path),
-                    alt: artist.name,
-                    loading: 'lazy',
-                }),
-            ),
-        );
-    };
+    const renderCoverImage = () => {
+        if (!coverImage) return renderEmptyState();
 
-    /**
-     * 渲染缩略图
-     */
-    const renderThumbnails = () => {
-        if (artist.images.length <= 1) return null;
-
-        return h('div', { class: 'gallery-image-thumbnails' }, [
-            artist.images.slice(1).map((img, imgIndex) =>
-                h(
-                    'div',
-                    {
-                        key: `${artist.name}-${imgIndex + 1}`,
-                        class: 'gallery-image-item',
-                        onClick: () => onImageClick(artistIndex, imgIndex + 1),
-                    },
-                    h('img', {
-                        src: buildImageUrl(img.path),
-                        alt: artist.name,
-                        loading: 'lazy',
-                    }),
-                ),
-            ),
-        ]);
+        return h('div', {
+            class: 'gallery-image-cover',
+            onClick: () => onImageClick && onImageClick(artistIndex)
+        }, h('img', {
+            src: buildImageUrl(coverImage.path),
+            alt: artist.name,
+            loading: 'lazy'
+        }));
     };
 
     /**
      * 渲染有图片的状态
      */
     const renderWithImages = () => {
-        return h('div', { class: 'gallery-image-container' }, [
-            renderMainImage(),
-            renderThumbnails(),
-        ]);
+        return renderCoverImage();
     };
 
     /**

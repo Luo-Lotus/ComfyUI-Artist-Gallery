@@ -4,8 +4,7 @@
 import { useState, useEffect } from '../../lib/hooks.mjs';
 import { fetchGalleryData } from '../../utils.js';
 
-export function useGalleryData() {
-
+export function useGalleryData(categoryId = 'root') {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -14,7 +13,7 @@ export function useGalleryData() {
         setLoading(true);
         setError(null);
         try {
-            const result = await fetchGalleryData();
+            const result = await fetchGalleryData(categoryId);
             // 预计算最大时间用于排序优化
             result.artists = result.artists.map((artist) => ({
                 ...artist,

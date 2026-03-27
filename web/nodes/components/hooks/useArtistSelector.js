@@ -4,9 +4,23 @@
  */
 import { useState, useEffect, useMemo } from '../../../lib/hooks.mjs';
 
+// 辅助函数：扁平化分类树
+function flattenCategories(tree) {
+    const result = [];
+    function traverse(node) {
+        result.push(node);
+        if (node.children) {
+            node.children.forEach(traverse);
+        }
+    }
+    tree.forEach(traverse);
+    return result;
+}
+
 export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
     // 状态管理
     const [artists, setArtists] = useState([]);
+    const [categories, setCategories] = useState([]);
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -14,14 +28,36 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
     const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
     const [sortBy, setSortBy] = useState('name');
     const [sortOrder, setSortOrder] = useState('asc');
+    const [currentCategory, setCurrentCategory] = useState('root');
 
-    // 加载画师列表
+    // 加载分类列表
+    useEffect(() => {
+        const loadCategories = async () => {
+            try {
+                const response = await fetch('/artist_gallery/categories');
+                const data = await response.json();
+                setCategories(flattenCategories(data.categories || []));
+            } catch (error) {
+                console.error('[ArtistSelector] Failed to load categories:', error);
+            }
+        };
+        loadCategories();
+    }, []);
+
+    // 加载画师列表（根据分类筛选）
     useEffect(() => {
         const loadArtists = async () => {
+            setLoading(true);
             try {
-                const response = await fetch('/artist_gallery/artists');
+                const url = currentCategory === 'root'
+                    ? '/artist_gallery/artists'
+                    : `/artist_gallery/data?category=${currentCategory}`;
+                const response = await fetch(url);
                 const data = await response.json();
-                setArtists(data.artists || []);
+
+                // 从响应中提取画师数据
+                const artistsList = data.artists || [];
+                setArtists(artistsList);
 
                 // 画师列表加载后，恢复之前的选择
                 const savedSelection = localStorage.getItem(
@@ -50,7 +86,7 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
             }
         };
         loadArtists();
-    }, []);
+    }, [currentCategory]);
 
     // 过滤和排序
     const filteredArtists = useMemo(() => {
@@ -73,7 +109,7 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
             } else if (sortBy === 'created_at') {
                 comparison = a.createdAt - b.createdAt;
             } else if (sortBy === 'image_count') {
-                comparison = a.imageCount - b.imageCount;
+                comparison = (a.imageCount || 0) - (b.imageCount || 0);
             }
             return sortOrder === 'asc' ? comparison : -comparison;
         });
@@ -150,9 +186,17 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
 
     const selectedArtistsList = artists.filter((a) => selectedIds.has(a.id));
 
+    // 分类切换处理
+    const handleCategoryChange = (categoryId) => {
+        setCurrentCategory(categoryId);
+        // 切换分类时清空搜索
+        setSearchQuery('');
+    };
+
     return {
         // 状态
         artists,
+        categories,
         selectedIds,
         loading,
         searchQuery,
@@ -160,6 +204,7 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
         hoverPosition,
         sortBy,
         sortOrder,
+        currentCategory,
         filteredArtists,
         selectedArtistsList,
         // 操作
@@ -169,5 +214,6 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
         toggleSelection,
         handleMouseEnter,
         setHoveredImage,
+        handleCategoryChange,
     };
 }

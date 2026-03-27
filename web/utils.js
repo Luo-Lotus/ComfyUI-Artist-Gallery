@@ -54,11 +54,89 @@ export function buildImageUrl(path) {
     return `/view?${params.toString()}`;
 }
 
-export async function fetchGalleryData() {
-    const response = await fetch('/artist_gallery/data');
+export async function fetchGalleryData(categoryId = 'root') {
+    const url = categoryId === 'root'
+        ? '/artist_gallery/data'
+        : `/artist_gallery/data?category=${categoryId}`;
+    const response = await fetch(url);
     const data = await response.json();
     if (data.error) {
         throw new Error(data.error);
     }
     return data;
+}
+
+// ============ Category API ============
+
+export async function fetchCategories() {
+    const response = await fetch('/artist_gallery/categories');
+    if (!response.ok) {
+        throw new Error('获取分类失败');
+    }
+    return await response.json();
+}
+
+export async function addCategory(data) {
+    const response = await fetch('/artist_gallery/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '添加分类失败');
+    }
+    return await response.json();
+}
+
+export async function updateCategory(categoryId, data) {
+    const response = await fetch(`/artist_gallery/categories/${categoryId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '更新分类失败');
+    }
+    return await response.json();
+}
+
+export async function deleteCategory(categoryId) {
+    const response = await fetch(`/artist_gallery/categories/${categoryId}`, {
+        method: 'DELETE'
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '删除分类失败');
+    }
+    return await response.json();
+}
+
+// ============ Breadcrumb Helper ============
+
+export function buildBreadcrumbPath(categoryId, categories) {
+    // 扁平化分类树
+    const flattenCategories = (tree) => {
+        const result = [];
+        function traverse(node) {
+            result.push(node);
+            if (node.children) {
+                node.children.forEach(traverse);
+            }
+        }
+        tree.forEach(traverse);
+        return result;
+    };
+
+    const flatCategories = flattenCategories(categories);
+    const path = [];
+    let current = flatCategories.find(c => c.id === categoryId);
+
+    while (current) {
+        path.unshift(current);
+        current = flatCategories.find(c => c.id === current.parentId);
+    }
+
+    return path;
 }

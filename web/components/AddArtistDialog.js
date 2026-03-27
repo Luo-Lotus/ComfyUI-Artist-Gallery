@@ -4,13 +4,24 @@
 import { h } from '../lib/preact.mjs';
 import { useState } from '../lib/hooks.mjs';
 import { showToast } from './Toast.js';
-import { addArtist, updateArtist, addArtistsBatch } from '../services/artistApi.js';
-import { Dialog, DialogButton, DialogFormGroup, DialogFormItem } from './Dialog.js';
+import {
+    addArtist,
+    updateArtist,
+    addArtistsBatch,
+} from '../services/artistApi.js';
+import {
+    Dialog,
+    DialogButton,
+    DialogFormGroup,
+    DialogFormItem,
+} from './Dialog.js';
 
 export function AddArtistDialog({
     isOpen,
     mode,
     editModeArtist,
+    categories,
+    currentCategoryId,
     onClose,
     onSave,
 }) {
@@ -19,6 +30,10 @@ export function AddArtistDialog({
     const [newArtistName, setNewArtistName] = useState('');
     const [newArtistDisplayName, setNewArtistDisplayName] = useState('');
     const [batchArtistText, setBatchArtistText] = useState('');
+    const [selectedCategoryId, setSelectedCategoryId] = useState(
+        currentCategoryId || 'root',
+    );
+    console.log(currentCategoryId);
 
     // ============ 工具函数 ============
 
@@ -30,7 +45,10 @@ export function AddArtistDialog({
     };
 
     const parseBatchText = (text) => {
-        const lines = text.split('\n').map((line) => line.trim()).filter((line) => line);
+        const lines = text
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line);
         return lines.map((line) => {
             const parts = line.split(',');
             return {
@@ -64,6 +82,9 @@ export function AddArtistDialog({
         const artistData = {
             name: newArtistName,
             displayName: newArtistDisplayName,
+            categoryId: editModeArtist
+                ? editModeArtist.categoryId
+                : selectedCategoryId,
         };
 
         try {
@@ -72,7 +93,10 @@ export function AddArtistDialog({
                 : await addArtist(artistData);
 
             if (data.success) {
-                showToast(editModeArtist ? '画师更新成功' : '画师添加成功', 'success');
+                showToast(
+                    editModeArtist ? '画师更新成功' : '画师添加成功',
+                    'success',
+                );
                 resetForm();
                 onSave();
             } else {
@@ -123,7 +147,11 @@ export function AddArtistDialog({
     if (editModeArtist && mode === 'edit' && !newArtistName) {
         setNewArtistName(editModeArtist.name);
         setNewArtistDisplayName(editModeArtist.displayName || '');
+        setSelectedCategoryId(editModeArtist.categoryId || 'root');
         setAddArtistMode('single');
+    } else if (isOpen && mode === 'add') {
+        // 添加模式时，使用当前分类
+        setSelectedCategoryId(currentCategoryId || 'root');
     }
 
     // ============ 渲染函数 ============
@@ -159,24 +187,56 @@ export function AddArtistDialog({
      */
     const renderSingleForm = () => {
         return h(DialogFormGroup, {}, [
-            h(DialogFormItem, {
-                label: '画师名称（唯一标识）',
-            }, h('input', {
-                type: 'text',
-                value: newArtistName,
-                onInput: (e) => setNewArtistName(e.target.value),
-                placeholder: '如: artist1',
-                class: 'gallery-form-input',
-            })),
-            h(DialogFormItem, {
-                label: '显示名称（可选）',
-            }, h('input', {
-                type: 'text',
-                value: newArtistDisplayName,
-                onInput: (e) => setNewArtistDisplayName(e.target.value),
-                placeholder: '如: 艺术家一',
-                class: 'gallery-form-input',
-            })),
+            h(
+                DialogFormItem,
+                {
+                    label: '画师名称（唯一标识）',
+                },
+                h('input', {
+                    type: 'text',
+                    value: newArtistName,
+                    onInput: (e) => setNewArtistName(e.target.value),
+                    placeholder: '如: artist1',
+                    class: 'gallery-form-input',
+                }),
+            ),
+            h(
+                DialogFormItem,
+                {
+                    label: '显示名称（可选）',
+                },
+                h('input', {
+                    type: 'text',
+                    value: newArtistDisplayName,
+                    onInput: (e) => setNewArtistDisplayName(e.target.value),
+                    placeholder: '如: 艺术家一',
+                    class: 'gallery-form-input',
+                }),
+            ),
+            categories &&
+                categories.length > 0 &&
+                h(
+                    DialogFormItem,
+                    {
+                        label: '所属分类',
+                    },
+                    h(
+                        'select',
+                        {
+                            value: selectedCategoryId,
+                            onInput: (e) =>
+                                setSelectedCategoryId(e.target.value),
+                            class: 'gallery-form-input',
+                        },
+                        categories.map((cat) =>
+                            h(
+                                'option',
+                                { value: cat.id, key: cat.id },
+                                cat.displayName,
+                            ),
+                        ),
+                    ),
+                ),
         ]);
     };
 
@@ -184,22 +244,28 @@ export function AddArtistDialog({
      * 渲染批量添加表单
      */
     const renderBatchForm = () => {
-        return h(DialogFormItem, {
-            label: '画师列表（每行一个，格式: 名称,显示名称 或仅名称）',
-        }, h('textarea', {
-            value: batchArtistText,
-            onInput: (e) => setBatchArtistText(e.target.value),
-            placeholder: 'artist1,艺术家一\nartist2,Artist Two\nartist3',
-            rows: 10,
-            class: 'gallery-form-textarea',
-        }));
+        return h(
+            DialogFormItem,
+            {
+                label: '画师列表（每行一个，格式: 名称,显示名称 或仅名称）',
+            },
+            h('textarea', {
+                value: batchArtistText,
+                onInput: (e) => setBatchArtistText(e.target.value),
+                placeholder: 'artist1,艺术家一\nartist2,Artist Two\nartist3',
+                rows: 10,
+                class: 'gallery-form-textarea',
+            }),
+        );
     };
 
     /**
      * 渲染表单内容
      */
     const renderForm = () => {
-        return addArtistMode === 'single' ? renderSingleForm() : renderBatchForm();
+        return addArtistMode === 'single'
+            ? renderSingleForm()
+            : renderBatchForm();
     };
 
     /**
@@ -207,27 +273,36 @@ export function AddArtistDialog({
      */
     const renderFooter = () => {
         return [
-            h(DialogButton, {
-                onClick: handleClose,
-            }, '取消'),
-            h(DialogButton, {
-                variant: 'primary',
-                onClick: handleSave,
-            }, editModeArtist ? '保存' : '确定'),
+            h(
+                DialogButton,
+                {
+                    onClick: handleClose,
+                },
+                '取消',
+            ),
+            h(
+                DialogButton,
+                {
+                    variant: 'primary',
+                    onClick: handleSave,
+                },
+                editModeArtist ? '保存' : '确定',
+            ),
         ];
     };
 
     // ============ 主渲染 ============
 
-    return h(Dialog, {
-        isOpen,
-        onClose: handleClose,
-        title: editModeArtist ? '编辑画师' : '添加画师',
-        titleIcon: editModeArtist ? '✏️' : '➕',
-        maxWidth: '500px',
-        footer: renderFooter(),
-    }, [
-        renderTabs(),
-        renderForm(),
-    ]);
+    return h(
+        Dialog,
+        {
+            isOpen,
+            onClose: handleClose,
+            title: editModeArtist ? '编辑画师' : '添加画师',
+            titleIcon: editModeArtist ? '✏️' : '➕',
+            maxWidth: '500px',
+            footer: renderFooter(),
+        },
+        [renderTabs(), renderForm()],
+    );
 }

@@ -12,6 +12,7 @@ export function ArtistSelectorWidget({
 }) {
     const {
         artists,
+        categories,
         selectedIds,
         loading,
         searchQuery,
@@ -19,6 +20,7 @@ export function ArtistSelectorWidget({
         hoverPosition,
         sortBy,
         sortOrder,
+        currentCategory,
         filteredArtists,
         selectedArtistsList,
         setSearchQuery,
@@ -27,6 +29,7 @@ export function ArtistSelectorWidget({
         toggleSelection,
         handleMouseEnter,
         setHoveredImage,
+        handleCategoryChange,
     } = useArtistSelector(nodeInstance, selectedInput, metadataInput);
 
     // ============ 子组件渲染函数 ============
@@ -66,6 +69,24 @@ export function ArtistSelectorWidget({
                       )
                     : h('span', { class: 'artist-selector-empty' }, '未选择画师'),
             ),
+        ]);
+    };
+
+    /**
+     * 渲染分类选择器
+     */
+    const renderCategorySelector = () => {
+        return h('div', { class: 'artist-selector-category-section' }, [
+            h('div', { class: 'artist-selector-label' }, '📁 分类'),
+            h('select', {
+                class: 'artist-selector-category-select',
+                value: currentCategory,
+                onChange: (e) => handleCategoryChange(e.target.value)
+            },
+                categories.map(cat =>
+                    h('option', { value: cat.id, key: cat.id }, cat.displayName)
+                )
+            )
         ]);
     };
 
@@ -172,6 +193,9 @@ export function ArtistSelectorWidget({
     return h('div', { class: 'artist-selector-container' }, [
         // 已选择的画师
         renderSelectedArtists(),
+
+        // 分类选择器
+        renderCategorySelector(),
 
         // 搜索框
         renderSearchBar(),
