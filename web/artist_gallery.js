@@ -30,6 +30,11 @@ const { GalleryModal } = await import(
     new URL('./components/GalleryModal.js', import.meta.url).href
 );
 
+// ============ 加载节点控件 ============
+await import(
+    new URL('./nodes/ArtistSelector.js', import.meta.url).href
+);
+
 // ============ 注册扩展 ============
 app.registerExtension({
     name: 'ArtistGallery.GalleryButton',

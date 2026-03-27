@@ -4,7 +4,7 @@
  */
 import { GalleryCard } from './GalleryCard.js';
 
-export function GalleryGrid({ artists, favorites, onFavoriteToggle, onImageClick }) {
+export function GalleryGrid({ artists, favorites, onFavoriteToggle, onImageClick, onEdit, onDelete }) {
     const { h } = self.preactCore;
     if (artists.length === 0) {
         return h('div', { class: 'gallery-empty' }, '🔍 没有找到匹配的画师');
@@ -20,6 +20,8 @@ export function GalleryGrid({ artists, favorites, onFavoriteToggle, onImageClick
                 favorites,
                 onFavoriteToggle,
                 onImageClick,
+                onEdit,
+                onDelete,
             }),
         ),
     );

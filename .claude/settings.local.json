@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//e/sd/ComfyUI_windows_portable/ComfyUI/custom_nodes/ComfyUI-Danbooru-Gallery/js/danbooru_gallery/**)",
+      "Read(//e/sd/ComfyUI_windows_portable/ComfyUI/custom_nodes/ComfyUI-Danbooru-Gallery/**)"
+    ]
+  }
+}

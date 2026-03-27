@@ -1,0 +1,48 @@
+{
+  "mappings": [
+    {
+      "imagePath": "artist_gallery/AG_1774592673728_00000.png",
+      "artistIds": [
+        "0e0b19c6-9f8f-4281-8dc4-2d5c7e9a9c56"
+      ],
+      "savedAt": 1774592673766,
+      "metadata": {
+        "width": 768,
+        "height": 512
+      }
+    },
+    {
+      "imagePath": "artist_gallery/AG_1774594132095_00000.png",
+      "artistIds": [
+        "0e0b19c6-9f8f-4281-8dc4-2d5c7e9a9c56"
+      ],
+      "savedAt": 1774594132119,
+      "metadata": {
+        "width": 768,
+        "height": 512
+      }
+    },
+    {
+      "imagePath": "artist_gallery/AG_1774594795348_00000.png",
+      "artistIds": [
+        "0e0b19c6-9f8f-4281-8dc4-2d5c7e9a9c56"
+      ],
+      "savedAt": 1774594795377,
+      "metadata": {
+        "width": 768,
+        "height": 512
+      }
+    },
+    {
+      "imagePath": "artist_gallery/AG_1774596889689_00000.png",
+      "artistIds": [
+        "0e0b19c6-9f8f-4281-8dc4-2d5c7e9a9c56"
+      ],
+      "savedAt": 1774596889729,
+      "metadata": {
+        "width": 768,
+        "height": 512
+      }
+    }
+  ]
+}
