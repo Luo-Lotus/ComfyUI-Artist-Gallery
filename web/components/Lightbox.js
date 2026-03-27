@@ -2,11 +2,11 @@
  * 图片灯箱组件
  * 用于全屏查看图片
  */
+import { h } from '../lib/preact.mjs';
+import { useState, useEffect } from '../lib/hooks.mjs';
 import { buildImageUrl } from '../utils.js';
 
 export function Lightbox({ isOpen, artist, imageIndex, onClose, onNavigate }) {
-    const { h, useEffect } = self.preactCore;
-    const { useState, useEffect: hookUseEffect } = self.preactHooks;
 
     if (!isOpen || !artist) return null;
 
@@ -20,7 +20,7 @@ export function Lightbox({ isOpen, artist, imageIndex, onClose, onNavigate }) {
         if (e.key === 'ArrowRight') handleNext();
     };
 
-    hookUseEffect(() => {
+    useEffect(() => {
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, [imageIndex]);

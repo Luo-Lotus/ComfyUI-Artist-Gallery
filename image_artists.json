@@ -43,6 +43,39 @@
         "width": 768,
         "height": 512
       }
+    },
+    {
+      "imagePath": "artist_gallery/AG_1774604277891_00000.png",
+      "artistIds": [
+        "0e0b19c6-9f8f-4281-8dc4-2d5c7e9a9c56"
+      ],
+      "savedAt": 1774604277924,
+      "metadata": {
+        "width": 512,
+        "height": 768
+      }
+    },
+    {
+      "imagePath": "artist_gallery/AG_1774604293826_00000.png",
+      "artistIds": [
+        "0e0b19c6-9f8f-4281-8dc4-2d5c7e9a9c56"
+      ],
+      "savedAt": 1774604293859,
+      "metadata": {
+        "width": 512,
+        "height": 768
+      }
+    },
+    {
+      "imagePath": "artist_gallery/AG_1774604308917_00000.png",
+      "artistIds": [
+        "0e0b19c6-9f8f-4281-8dc4-2d5c7e9a9c56"
+      ],
+      "savedAt": 1774604308948,
+      "metadata": {
+        "width": 512,
+        "height": 768
+      }
     }
   ]
 }

@@ -7,16 +7,19 @@ import { app } from '../../scripts/app.js';
 import { Draggable } from './Draggable.js';
 import { Storage } from './utils.js';
 
-// ============ 加载 Preact 库和 Hooks ============
-const { h, render, createElement } = await import(
-    new URL('./lib/preact.mjs', import.meta.url).href
-);
-const { useState, useEffect, useCallback, useMemo, useRef } =
-    await import(new URL('./lib/hooks.mjs', import.meta.url).href);
+// ============ 加载 Preact 库（使用标准 ES6 import）============
+import { h, render } from './lib/preact.mjs';
+import {
+    useState,
+    useEffect,
+    useCallback,
+    useMemo,
+    useRef,
+} from './lib/hooks.mjs';
 
-// 将 hooks 挂载到全局以便组件使用
+// 将 hooks 和核心函数挂载到全局以便兼容旧代码
 self.preactHooks = { useState, useEffect, useCallback, useMemo, useRef };
-self.preactCore = { h, render, createElement };
+self.preactCore = { h, render, createElement: h };
 
 // ============ 加载样式 ============
 const styleLink = document.createElement('link');
@@ -25,15 +28,8 @@ styleLink.href = new URL('./styles/gallery.css', import.meta.url);
 document.head.appendChild(styleLink);
 
 // ============ 加载组件 ============
-// 动态导入所有组件
-const { GalleryModal } = await import(
-    new URL('./components/GalleryModal.js', import.meta.url).href
-);
-
-// ============ 加载节点控件 ============
-await import(
-    new URL('./nodes/ArtistSelector.js', import.meta.url).href
-);
+const { GalleryModal } = await import('./components/GalleryModal.js');
+const { ToastContainer } = await import('./components/Toast.js');
 
 // ============ 注册扩展 ============
 app.registerExtension({
@@ -63,6 +59,11 @@ app.registerExtension({
         modalContainer.id = 'artist-gallery-modal-container';
         document.body.appendChild(modalContainer);
 
+        // 创建 Toast 容器
+        const toastContainer = document.createElement('div');
+        toastContainer.id = 'artist-gallery-toast-container';
+        document.body.appendChild(toastContainer);
+
         // 应用状态
         let isModalOpen = false;
 
@@ -79,6 +80,9 @@ app.registerExtension({
                 modalContainer,
             );
         }
+
+        // 渲染 Toast 容器（只渲染一次）
+        render(h(ToastContainer), toastContainer);
 
         // 初始化渲染
         renderModal();

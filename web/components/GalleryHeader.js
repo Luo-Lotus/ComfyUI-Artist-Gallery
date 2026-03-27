@@ -2,6 +2,8 @@
  * 画廊头部组件
  * 包含搜索、排序、筛选等功能
  */
+import { h } from '../lib/preact.mjs';
+
 export function GalleryHeader({
     totalCount,
     currentCount,
@@ -14,7 +16,6 @@ export function GalleryHeader({
     onOrderChange,
     onFavoriteToggle,
 }) {
-    const { h } = self.preactCore;
     return h(
         'div',
         { class: 'gallery-header' },
