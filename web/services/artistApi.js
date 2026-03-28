@@ -109,3 +109,40 @@ export async function copyImage(imagePath, toArtistId) {
     });
     return await response.json();
 }
+
+/**
+ * 保存循环状态
+ */
+export async function saveCycleState(nodeId, cycleIndex) {
+    const response = await fetch('/artist_gallery/cycle-state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            node_id: nodeId,
+            cycle_index: cycleIndex
+        }),
+    });
+    return await response.json();
+}
+
+/**
+ * 获取循环状态
+ */
+export async function getCycleState(nodeId) {
+    const response = await fetch(`/artist_gallery/cycle-state?node_id=${encodeURIComponent(nodeId)}`);
+    return await response.json();
+}
+
+/**
+ * 重置循环状态
+ */
+export async function resetCycleState(nodeId) {
+    const response = await fetch('/artist_gallery/cycle-state/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            node_id: nodeId
+        }),
+    });
+    return await response.json();
+}

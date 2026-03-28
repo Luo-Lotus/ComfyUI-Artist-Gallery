@@ -19,7 +19,11 @@ export function GalleryGrid({
     onCategoryEdit,
     onCategoryDelete,
     onMove,
-    onCopy
+    onCopy,
+    // 多选相关props
+    selectionMode = false,
+    selectedItems = new Set(),
+    onSelect,
 }) {
     // 计算每个分类的画师数量
     const categoryArtistCounts = useMemo(() => {
@@ -45,7 +49,11 @@ export function GalleryGrid({
                 onEdit: onCategoryEdit,
                 onDelete: onCategoryDelete,
                 onMove: () => onMove && onMove(category, 'category'),
-                onCopy: () => onCopy && onCopy(category, 'category')
+                onCopy: () => onCopy && onCopy(category, 'category'),
+                // 多选props
+                selectionMode,
+                selected: selectedItems.has(`category:${category.id}`),
+                onSelect,
             })
         ),
         // 再渲染画师卡片
@@ -60,7 +68,11 @@ export function GalleryGrid({
                 onEdit,
                 onDelete,
                 onMove: () => onMove && onMove(artist, 'artist'),
-                onCopy: () => onCopy && onCopy(artist, 'artist')
+                onCopy: () => onCopy && onCopy(artist, 'artist'),
+                // 多选props
+                selectionMode,
+                selected: selectedItems.has(`artist:${artist.categoryId}:${artist.name}`),
+                onSelect,
             }),
         ),
     ]);

@@ -18,11 +18,18 @@ export function GalleryCard({
     onSetCover,
     onMove,
     onCopy,
+    // 多选相关props
+    selectionMode = false,
+    selected = false,
+    onSelect,
 }) {
     const [copied, setCopied] = useState(false);
     const isFav = favorites.has(artist.name);
     const hasImages = artist.images && artist.images.length > 0;
     const { showContextMenu } = useContextMenu();
+
+    // 生成选择键（用于多选）
+    const selectionKey = `artist:${artist.categoryId}:${artist.name}`;
 
     // 获取封面图片路径
     const coverImagePath =
@@ -42,6 +49,9 @@ export function GalleryCard({
     };
 
     const handleContextMenu = (e) => {
+        // 多选模式下不显示右键菜单
+        if (selectionMode) return;
+
         const menuItems = [
             { icon: '📋', label: '复制名称', action: handleCopy },
             {
@@ -72,6 +82,18 @@ export function GalleryCard({
         ];
 
         showContextMenu(e, menuItems);
+    };
+
+    // 处理卡片点击（多选模式）
+    const handleCardClick = (e) => {
+        if (selectionMode && onSelect) {
+            e.stopPropagation();
+            onSelect({
+                id: selectionKey,
+                type: 'artist',
+                data: artist
+            });
+        }
     };
 
     // ============ 渲染函数 ============
@@ -122,7 +144,13 @@ export function GalleryCard({
             'div',
             {
                 class: 'gallery-image-cover',
-                onClick: () => onImageClick && onImageClick(artistIndex),
+                onClick: (e) => {
+                    if (selectionMode) {
+                        handleCardClick(e);
+                    } else {
+                        onImageClick && onImageClick(artistIndex);
+                    }
+                },
             },
             h('img', {
                 src: buildImageUrl(coverImage.path),
@@ -201,8 +229,13 @@ export function GalleryCard({
     return h(
         'div',
         {
-            class: `gallery-card`,
+            class: `gallery-card ${selectionMode ? 'selection-mode' : ''} ${selected ? 'selected' : ''}`,
             onContextMenu: handleContextMenu,
+            onClick: (e) => {
+                if (selectionMode) {
+                    handleCardClick(e);
+                }
+            },
         },
         [
             renderHeader(), // 头部（包含名称、数量和收藏按钮）

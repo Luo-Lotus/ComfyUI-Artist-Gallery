@@ -8,6 +8,7 @@ from aiohttp import web
 import server
 from .storage import get_storage, migrate_to_composite_key
 from .utils import decode_filename
+from . import import_handler
 
 
 # ============ Gallery 数据 API ============
@@ -375,10 +376,22 @@ async def update_artist_composite(request):
     """更新画师信息（使用组合键）"""
     try:
         category_id = request.match_info['category_id']
-        name = request.match_info['name']
+        old_name = request.match_info['name']
         data = await request.json()
 
-        artist_storage, _, category_storage = get_storage()
+        artist_storage, mapping_storage, category_storage = get_storage()
+
+        # 检查是否要修改名称
+        new_name = data.get("name", old_name)
+        name_changed = (old_name != new_name)
+
+        # 如果修改了名称，需要先检查新名称是否在任意分类下已存在
+        if name_changed:
+            # 获取所有画师，检查新名称是否已存在
+            all_artists = artist_storage.get_all_artists()
+            for artist in all_artists:
+                if artist.get("name") == new_name:
+                    return web.json_response({"error": f"画师名称 '{new_name}' 已存在（在分类 '{artist.get('categoryId', 'root')}' 中）"}, status=400)
 
         kwargs = {}
         if "displayName" in data:
@@ -391,26 +404,85 @@ async def update_artist_composite(request):
             kwargs["categoryId"] = data["categoryId"]
         if "coverImageId" in data:
             kwargs["coverImageId"] = data["coverImageId"]
+        if "name" in data:
+            kwargs["name"] = new_name
 
-        success = artist_storage.update_artist(category_id, name, **kwargs)
+        # 如果修改了名称，需要找到所有分类下同名的画师并批量更新
+        updated_artists = []
+        success = True  # 默认成功，用于非名称变更的情况
+
+        if name_changed:
+            # 获取所有画师
+            all_artists = artist_storage.get_all_artists()
+
+            # 找出所有与旧名称同名的画师
+            same_name_artists = [a for a in all_artists if a.get("name") == old_name]
+
+            # 批量更新所有同名画师
+            for same_name_artist in same_name_artists:
+                cat_id = same_name_artist.get("categoryId", "root")
+                # 更新画师名称（只传入需要更新的字段）
+                update_kwargs = {}
+                if "displayName" in kwargs:
+                    update_kwargs["displayName"] = kwargs["displayName"]
+                if "categoryId" in kwargs:
+                    update_kwargs["categoryId"] = kwargs["categoryId"]
+                if "coverImageId" in kwargs:
+                    update_kwargs["coverImageId"] = kwargs["coverImageId"]
+                update_kwargs["name"] = new_name
+
+                success = artist_storage.update_artist(cat_id, old_name, **update_kwargs)
+                if success:
+                    updated_artists.append({
+                        "categoryId": cat_id,
+                        "oldName": old_name,
+                        "newName": new_name
+                    })
+        else:
+            # 只更新当前画师（不修改名称）
+            success = artist_storage.update_artist(category_id, old_name, **kwargs)
 
         if success:
-            # 如果更新了 categoryId 或 name，需要重新查询
+            # 如果修改了名称，更新所有相关映射
+            updated_mappings = 0
+            if name_changed:
+                updated_mappings = mapping_storage.rename_artist_in_mappings(old_name, new_name)
+
+            # 重新查询更新后的画师信息
             new_category_id = kwargs.get("categoryId", category_id)
-            new_name = kwargs.get("name", name)
             artist = artist_storage.get_artist(new_category_id, new_name)
-            return web.json_response({"artist": artist, "success": True})
+
+            result = {
+                "artist": artist,
+                "success": True
+            }
+
+            # 如果更新了映射，添加更新数量
+            if name_changed:
+                result["updatedMappings"] = updated_mappings
+                result["updatedArtists"] = updated_artists
+
+            return web.json_response(result)
         else:
             return web.json_response({"error": "画师不存在"}, status=404)
     except ValueError as e:
         return web.json_response({"error": str(e)}, status=400)
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return web.json_response({"error": str(e)}, status=500)
 
 
 @server.PromptServer.instance.routes.delete(r"/artist_gallery/artists/{category_id}/{name:.+}")
 async def delete_artist_composite(request):
-    """删除画师（使用组合键）"""
+    """
+    删除画师（使用组合键）
+
+    删除逻辑：
+    - 检查是否存在其他分类的同名画师
+    - 如果存在：只删除画师记录，不修改图片映射
+    - 如果不存在：移除图片映射，删除孤儿图片
+    """
     try:
         category_id = request.match_info['category_id']
         name = request.match_info['name']
@@ -422,24 +494,29 @@ async def delete_artist_composite(request):
         if not artist:
             return web.json_response({"error": "画师不存在"}, status=404)
 
-        # 获取该画师关联的图片（使用画师名称）
-        mappings = mapping_storage.get_mappings_by_artist(name)
+        # 检查是否存在其他分类的同名画师
+        all_artists = artist_storage.get_all_artists()
+        same_name_artists = [a for a in all_artists if a.get("name") == name and a.get("categoryId") != category_id]
+        has_other_categories = len(same_name_artists) > 0
 
-        # 移除映射关系，获取孤儿图片（没有其他画师关联的图片）
-        orphan_images = mapping_storage.remove_artist_from_mappings(name)
-
-        # 删除孤儿图片文件
-        import folder_paths
-        output_dir = Path(folder_paths.get_output_directory())
         deleted_files = []
-        for image_path in orphan_images:
-            full_path = output_dir / image_path
-            try:
-                if full_path.exists():
-                    full_path.unlink()
-                    deleted_files.append(image_path)
-            except Exception as e:
-                print(f"Error deleting file {image_path}: {e}")
+
+        if not has_other_categories:
+            # 这是最后一个同名画师，可以安全清理图片
+            # 移除映射关系，获取孤儿图片（没有其他画师关联的图片）
+            orphan_images = mapping_storage.remove_artist_from_mappings(name)
+
+            # 删除孤儿图片文件
+            import folder_paths
+            output_dir = Path(folder_paths.get_output_directory())
+            for image_path in orphan_images:
+                full_path = output_dir / image_path
+                try:
+                    if full_path.exists():
+                        full_path.unlink()
+                        deleted_files.append(image_path)
+                except Exception as e:
+                    print(f"Error deleting file {image_path}: {e}")
 
         # 删除画师记录
         artist_storage.delete_artist(category_id, name)
@@ -447,7 +524,8 @@ async def delete_artist_composite(request):
         return web.json_response({
             "success": True,
             "deletedFiles": deleted_files,
-            "message": f"已删除画师 '{artist.get('displayName')}'"
+            "message": f"已删除画师 '{artist.get('displayName')}'",
+            "hasOtherCategories": has_other_categories
         })
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
@@ -685,14 +763,24 @@ async def restore_from_metadata(request):
 
 @server.PromptServer.instance.routes.delete("/artist_gallery/image")
 async def delete_image(request):
-    """删除单张图片（从画师详情中）"""
+    """
+    删除单张图片（从画师详情中）
+
+    请求体: {
+      "imagePath": "artist_gallery/xxx.png"
+      // artistId不再需要，自动从映射中获取
+    }
+
+    逻辑：
+    - 如果图片被多个画师引用，只删除图片文件
+    - 如果图片只被一个画师引用，删除文件和映射
+    """
     try:
         data = await request.json()
         image_path = data.get("imagePath")
-        artist_id = data.get("artistId")
 
-        if not image_path or not artist_id:
-            return web.json_response({"error": "缺少必要参数"}, status=400)
+        if not image_path:
+            return web.json_response({"error": "缺少imagePath参数"}, status=400)
 
         artist_storage, mapping_storage, _ = get_storage()
 
@@ -701,47 +789,43 @@ async def delete_image(request):
         if not mapping:
             return web.json_response({"error": "图片映射不存在"}, status=404)
 
-        # 从映射中移除该画师
-        artist_ids = mapping.get("artistIds", [])
-        if artist_id not in artist_ids:
-            return web.json_response({"error": "画师未关联此图片"}, status=400)
+        # 获取关联的画师列表
+        artist_names = mapping.get("artistNames", [])
 
-        artist_ids.remove(artist_id)
+        # 删除图片文件
+        import folder_paths
+        output_dir = Path(folder_paths.get_output_directory())
+        full_path = output_dir / image_path
 
-        # 如果没有其他画师关联，删除映射并删除文件
-        if not artist_ids:
-            import folder_paths
-            output_dir = Path(folder_paths.get_output_directory())
-            full_path = output_dir / image_path
+        file_deleted = False
+        try:
+            if full_path.exists():
+                full_path.unlink()
+                file_deleted = True
+        except Exception as e:
+            return web.json_response({"error": f"删除文件失败: {str(e)}"}, status=500)
 
-            # 删除映射
-            mapping_storage.delete_mapping_by_image(image_path)
+        # 删除映射关系
+        mapping_storage.delete_mapping_by_image(image_path)
 
-            # 删除文件
-            try:
-                if full_path.exists():
-                    full_path.unlink()
-            except Exception as e:
-                print(f"Error deleting file {image_path}: {e}")
+        # 更新所有关联画师的图片计数
+        for artist_name in artist_names:
+            # 查找所有同名画师并更新计数
+            all_artists = artist_storage.get_all_artists()
+            for artist in all_artists:
+                if artist.get("name") == artist_name:
+                    artist_storage.update_image_count(
+                        artist.get("categoryId"),
+                        artist_name,
+                        -1
+                    )
 
-            # 更新画师图片计数
-            artist_storage.update_image_count(artist_id, -1)
-
-            return web.json_response({
-                "success": True,
-                "message": "图片已删除"
-            })
-        else:
-            # 更新映射（还有其他画师）
-            mapping["artistIds"] = artist_ids
-            # 这里需要更新映射，但由于没有直接更新方法，我们需要重新添加
-            # 简化处理：只更新图片计数
-            artist_storage.update_image_count(artist_id, -1)
-
-            return web.json_response({
-                "success": True,
-                "message": "画师关联已移除"
-            })
+        return web.json_response({
+            "success": True,
+            "message": "图片已删除",
+            "fileDeleted": file_deleted,
+            "affectedArtists": artist_names
+        })
 
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
@@ -938,3 +1022,590 @@ async def migrate_data(request):
             "success": False,
             "error": f"迁移失败: {str(e)}"
         }, status=500)
+
+
+# ============ Import API ============
+
+@server.PromptServer.instance.routes.post("/artist_gallery/import/batch")
+async def import_images_batch(request):
+    """
+    批量导入图片到画廊
+    支持单个画师导入和自定义规则批量导入
+    """
+    import asyncio
+    import base64
+    import time
+    import random
+    import folder_paths
+    from io import BytesIO
+
+    from .import_handler import (
+        save_image_with_metadata,
+        parse_artist_info_from_filename
+    )
+
+    try:
+        data = await request.json()
+        mode = data.get("mode", "single")  # "single" | "custom"
+        images = data.get("images", [])
+        config = data.get("config", {})
+
+        print(f"[ImportBatch] 收到导入请求")
+        print(f"  mode: {mode}")
+        print(f"  images数量: {len(images)}")
+        print(f"  config: {config}")
+        if images:
+            print(f"  第一个文件名: {images[0].get('filename')}")
+
+        if not images:
+            return web.json_response({"error": "没有提供图片"}, status=400)
+
+        # 获取存储实例
+        artist_storage, mapping_storage, category_storage = get_storage()
+
+        # 准备输出目录
+        output_dir = Path(folder_paths.get_output_directory())
+        save_dir = output_dir / "artist_gallery"
+        save_dir.mkdir(parents=True, exist_ok=True)
+
+        # 并发控制（最多5个并发）
+        semaphore = asyncio.Semaphore(5)
+
+        async def import_single_image(image_data: dict):
+            """导入单张图片"""
+            async with semaphore:
+                try:
+                    # 1. 解码base64
+                    image_bytes = base64.b64decode(image_data['data'])
+                    filename = image_data['filename']
+
+                    # 2. 解析画师信息
+                    if mode == "single":
+                        # 单个画师模式：直接使用配置中的画师信息
+                        artist_name = config.get("artistName", "").strip()
+                        display_name = config.get("displayName", artist_name)
+                        category_id = config.get("categoryId", "root")
+                        will_create_artist = False
+                        error_msg = None
+                    else:
+                        # 自定义模式：从文件名解析
+                        artist_name, display_name, error_msg, will_create_artist = \
+                            parse_artist_info_from_filename(filename, config)
+                        category_id = config.get("defaultCategoryId", "root")
+
+                    if not artist_name:
+                        return {
+                            'filename': filename,
+                            'success': False,
+                            'error': error_msg or '无法解析画师名称'
+                        }
+
+                    # 3. 确保画师存在
+                    artist = artist_storage.get_artist(category_id, artist_name)
+                    if not artist and will_create_artist:
+                        try:
+                            artist = artist_storage.add_artist(
+                                name=artist_name,
+                                display_name=display_name,
+                                category_id=category_id
+                            )
+                        except ValueError:
+                            # 画师已存在（并发情况）
+                            artist = artist_storage.get_artist(category_id, artist_name)
+
+                    if not artist:
+                        return {
+                            'filename': filename,
+                            'success': False,
+                            'error': '画师不存在且未启用自动创建'
+                        }
+
+                    # 4. 生成唯一文件名
+                    timestamp = int(time.time() * 1000)
+                    counter = random.randint(0, 99999)
+                    new_filename = f"AG_{timestamp}_{counter:05}.png"
+                    save_path = save_dir / new_filename
+
+                    # 5. 保存图片并嵌入metadata（一次性完成）
+                    selected_artists = [{
+                        "categoryId": category_id,
+                        "name": artist_name,
+                        "displayName": display_name
+                    }]
+
+                    success, metadata = save_image_with_metadata(
+                        image_bytes=image_bytes,
+                        save_path=save_path,
+                        artist_names=[artist_name],
+                        display_names=[display_name],
+                        categories=[category_id],
+                        selected_artists=selected_artists
+                    )
+
+                    if not success:
+                        # 保存失败，删除文件（如果已创建）
+                        if save_path.exists():
+                            save_path.unlink()
+                        return {
+                            'filename': filename,
+                            'success': False,
+                            'error': '图片保存失败'
+                        }
+
+                    # 6. 创建映射关系
+                    image_rel_path = f"artist_gallery/{new_filename}"
+                    mapping_storage.add_mapping(
+                        image_rel_path,
+                        [artist_name],
+                        metadata or {"width": 0, "height": 0}
+                    )
+
+                    # 7. 更新画师计数
+                    artist_storage.update_image_count(category_id, artist_name, 1)
+
+                    return {
+                        'filename': filename,
+                        'success': True,
+                        'imagePath': image_rel_path,
+                        'artistName': artist_name,
+                        'displayName': display_name,
+                        'categoryId': category_id
+                    }
+
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+                    return {
+                        'filename': image_data.get('filename', 'unknown'),
+                        'success': False,
+                        'error': str(e)
+                    }
+
+        # 并发处理所有图片
+        tasks = [import_single_image(img) for img in images]
+        results = await asyncio.gather(*tasks)
+
+        # 统计结果
+        imported = sum(1 for r in results if r['success'])
+        failed = len(results) - imported
+
+        # 收集创建的画师
+        created_artists = [
+            r for r in results
+            if r['success'] and r.get('artistName')
+        ]
+
+        return web.json_response({
+            'success': True,
+            'imported': imported,
+            'failed': failed,
+            'results': results,
+            'createdArtists': created_artists
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return web.json_response({'error': str(e)}, status=500)
+
+
+@server.PromptServer.instance.routes.post("/artist_gallery/import/preview")
+async def import_preview(request):
+    """
+    预览导入结果
+    显示文件名如何解析，不会实际导入
+    """
+    try:
+        data = await request.json()
+        filenames = data.get("filenames", [])
+        config = data.get("config", {})
+
+        if not filenames:
+            return web.json_response({"error": "没有提供文件名"}, status=400)
+
+        from .import_handler import parse_artist_info_from_filename
+
+        preview = []
+
+        for filename in filenames:
+            artist_name, display_name, error_msg, will_create = \
+                parse_artist_info_from_filename(filename, config)
+
+            category_id = config.get("defaultCategoryId", "root")
+
+            # 获取分类名称
+            _, _, category_storage = get_storage()
+            category = category_storage.get_category_by_id(category_id)
+            category_name = category.get("name", "unknown") if category else "unknown"
+
+            # 检查画师是否存在
+            artist_storage, _, _ = get_storage()
+            artist_exists = artist_storage.get_artist(category_id, artist_name) is not None if artist_name else False
+
+            preview.append({
+                'filename': filename,
+                'parsedArtist': artist_name,
+                'displayName': display_name,
+                'category': category_name,
+                'categoryId': category_id,
+                'willCreate': will_create and not artist_exists,
+                'warnings': [] if artist_name else ['无法解析画师名称']
+            })
+
+        # 统计
+        matched = sum(1 for p in preview if p['parsedArtist'])
+        unmatched = len(preview) - matched
+
+        return web.json_response({
+            'preview': preview,
+            'totalFiles': len(filenames),
+            'matchedFiles': matched,
+            'unmatchedFiles': unmatched
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return web.json_response({'error': str(e)}, status=500)
+
+
+# ============ Batch Operations API ============
+
+@server.PromptServer.instance.routes.delete("/artist_gallery/batch/delete")
+async def batch_delete(request):
+    """
+    批量删除分类和画师
+
+    删除逻辑：
+    1. 删除分类：只删除画师记录，不修改图片映射（避免影响其他分类的同名画师）
+    2. 删除独立画师：移除图片映射，删除孤儿图片文件
+
+    请求体: {
+      "categories": ["cat1", "cat2"],
+      "artists": [{"categoryId": "xxx", "name": "yyy"}]
+    }
+    """
+    try:
+        data = await request.json()
+        category_ids = data.get("categories", [])
+        artists = data.get("artists", [])
+
+        artist_storage, mapping_storage, category_storage = get_storage()
+        import folder_paths
+        output_dir = Path(folder_paths.get_output_directory())
+
+        deleted_categories = []
+        deleted_artists = []
+        deleted_images = []
+        errors = []
+
+        # ============ 第一部分：删除分类 ============
+        # 只删除画师记录，不修改图片映射
+        for cat_id in category_ids:
+            try:
+                category = category_storage.get_category_by_id(cat_id)
+                if not category:
+                    errors.append(f"分类 {cat_id} 不存在")
+                    continue
+
+                # 递归获取所有子分类
+                def get_all_child_categories(parent_id):
+                    children = category_storage.get_child_categories(parent_id)
+                    result = [parent_id]
+                    for child in children:
+                        result.extend(get_all_child_categories(child['id']))
+                    return result
+
+                all_cat_ids = get_all_child_categories(cat_id)
+
+                # 获取这些分类下的所有画师
+                all_artists = []
+                for cid in all_cat_ids:
+                    all_artists.extend([
+                        a for a in artist_storage.get_all_artists()
+                        if a.get("categoryId") == cid
+                    ])
+
+                # 只删除画师记录，不修改图片映射
+                for artist in all_artists:
+                    artist_name = artist.get("name")
+                    artist_cat_id = artist.get("categoryId")
+
+                    # 删除画师记录（不影响图片映射）
+                    artist_storage.delete_artist(artist_cat_id, artist_name)
+                    deleted_artists.append(artist.get("displayName", artist_name))
+
+                # 删除分类记录（从叶子节点开始）
+                for cid in reversed(all_cat_ids):
+                    category_storage.delete_category(cid)
+                    deleted_categories.append(category.get("name"))
+
+            except Exception as e:
+                errors.append(f"删除分类 {cat_id} 失败: {str(e)}")
+
+        # ============ 第二部分：删除独立画师 ============
+        # 移除图片映射，删除孤儿图片文件
+        for artist_data in artists:
+            try:
+                category_id = artist_data.get("categoryId")
+                name = artist_data.get("name")
+
+                # 获取画师
+                artist = artist_storage.get_artist(category_id, name)
+                if not artist:
+                    errors.append(f"画师 {name} 不存在")
+                    continue
+
+                # 移除图片映射，获取孤儿图片
+                orphan_images = mapping_storage.remove_artist_from_mappings(name)
+
+                # 删除孤儿图片文件
+                for image_path in orphan_images:
+                    full_path = output_dir / image_path
+                    try:
+                        if full_path.exists():
+                            full_path.unlink()
+                            deleted_images.append(image_path)
+                    except Exception as e:
+                        errors.append(f"删除文件 {image_path} 失败: {e}")
+
+                # 删除画师记录
+                artist_storage.delete_artist(category_id, name)
+                deleted_artists.append(artist.get("displayName", name))
+
+            except Exception as e:
+                errors.append(f"删除画师 {artist_data.get('name')} 失败: {str(e)}")
+
+        return web.json_response({
+            "success": True,
+            "deletedCategories": deleted_categories,
+            "deletedArtists": deleted_artists,
+            "deletedImages": deleted_images,
+            "errors": errors
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return web.json_response({"error": str(e)}, status=500)
+
+
+@server.PromptServer.instance.routes.post("/artist_gallery/batch/move")
+async def batch_move(request):
+    """
+    批量移动分类和画师
+    请求体: {
+      "categories": [{"id": "xxx", "newParentId": "yyy"}],
+      "artists": [{"categoryId": "xxx", "name": "yyy", "newCategoryId": "zzz"}]
+    }
+    """
+    try:
+        data = await request.json()
+        categories = data.get("categories", [])
+        artists = data.get("artists", [])
+
+        artist_storage, _, category_storage = get_storage()
+
+        moved_categories = []
+        moved_artists = []
+        errors = []
+
+        # 移动分类
+        for cat_data in categories:
+            try:
+                cat_id = cat_data.get("id")
+                new_parent_id = cat_data.get("newParentId", "root")
+
+                # 验证目标分类存在
+                if new_parent_id != "root":
+                    target_cat = category_storage.get_category_by_id(new_parent_id)
+                    if not target_cat:
+                        errors.append(f"目标分类 {new_parent_id} 不存在")
+                        continue
+
+                # 检查是否会形成循环
+                def check_cycle(parent_id, target_id):
+                    if parent_id == target_id:
+                        return True
+                    cat = category_storage.get_category_by_id(parent_id)
+                    if not cat or not cat.get("parentId"):
+                        return False
+                    return check_cycle(cat["parentId"], target_id)
+
+                if new_parent_id != "root" and check_cycle(new_parent_id, cat_id):
+                    errors.append(f"不能将分类 {cat_id} 移动到自己的子分类下")
+                    continue
+
+                # 更新分类的父分类
+                success = category_storage.update_category(cat_id, parentId=new_parent_id)
+                if success:
+                    cat = category_storage.get_category_by_id(cat_id)
+                    moved_categories.append(cat.get("name", cat_id))
+                else:
+                    errors.append(f"分类 {cat_id} 不存在")
+
+            except Exception as e:
+                errors.append(f"移动分类 {cat_data.get('id')} 失败: {str(e)}")
+
+        # 移动画师
+        for artist_data in artists:
+            try:
+                category_id = artist_data.get("categoryId")
+                name = artist_data.get("name")
+                new_category_id = artist_data.get("newCategoryId", "root")
+
+                # 验证目标分类存在
+                target_cat = category_storage.get_category_by_id(new_category_id)
+                if not target_cat:
+                    errors.append(f"目标分类 {new_category_id} 不存在")
+                    continue
+
+                # 更新画师的分类
+                success = artist_storage.update_artist(category_id, name, categoryId=new_category_id)
+                if success:
+                    artist = artist_storage.get_artist(new_category_id, name)
+                    moved_artists.append(artist.get("displayName", name))
+                else:
+                    errors.append(f"画师 {name} 不存在")
+
+            except Exception as e:
+                errors.append(f"移动画师 {artist_data.get('name')} 失败: {str(e)}")
+
+        return web.json_response({
+            "success": True,
+            "movedCategories": moved_categories,
+            "movedArtists": moved_artists,
+            "errors": errors
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return web.json_response({"error": str(e)}, status=500)
+
+
+@server.PromptServer.instance.routes.post("/artist_gallery/batch/copy")
+async def batch_copy(request):
+    """
+    批量复制画师到目标分类
+    请求体: {
+      "artists": [{"categoryId": "xxx", "name": "yyy", "targetCategoryId": "zzz"}]
+    }
+    """
+    try:
+        data = await request.json()
+        artists = data.get("artists", [])
+
+        artist_storage, _, category_storage = get_storage()
+
+        copied_artists = []
+        errors = []
+
+        for artist_data in artists:
+            try:
+                category_id = artist_data.get("categoryId")
+                name = artist_data.get("name")
+                target_category_id = artist_data.get("targetCategoryId")
+                new_name = artist_data.get("newName", name)
+
+                # 验证源画师存在
+                source_artist = artist_storage.get_artist(category_id, name)
+                if not source_artist:
+                    errors.append(f"源画师 {name} 不存在")
+                    continue
+
+                # 验证目标分类存在
+                target_cat = category_storage.get_category_by_id(target_category_id)
+                if not target_cat:
+                    errors.append(f"目标分类 {target_category_id} 不存在")
+                    continue
+
+                # 创建新画师（使用相同或新名称）
+                try:
+                    new_artist = artist_storage.add_artist(
+                        name=new_name,
+                        display_name=source_artist.get("displayName"),
+                        category_id=target_category_id
+                    )
+                    copied_artists.append(new_artist.get("displayName", new_name))
+                except ValueError as e:
+                    errors.append(f"复制画师 {name} 失败: {str(e)}")
+
+            except Exception as e:
+                errors.append(f"复制画师 {artist_data.get('name')} 失败: {str(e)}")
+
+        return web.json_response({
+            "success": True,
+            "copiedArtists": copied_artists,
+            "errors": errors
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return web.json_response({"error": str(e)}, status=500)
+
+
+# ============ Cycle State API ============
+
+# 全局循环状态存储
+_cycle_states = {}  # node_id -> cycle_index
+
+
+@server.PromptServer.instance.routes.post("/artist_gallery/cycle-state")
+async def save_cycle_state(request):
+    """保存循环状态"""
+    try:
+        data = await request.json()
+        node_id = data.get("node_id")
+        cycle_index = data.get("cycle_index", 0)
+
+        if not node_id:
+            return web.json_response({"error": "缺少node_id参数"}, status=400)
+
+        _cycle_states[node_id] = cycle_index
+
+        return web.json_response({
+            "success": True,
+            "cycle_index": cycle_index
+        })
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+@server.PromptServer.instance.routes.get("/artist_gallery/cycle-state")
+async def get_cycle_state(request):
+    """获取循环状态"""
+    try:
+        node_id = request.query.get("node_id")
+
+        if not node_id:
+            return web.json_response({"error": "缺少node_id参数"}, status=400)
+
+        cycle_index = _cycle_states.get(node_id, 0)
+
+        return web.json_response({
+            "cycle_index": cycle_index
+        })
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+@server.PromptServer.instance.routes.post("/artist_gallery/cycle-state/reset")
+async def reset_cycle_state(request):
+    """重置循环状态"""
+    try:
+        data = await request.json()
+        node_id = data.get("node_id")
+
+        if not node_id:
+            return web.json_response({"error": "缺少node_id参数"}, status=400)
+
+        if node_id in _cycle_states:
+            del _cycle_states[node_id]
+
+        return web.json_response({
+            "success": True
+        })
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)

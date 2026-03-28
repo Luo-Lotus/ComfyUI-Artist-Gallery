@@ -14,19 +14,33 @@ export function CategoryCard({
     onDelete,
     onMove,
     onCopy,
+    // 多选相关props
+    selectionMode = false,
+    selected = false,
+    onSelect,
 }) {
     const [isHovered, setIsHovered] = useState(false);
     const isRoot = category.name === '全部';
     const { showContextMenu } = useContextMenu();
 
+    // 生成选择键（用于多选）
+    const selectionKey = `category:${category.id}`;
+
     const handleClick = () => {
-        if (onClick) {
+        if (selectionMode && onSelect) {
+            onSelect({
+                id: selectionKey,
+                type: 'category',
+                data: category
+            });
+        } else if (onClick) {
             onClick(category);
         }
     };
 
     const handleContextMenu = (e) => {
-        if (isRoot) return;
+        // 多选模式或根分类不显示右键菜单
+        if (selectionMode || isRoot) return;
 
         const menuItems = [
             {
@@ -57,7 +71,7 @@ export function CategoryCard({
     return h(
         'div',
         {
-            class: `category-card`,
+            class: `category-card ${selectionMode ? 'selection-mode' : ''} ${selected ? 'selected' : ''}`,
             onClick: handleClick,
             onContextMenu: handleContextMenu,
         },

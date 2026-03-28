@@ -470,6 +470,43 @@ class ImageMappingStorage:
 
             return False
 
+    def rename_artist_in_mappings(self, old_name: str, new_name: str) -> int:
+        """
+        在所有映射中重命名画师
+        :param old_name: 旧名称
+        :param new_name: 新名称
+        :return: 更新的映射数量
+        """
+        with self._lock:
+            data = self._read_data()
+            updated_count = 0
+
+            for mapping in data["mappings"]:
+                artist_names = mapping.get("artistNames", [])
+                if old_name in artist_names:
+                    # 替换画师名称
+                    new_artist_names = [new_name if name == old_name else name for name in artist_names]
+                    mapping["artistNames"] = new_artist_names
+                    updated_count += 1
+
+            if updated_count > 0:
+                self._write_data(data)
+
+            return updated_count
+
+    def get_all_mappings_for_artist(self, artist_name: str) -> List[dict]:
+        """
+        获取指定画师的所有映射（用于重命名时显示预览）
+        :param artist_name: 画师名称
+        :return: 映射列表
+        """
+        mappings = self.get_all_mappings()
+        return [
+            {**m, "matched": True}
+            for m in mappings
+            if artist_name in m.get("artistNames", [])
+        ]
+
 
 class CategoryStorage:
     """分类数据存储管理"""

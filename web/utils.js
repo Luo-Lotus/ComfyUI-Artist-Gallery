@@ -55,9 +55,10 @@ export function buildImageUrl(path) {
 }
 
 export async function fetchGalleryData(categoryId = 'root') {
-    const url = categoryId === 'root'
-        ? '/artist_gallery/data'
-        : `/artist_gallery/data?category=${categoryId}`;
+    const url =
+        categoryId === 'root'
+            ? '/artist_gallery/data'
+            : `/artist_gallery/data?category=${categoryId}`;
     const response = await fetch(url);
     const data = await response.json();
     if (data.error) {
@@ -80,7 +81,7 @@ export async function addCategory(data) {
     const response = await fetch('/artist_gallery/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+        body: JSON.stringify(data),
     });
     if (!response.ok) {
         const error = await response.json();
@@ -93,7 +94,7 @@ export async function updateCategory(categoryId, data) {
     const response = await fetch(`/artist_gallery/categories/${categoryId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+        body: JSON.stringify(data),
     });
     if (!response.ok) {
         const error = await response.json();
@@ -104,7 +105,7 @@ export async function updateCategory(categoryId, data) {
 
 export async function deleteCategory(categoryId) {
     const response = await fetch(`/artist_gallery/categories/${categoryId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
     });
     if (!response.ok) {
         const error = await response.json();
@@ -124,7 +125,9 @@ export async function fetchAllArtists() {
 // ============ Artist API (Composite Key) ============
 
 export async function fetchArtist(categoryId, name) {
-    const response = await fetch(`/artist_gallery/artists/${encodeURIComponent(categoryId)}/${encodeURIComponent(name)}`);
+    const response = await fetch(
+        `/artist_gallery/artists/${encodeURIComponent(categoryId)}/${encodeURIComponent(name)}`,
+    );
     if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || '获取画师失败');
@@ -132,23 +135,13 @@ export async function fetchArtist(categoryId, name) {
     return await response.json();
 }
 
-export async function updateArtist(categoryId, name, data) {
-    const response = await fetch(`/artist_gallery/artists/${encodeURIComponent(categoryId)}/${encodeURIComponent(name)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    });
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || '更新画师失败');
-    }
-    return await response.json();
-}
-
 export async function deleteArtist(categoryId, name) {
-    const response = await fetch(`/artist_gallery/artists/${encodeURIComponent(categoryId)}/${encodeURIComponent(name)}`, {
-        method: 'DELETE'
-    });
+    const response = await fetch(
+        `/artist_gallery/artists/${encodeURIComponent(categoryId)}/${encodeURIComponent(name)}`,
+        {
+            method: 'DELETE',
+        },
+    );
     if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || '删除画师失败');
@@ -157,14 +150,17 @@ export async function deleteArtist(categoryId, name) {
 }
 
 export async function copyArtist(categoryId, name, targetCategoryId, newName) {
-    const response = await fetch(`/artist_gallery/artists/${encodeURIComponent(categoryId)}/${encodeURIComponent(name)}/copy`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            targetCategoryId,
-            newName
-        })
-    });
+    const response = await fetch(
+        `/artist_gallery/artists/${encodeURIComponent(categoryId)}/${encodeURIComponent(name)}/copy`,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                targetCategoryId,
+                newName,
+            }),
+        },
+    );
     if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || '复制画师失败');
@@ -178,8 +174,8 @@ export async function copyImage(imagePath, toArtistId) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             imagePath,
-            toArtistId
-        })
+            toArtistId,
+        }),
     });
     if (!response.ok) {
         const error = await response.json();
@@ -194,7 +190,7 @@ export async function addArtist(data) {
     const response = await fetch('/artist_gallery/artists', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+        body: JSON.stringify(data),
     });
     if (!response.ok) {
         const error = await response.json();
@@ -207,7 +203,7 @@ export async function addArtistsBatch(artistsData) {
     const response = await fetch('/artist_gallery/artists/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artists: artistsData })
+        body: JSON.stringify({ artists: artistsData }),
     });
     if (!response.ok) {
         const error = await response.json();
@@ -220,7 +216,7 @@ export async function moveArtist(artistId, newCategoryId) {
     const response = await fetch(`/artist_gallery/artists/${artistId}/move`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newCategoryId })
+        body: JSON.stringify({ newCategoryId }),
     });
     if (!response.ok) {
         const error = await response.json();
@@ -247,11 +243,11 @@ export function buildBreadcrumbPath(categoryId, categories) {
 
     const flatCategories = flattenCategories(categories);
     const path = [];
-    let current = flatCategories.find(c => c.id === categoryId);
+    let current = flatCategories.find((c) => c.id === categoryId);
 
     while (current) {
         path.unshift(current);
-        current = flatCategories.find(c => c.id === current.parentId);
+        current = flatCategories.find((c) => c.id === current.parentId);
     }
 
     return path;

@@ -18,7 +18,7 @@ export function useImagePreview() {
             .then((res) => res.json())
             .then((data) => {
                 if (data.images && data.images.length > 0) {
-                    const imagePath = data.images[0].path;
+                    const imagePath = data.images[data.images.length - 1].path;
                     const imageUrl = buildImageUrl(imagePath);
 
                     // 移除旧的预览窗口

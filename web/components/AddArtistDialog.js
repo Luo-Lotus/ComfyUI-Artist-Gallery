@@ -91,7 +91,7 @@ export function AddArtistDialog({
         try {
             let data;
             if (editModeArtist) {
-                // 使用组合键更新画师
+                // 使用组合键更新画师（后端会自动处理映射更新）
                 data = await updateArtistByKey(
                     editModeArtist.categoryId,
                     editModeArtist.name,

@@ -3,8 +3,11 @@
  * 画师选择器的 UI 渲染部分
  */
 import { h } from '../../lib/preact.mjs';
+import { useState } from '../../lib/hooks.mjs';
 import { useArtistSelector } from './hooks/useArtistSelector.js';
 import { useImagePreview } from './hooks/useImagePreview.js';
+import { PartitionList } from './PartitionList.js';
+import { PartitionConfigPanel } from './PartitionConfigPanel.js';
 
 export function ArtistSelectorWidget({
     nodeInstance,
@@ -26,6 +29,16 @@ export function ArtistSelectorWidget({
         selectedCategoriesList,
         refreshing,
         breadcrumbPath,
+        partitionData,
+        getArtistsByPartition,
+        getCategoriesByPartition,
+        addPartition,
+        deletePartition,
+        updatePartition,
+        moveArtistToPartition,
+        moveCategoryToPartition,
+        togglePartition,
+        setAsDefaultPartition,
         setSearchQuery,
         setSortBy,
         setSortOrder,
@@ -34,9 +47,16 @@ export function ArtistSelectorWidget({
         handleCategoryChange,
         handleRefresh,
         makeArtistKey,
+        parseArtistKey,
+        updateNodeValue,
     } = useArtistSelector(nodeInstance, selectedInput, metadataInput);
+
     // 使用图片预览 hook
     const { showPreview, removePreview } = useImagePreview();
+
+    // 分区配置面板状态
+    const [showPartitionConfig, setShowPartitionConfig] = useState(false);
+    const [editingPartitionId, setEditingPartitionId] = useState(null);
 
     // ============ 子组件渲染函数 ============
 
@@ -89,85 +109,40 @@ export function ArtistSelectorWidget({
      * 渲染已选择的画师和分类标签列表
      */
     const renderSelectedArtists = () => {
-        return h('div', { class: 'artist-selector-selected-section' }, [
-            h(
-                'div',
-                { class: 'artist-selector-label' },
-                `已选择 (${selectedArtistsList.length + selectedCategoriesList.length})`,
-            ),
-            h(
-                'div',
-                { class: 'artist-selector-selected-list' },
-                selectedArtistsList.length > 0 ||
-                    selectedCategoriesList.length > 0
-                    ? [
-                          // 渲染已选择的分类
-                          ...selectedCategoriesList.map((cat) =>
-                              h(
-                                  'span',
-                                  {
-                                      key: `cat-${cat.id}`,
-                                      class: 'artist-selector-tag artist-selector-category-tag',
-                                  },
-                                  [
-                                      h(
-                                          'span',
-                                          { class: 'artist-selector-tag-icon' },
-                                          '📁',
-                                      ),
-                                      cat.name,
-                                      h(
-                                          'button',
-                                          {
-                                              onClick: (e) => {
-                                                  e.stopPropagation();
-                                                  toggleCategorySelection(
-                                                      cat.id,
-                                                  );
-                                              },
-                                          },
-                                          '×',
-                                      ),
-                                  ],
-                              ),
-                          ),
-                          // 渲染已选择的画师
-                          ...selectedArtistsList.map((artist) =>
-                              h(
-                                  'span',
-                                  {
-                                      key: makeArtistKey(
-                                          artist.categoryId,
-                                          artist.name,
-                                      ),
-                                      class: 'artist-selector-tag',
-                                  },
-                                  [
-                                      artist.displayName || artist.name,
-                                      h(
-                                          'button',
-                                          {
-                                              onClick: (e) => {
-                                                  e.stopPropagation();
-                                                  toggleSelection(
-                                                      artist.categoryId,
-                                                      artist.name,
-                                                  );
-                                              },
-                                          },
-                                          '×',
-                                      ),
-                                  ],
-                              ),
-                          ),
-                      ]
-                    : h(
-                          'span',
-                          { class: 'artist-selector-empty' },
-                          '未选择画师或分类',
-                      ),
-            ),
-        ]);
+        return h(PartitionList, {
+            partitions: partitionData.partitions,
+            artistsByPartition: getArtistsByPartition,
+            categoriesByPartition: getCategoriesByPartition,
+            selectedCategories: selectedCategoriesList,
+            categories: categories,
+            onPartitionAction: (action, data) => {
+                if (action === 'add') {
+                    addPartition(data);
+                } else if (action === 'delete') {
+                    deletePartition(data);
+                } else if (action === 'config') {
+                    setEditingPartitionId(data);
+                    setShowPartitionConfig(true);
+                } else if (action === 'toggle') {
+                    togglePartition(data);
+                } else if (action === 'setDefault') {
+                    setAsDefaultPartition(data);
+                }
+            },
+            onArtistMove: (artistKey, partitionId) => {
+                moveArtistToPartition(artistKey, partitionId);
+            },
+            onArtistRemove: (artistKey) => {
+                const { categoryId, name } = parseArtistKey(artistKey);
+                toggleSelection(categoryId, name);
+            },
+            onCategoryMove: (categoryId, partitionId) => {
+                moveCategoryToPartition(categoryId, partitionId);
+            },
+            onCategoryRemove: (categoryId) => {
+                toggleCategorySelection(categoryId);
+            },
+        });
     };
 
     /**
@@ -319,17 +294,31 @@ export function ArtistSelectorWidget({
 
     // ============ 主渲染 ============
 
+    // 处理全局配置保存
     return h('div', { class: 'artist-selector-container' }, [
-        // 已选择的画师
-        renderSelectedArtists(),
+        // 分区配置面板（覆盖在内容之上）
+        showPartitionConfig && h('div', { class: 'artist-selector-config-overlay' }, [
+            h(PartitionConfigPanel, {
+                partition: partitionData.partitions.find(p => p.id === editingPartitionId) || partitionData.partitions[0],
+                globalConfig: partitionData.globalConfig,
+                onChange: (updates) => updatePartition(editingPartitionId, updates),
+                onClose: () => setShowPartitionConfig(false),
+            }),
+        ]),
 
-        // 面包屑导航
-        renderBreadcrumb(),
+        // 主内容
+        !showPartitionConfig && [
+            // 已选择的画师（分区列表）
+            renderSelectedArtists(),
 
-        // 搜索和排序控件（同一行）
-        renderControls(),
+            // 面包屑导航
+            renderBreadcrumb(),
 
-        // 画师列表（包含分类和画师）
-        renderArtistList(),
+            // 搜索和排序控件（同一行）
+            renderControls(),
+
+            // 画师列表（包含分类和画师）
+            renderArtistList(),
+        ],
     ]);
 }
