@@ -16,7 +16,9 @@
     font-size: 28px;
     z-index: 9999;
     user-select: none;
-    transition: box-shadow 0.2s, transform 0.1s;
+    transition:
+        box-shadow 0.2s,
+        transform 0.1s;
 }
 
 #artist-gallery-floating-btn:hover {
@@ -147,7 +149,9 @@
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* 画师网格容器 */
@@ -314,6 +318,29 @@
     background: #e8f5e9;
 }
 
+.gallery-fav-btn {
+    padding: 6px 10px;
+    border: 2px solid #ffb6c1;
+    border-radius: 20px;
+    background: #fff;
+    color: #ff6b9d;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.gallery-fav-btn:hover {
+    background: #ff6b9d;
+    color: white;
+    transform: scale(1.1);
+}
+
+.gallery-fav-btn.fav-active {
+    background: #ff6b9d;
+    color: white;
+    border-color: #ff6b9d;
+}
+
 .gallery-image-container {
     display: flex;
     flex-direction: column;
@@ -428,8 +455,12 @@
     transform: translateY(-50%) scale(1.1);
 }
 
-.gallery-lightbox-prev { left: -50px; }
-.gallery-lightbox-next { right: -50px; }
+.gallery-lightbox-prev {
+    left: -50px;
+}
+.gallery-lightbox-next {
+    right: -50px;
+}
 
 .gallery-lightbox-info {
     position: absolute;
@@ -694,9 +725,6 @@
 .artist-selector-list {
     flex: 1;
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
 }
 
 .artist-selector-loading,
@@ -705,37 +733,11 @@
     padding: 20px;
     color: #888;
     font-size: 12px;
-}
-
-.artist-selector-item {
-    padding: 8px 10px;
-    background: #2a2a2a;
-    border: 1px solid #444;
-    border-radius: 6px;
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    transition: all 0.2s;
-}
-
-.artist-selector-item:hover {
-    background: #3a3a3a;
-}
-
-.artist-selector-item.selected {
-    background: #3b82f6;
-    border-color: #3b82f6;
-}
-
-.artist-selector-item-info {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
+    width: 100%;
 }
 
 .artist-selector-item-name {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 400;
     color: white;
 }
@@ -744,18 +746,10 @@
     font-weight: 600;
 }
 
-.artist-selector-item-count {
-    font-size: 10px;
-    color: #888;
-}
-
-.artist-selector-item.selected .artist-selector-item-count {
-    color: rgba(255, 255, 255, 0.8);
-}
-
 .artist-selector-item-check {
     color: white;
     font-size: 14px;
+    flex-shrink: 0;
 }
 
 .artist-selector-hover-preview {
@@ -907,7 +901,7 @@
 .gallery-dialog-content {
     max-width: 500px;
     width: 90%;
-    max-height: 500px;      /* 固定最大高度，不会随父容器扩展 */
+    max-height: 500px; /* 固定最大高度，不会随父容器扩展 */
     margin: auto;
     background: white;
     border-radius: 16px;
@@ -921,14 +915,14 @@
 .gallery-dialog-content .gallery-modal-body {
     overflow-y: auto;
     flex: 1;
-    padding: 16px;         /* 添加内边距让内容不贴边 */
+    padding: 16px; /* 添加内边距让内容不贴边 */
 }
 
 /* 对话框的底部操作区需要 padding */
 .gallery-dialog-content .gallery-dialog-actions {
-    padding: 12px 16px 16px 16px;  /* 上 右 下 左 */
-    border-top: 1px solid #eee;  /* 添加顶部边框分隔 */
-    background: #fafafa;  /* 浅灰色背景区分 */
+    padding: 12px 16px 16px 16px; /* 上 右 下 左 */
+    border-top: 1px solid #eee; /* 添加顶部边框分隔 */
+    background: #fafafa; /* 浅灰色背景区分 */
 }
 
 /* ============ 分类卡片样式 ============ */
@@ -977,83 +971,53 @@
     color: #999;
 }
 
-.category-actions {
-    display: none;
-    gap: 8px;
-    flex-shrink: 0;
-}
-
-.category-card.hovered .category-actions {
-    display: flex;
-}
-
-.category-action-btn {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    border: none;
-    background: #fff5f8;
-    cursor: pointer;
-    font-size: 14px;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.category-action-btn:hover {
-    background: #ffe0e9;
-    transform: scale(1.1);
-}
-
-.category-action-btn.delete-btn:hover {
-    background: #fee;
-    color: #ef4444;
-}
-
 /* ============ 面包屑导航样式 ============ */
 .breadcrumb {
     display: flex;
     align-items: center;
     padding: 12px 20px;
-    background: rgba(255, 255, 255, 0.95);
-    border-bottom: 2px solid #ffb6c1;
-    gap: 8px;
+    background: #f5f5f5;
+    border-bottom: 1px solid #e0e0e0;
+    gap: 4px;
     flex-wrap: wrap;
 }
 
 .breadcrumb-item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
 }
 
 .breadcrumb-link {
     background: none;
     border: none;
-    color: #ff6b9d;
+    color: #666;
     cursor: pointer;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
     padding: 6px 12px;
-    border-radius: 8px;
+    border-radius: 4px;
     transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
 }
 
 .breadcrumb-link:hover:not(:disabled) {
-    background: #fff5f8;
-    text-decoration: underline;
+    background: #e0e0e0;
+    color: #333;
 }
 
 .breadcrumb-link:disabled {
-    color: #999;
+    color: #333;
     cursor: default;
-    text-decoration: none;
+    font-weight: 600;
 }
 
 .breadcrumb-separator {
-    color: #ffb6c1;
-    font-weight: 600;
+    color: #999;
+    font-weight: 400;
+    font-size: 14px;
+    margin: 0 4px;
 }
 
 /* ============ 画师详情模态框样式 ============ */
@@ -1151,6 +1115,51 @@
     justify-content: center;
     font-size: 18px;
     color: #888;
+}
+
+/* ============ 画师详情视图（内嵌） ============ */
+.artist-detail-view {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+}
+
+.artist-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+    padding: 20px;
+}
+
+.artist-detail-image-item {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    background: #2a2a2a;
+    transition: all 0.2s;
+}
+
+.artist-detail-image-item:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.artist-detail-image-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.artist-detail-empty {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: #888;
+    padding: 60px 20px;
 }
 
 /* ============ 封面选择器样式 ============ */
@@ -1323,3 +1332,450 @@
     box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
 }
 
+/* 搜索和排序控件行 */
+.artist-selector-controls-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    align-items: center;
+}
+
+.artist-selector-controls-row .artist-selector-search {
+    flex: 1;
+}
+
+.artist-selector-controls-row .artist-selector-sort-controls {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.artist-selector-refresh-button {
+    padding: 6px 10px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    color: #e0e0e0;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 36px;
+}
+
+.artist-selector-refresh-button:hover:not(:disabled) {
+    background: #3a3a3a;
+    border-color: #4a9eff;
+}
+
+.artist-selector-refresh-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* 面包屑导航 */
+.artist-selector-breadcrumb {
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 6px;
+}
+
+.artist-selector-breadcrumb-list {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.artist-selector-breadcrumb-item {
+    color: #4a9eff;
+    cursor: pointer;
+    transition: all 0.2s;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.artist-selector-breadcrumb-item:hover {
+    background: #2a2a2a;
+    text-decoration: underline;
+}
+
+.artist-selector-breadcrumb-item.active {
+    color: #e0e0e0;
+    cursor: default;
+    font-weight: 600;
+}
+
+.artist-selector-breadcrumb-item.active:hover {
+    background: transparent;
+    text-decoration: none;
+}
+
+.artist-selector-breadcrumb-separator {
+    color: #666;
+    padding: 0 4px;
+}
+
+/* 画师列表改为 flex-wrap */
+.artist-selector-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 2px;
+    align-content: flex-start;
+}
+
+/* 画师项改为 inline-flex */
+.artist-selector-item {
+    display: inline-flex;
+    align-items: center;
+    height: 38px;
+    padding: 0 14px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+    color: #e0e0e0;
+    gap: 8px;
+}
+
+.artist-selector-item:hover {
+    background: #3a3a3a;
+}
+
+.artist-selector-item.selected {
+    background: #3b82f6;
+    border-color: #3b82f6;
+}
+
+/* 分类卡片样式（与画师项统一高度） */
+.artist-selector-category-card {
+    display: inline-flex;
+    align-items: center;
+    height: 38px;
+    padding: 0 14px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+    color: #e0e0e0;
+    gap: 8px;
+}
+
+.artist-selector-category-card:hover {
+    background: #3a3a3a;
+    border-color: #4a9eff;
+}
+
+.artist-selector-category-card.active {
+    background: #3a3a3a;
+    border-color: #4a9eff;
+    box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
+}
+
+.artist-selector-category-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.artist-selector-category-name {
+    font-size: 13px;
+    color: #e0e0e0;
+    font-weight: 500;
+}
+
+/* ============ Tree Selector 列表选择器 ============ */
+.tree-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.tree-search-input {
+    width: 100%;
+    padding: 10px 16px;
+    background: #fff5f8;
+    border: 2px solid #ffb6c1;
+    border-radius: 8px;
+    color: #333;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.tree-search-input:focus {
+    outline: none;
+    border-color: #ff6b9d;
+    box-shadow: 0 0 0 3px rgba(255, 107, 157, 0.1);
+}
+
+.tree-list {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 2px solid #ffb6c1;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.tree-selector-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    gap: 10px;
+    border-bottom: 1px solid #ffeef2;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.tree-selector-item:hover {
+    background: #fff5f8;
+}
+
+.tree-selector-item.selected {
+    background: #ffeef2;
+    border-left: 3px solid #ff6b9d;
+}
+
+.tree-item-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.tree-item-label {
+    flex: 1;
+    font-size: 13px;
+    color: #333;
+    font-weight: 500;
+}
+
+.tree-item-select-btn {
+    padding: 6px 14px;
+    background: #ff6b9d;
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.tree-item-select-btn:hover {
+    background: #ff5a8d;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(255, 107, 157, 0.3);
+}
+
+.tree-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: #888;
+    font-size: 13px;
+}
+
+/* ============ Flat Selector 平铺选择器 ============ */
+.flat-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.flat-selector-search {
+    width: 100%;
+    padding: 10px 16px;
+    background: #fff5f8;
+    border: 2px solid #ffb6c1;
+    border-radius: 8px;
+    color: #333;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.flat-selector-search:focus {
+    outline: none;
+    border-color: #ff6b9d;
+    box-shadow: 0 0 0 3px rgba(255, 107, 157, 0.1);
+}
+
+.flat-selector-list {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 2px solid #ffb6c1;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.flat-selector-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #ffeef2;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.flat-selector-item:hover {
+    background: #fff5f8;
+}
+
+.flat-selector-item.selected {
+    background: #ffeef2;
+    border-left: 3px solid #ff6b9d;
+}
+
+.flat-selector-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.flat-selector-name {
+    flex: 1;
+    font-size: 13px;
+    color: #333;
+    font-weight: 500;
+}
+
+.flat-selector-count {
+    font-size: 11px;
+    color: #888;
+    padding: 2px 8px;
+    background: #f0f0f0;
+    border-radius: 10px;
+}
+
+/* ============ Move Dialog 移动对话框 ============ */
+.move-dialog-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.move-target-info {
+    padding: 14px 18px;
+    background: #fff5f8;
+    border: 2px solid #ffb6c1;
+    border-radius: 8px;
+    font-size: 13px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.target-name {
+    color: #ff6b9d;
+    font-weight: 600;
+}
+
+/* ============ Artist Detail 图片操作按钮 ============ */
+.artist-detail-action-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: rgba(255, 75, 125, 0.9);
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.artist-detail-image:hover .artist-detail-action-btn {
+    opacity: 1;
+}
+
+.artist-detail-action-btn.move-btn {
+    right: 48px;
+}
+
+.artist-detail-action-btn:hover {
+    transform: scale(1.1);
+}
+
+.artist-detail-action-btn.delete-btn:hover {
+    background: rgba(255, 68, 68, 1);
+}
+
+.artist-detail-action-btn.move-btn:hover {
+    background: rgba(255, 107, 157, 1);
+}
+
+/* ============ Context Menu 右键菜单 ============ */
+#global-context-menu-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 99999;
+}
+
+.context-menu {
+    position: absolute;
+    min-width: 160px;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+    z-index: 99999;
+    padding: 6px;
+    animation: contextMenuFadeIn 0.15s ease-out;
+    pointer-events: auto;
+}
+
+@keyframes contextMenuFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    margin: 2px 0;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 14px;
+    color: #333;
+    border-radius: 6px;
+}
+
+.context-menu-item:hover {
+    background: #fff5f8;
+    color: #ff6b9d;
+}
+
+.context-menu-icon {
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+}
+
+.context-menu-label {
+    flex: 1;
+    font-weight: 500;
+}

@@ -15,7 +15,7 @@ export function Breadcrumb({ path, onNavigate }) {
                     class: 'breadcrumb-link',
                     onClick: () => onNavigate(item, index),
                     disabled: isLast
-                }, item.displayName),
+                }, item.name),
                 !isLast && h('span', { class: 'breadcrumb-separator' }, ' / ')
             ]);
         })

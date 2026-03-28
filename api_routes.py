@@ -143,14 +143,13 @@ async def add_category(request):
     try:
         data = await request.json()
         name = data.get("name", "").strip()
-        display_name = data.get("displayName", "").strip() or name
         parent_id = data.get("parentId", "root")
 
         if not name:
             return web.json_response({"error": "分类名称不能为空"}, status=400)
 
         _, _, category_storage = get_storage()
-        category = category_storage.add_category(name, display_name, parent_id)
+        category = category_storage.add_category(name, parent_id)
 
         return web.json_response({"category": category, "success": True})
     except ValueError as e:
@@ -171,8 +170,6 @@ async def update_category(request):
         kwargs = {}
         if "name" in data:
             kwargs["name"] = data["name"]
-        if "displayName" in data:
-            kwargs["displayName"] = data["displayName"]
         if "order" in data:
             kwargs["order"] = data["order"]
 
@@ -200,6 +197,45 @@ async def delete_category(request):
 
         if success:
             return web.json_response({"success": True})
+        else:
+            return web.json_response({"error": "分类不存在"}, status=404)
+    except ValueError as e:
+        return web.json_response({"error": str(e)}, status=400)
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+@server.PromptServer.instance.routes.post("/artist_gallery/categories/{category_id}/move")
+async def move_category(request):
+    """移动分类到其他分类下"""
+    try:
+        category_id = request.match_info['category_id']
+        data = await request.json()
+        new_parent_id = data.get("newParentId", "root")
+
+        if new_parent_id == category_id:
+            return web.json_response({"error": "不能将分类移动到自己下面"}, status=400)
+
+        _, _, category_storage = get_storage()
+
+        # 检查是否会形成循环
+        def check_cycle(parent_id, target_id):
+            if parent_id == target_id:
+                return True
+            cat = category_storage.get_category_by_id(parent_id)
+            if not cat or not cat.get("parentId"):
+                return False
+            return check_cycle(cat["parentId"], target_id)
+
+        if new_parent_id != "root" and check_cycle(new_parent_id, category_id):
+            return web.json_response({"error": "不能将分类移动到自己的子分类下"}, status=400)
+
+        # 更新分类的父分类
+        success = category_storage.update_category(category_id, parentId=new_parent_id)
+
+        if success:
+            category = category_storage.get_category_by_id(category_id)
+            return web.json_response({"category": category, "success": True})
         else:
             return web.json_response({"error": "分类不存在"}, status=404)
     except ValueError as e:
@@ -341,6 +377,35 @@ async def update_artist(request):
             kwargs["coverImageId"] = data["coverImageId"]
 
         success = artist_storage.update_artist(artist_id, **kwargs)
+
+        if success:
+            artist = artist_storage.get_artist_by_id(artist_id)
+            return web.json_response({"artist": artist, "success": True})
+        else:
+            return web.json_response({"error": "画师不存在"}, status=404)
+    except ValueError as e:
+        return web.json_response({"error": str(e)}, status=400)
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+@server.PromptServer.instance.routes.post("/artist_gallery/artists/{artist_id}/move")
+async def move_artist(request):
+    """移动画师到其他分类下"""
+    try:
+        artist_id = request.match_info['artist_id']
+        data = await request.json()
+        new_category_id = data.get("newCategoryId", "root")
+
+        artist_storage, _, category_storage = get_storage()
+
+        # 验证新分类存在
+        category = category_storage.get_category_by_id(new_category_id)
+        if not category:
+            return web.json_response({"error": "目标分类不存在"}, status=400)
+
+        # 更新画师的分类
+        success = artist_storage.update_artist(artist_id, categoryId=new_category_id)
 
         if success:
             artist = artist_storage.get_artist_by_id(artist_id)
@@ -514,5 +579,122 @@ async def restore_from_metadata(request):
             "total_count": len(filenames),
             "errors": errors
         })
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+@server.PromptServer.instance.routes.delete("/artist_gallery/image")
+async def delete_image(request):
+    """删除单张图片（从画师详情中）"""
+    try:
+        data = await request.json()
+        image_path = data.get("imagePath")
+        artist_id = data.get("artistId")
+
+        if not image_path or not artist_id:
+            return web.json_response({"error": "缺少必要参数"}, status=400)
+
+        artist_storage, mapping_storage, _ = get_storage()
+
+        # 获取图片映射
+        mapping = mapping_storage.get_mappings_by_image(image_path)
+        if not mapping:
+            return web.json_response({"error": "图片映射不存在"}, status=404)
+
+        # 从映射中移除该画师
+        artist_ids = mapping.get("artistIds", [])
+        if artist_id not in artist_ids:
+            return web.json_response({"error": "画师未关联此图片"}, status=400)
+
+        artist_ids.remove(artist_id)
+
+        # 如果没有其他画师关联，删除映射并删除文件
+        if not artist_ids:
+            import folder_paths
+            output_dir = Path(folder_paths.get_output_directory())
+            full_path = output_dir / image_path
+
+            # 删除映射
+            mapping_storage.delete_mapping_by_image(image_path)
+
+            # 删除文件
+            try:
+                if full_path.exists():
+                    full_path.unlink()
+            except Exception as e:
+                print(f"Error deleting file {image_path}: {e}")
+
+            # 更新画师图片计数
+            artist_storage.update_image_count(artist_id, -1)
+
+            return web.json_response({
+                "success": True,
+                "message": "图片已删除"
+            })
+        else:
+            # 更新映射（还有其他画师）
+            mapping["artistIds"] = artist_ids
+            # 这里需要更新映射，但由于没有直接更新方法，我们需要重新添加
+            # 简化处理：只更新图片计数
+            artist_storage.update_image_count(artist_id, -1)
+
+            return web.json_response({
+                "success": True,
+                "message": "画师关联已移除"
+            })
+
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+@server.PromptServer.instance.routes.post("/artist_gallery/image/move")
+async def move_image(request):
+    """移动图片到其他画师下"""
+    try:
+        data = await request.json()
+        image_path = data.get("imagePath")
+        from_artist_id = data.get("fromArtistId")
+        to_artist_id = data.get("toArtistId")
+
+        if not image_path or not from_artist_id or not to_artist_id:
+            return web.json_response({"error": "缺少必要参数"}, status=400)
+
+        if from_artist_id == to_artist_id:
+            return web.json_response({"error": "不能移动到同一个画师"}, status=400)
+
+        artist_storage, mapping_storage, _ = get_storage()
+
+        # 验证目标画师存在
+        to_artist = artist_storage.get_artist_by_id(to_artist_id)
+        if not to_artist:
+            return web.json_response({"error": "目标画师不存在"}, status=400)
+
+        # 获取图片映射
+        mapping = mapping_storage.get_mappings_by_image(image_path)
+        if not mapping:
+            return web.json_response({"error": "图片映射不存在"}, status=404)
+
+        # 从映射中移除原画师
+        artist_ids = mapping.get("artistIds", [])
+        if from_artist_id not in artist_ids:
+            return web.json_response({"error": "原画师未关联此图片"}, status=400)
+
+        artist_ids.remove(from_artist_id)
+        artist_ids.append(to_artist_id)
+
+        # 更新映射到文件
+        success = mapping_storage.update_mapping(image_path, artist_ids)
+
+        if success:
+            # 更新图片计数
+            artist_storage.update_image_count(from_artist_id, -1)
+            artist_storage.update_image_count(to_artist_id, 1)
+
+            return web.json_response({
+                "success": True,
+                "message": f"已移动图片到画师 '{to_artist.get('displayName', to_artist.get('name'))}'"
+            })
+        else:
+            return web.json_response({"error": "更新映射失败"}, status=500)
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)

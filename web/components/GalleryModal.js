@@ -4,7 +4,7 @@
  */
 import { h } from '../lib/preact.mjs';
 import { useState, useEffect, useMemo } from '../lib/hooks.mjs';
-import { Storage, fetchCategories, buildBreadcrumbPath, addCategory, updateCategory, deleteCategory } from '../utils.js';
+import { Storage, fetchCategories, fetchAllArtists, buildBreadcrumbPath, addCategory, updateCategory, deleteCategory, buildImageUrl } from '../utils.js';
 import { GalleryHeader } from './GalleryHeader.js';
 import { GalleryGrid } from './GalleryGrid.js';
 import { Lightbox } from './Lightbox.js';
@@ -13,10 +13,14 @@ import { DeleteConfirmDialog } from './DeleteConfirmDialog.js';
 import { CategoryDialog } from './CategoryDialog.js';
 import { ArtistDetailModal } from './ArtistDetailModal.js';
 import { Breadcrumb } from './Breadcrumb.js';
+import { MoveDialog } from './MoveDialog.js';
 import { useGalleryData } from './hooks/useGalleryData.js';
 import { useFilteredArtists } from './hooks/useFilteredArtists.js';
+import { useContextMenu } from './ContextMenu.js';
 
 export function GalleryModal({ isOpen, onClose }) {
+    // 获取右键菜单 hook
+    const { showContextMenu } = useContextMenu();
     // ============ 基础状态 ============
     const [searchQuery, setSearchQuery] = useState('');
     const [sortBy, setSortBy] = useState('name');
@@ -26,19 +30,25 @@ export function GalleryModal({ isOpen, onClose }) {
 
     // ============ 分类相关状态 ============
     const [categories, setCategories] = useState([]);
+    const [allArtists, setAllArtists] = useState([]); // 所有画师（用于移动对话框）
     const [currentCategory, setCurrentCategory] = useState('root');
     const [categoryPath, setCategoryPath] = useState([]);
     const [showCategoryDialog, setShowCategoryDialog] = useState(false);
     const [categoryDialogMode, setCategoryDialogMode] = useState('add');
     const [editingCategory, setEditingCategory] = useState(null);
-    const [showArtistDetail, setShowArtistDetail] = useState(false);
-    const [selectedArtist, setSelectedArtist] = useState(null);
+
+    // ============ 视图模式状态 ============
+    const [viewMode, setViewMode] = useState('gallery'); // 'gallery' | 'artist'
+    const [currentArtist, setCurrentArtist] = useState(null);
 
     // ============ 对话框状态 ============
     const [showAddArtistDialog, setShowAddArtistDialog] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [artistToDelete, setArtistToDelete] = useState(null);
     const [editModeArtist, setEditModeArtist] = useState(null);
+    const [showMoveDialog, setShowMoveDialog] = useState(false);
+    const [moveItem, setMoveItem] = useState(null);
+    const [moveItemType, setMoveItemType] = useState(null);
 
     // ============ 灯箱状态 ============
     const [lightbox, setLightbox] = useState({
@@ -50,17 +60,21 @@ export function GalleryModal({ isOpen, onClose }) {
     // ============ 数据获取和过滤 ============
     const { data, loading, error, loadData } = useGalleryData(currentCategory);
 
-    // 加载分类数据
+    // 加载分类数据和所有画师
     useEffect(() => {
-        const loadCategories = async () => {
+        const loadData = async () => {
             try {
                 const result = await fetchCategories();
                 setCategories(result.categories || []);
+
+                // 加载所有画师（用于移动对话框）
+                const artistsData = await fetchAllArtists();
+                setAllArtists(artistsData.artists || []);
             } catch (err) {
-                console.error('加载分类失败:', err);
+                console.error('加载数据失败:', err);
             }
         };
-        loadCategories();
+        loadData();
     }, []);
 
     // 自动加载数据
@@ -73,10 +87,23 @@ export function GalleryModal({ isOpen, onClose }) {
     // 更新面包屑路径
     useEffect(() => {
         if (categories.length > 0) {
-            const path = buildBreadcrumbPath(currentCategory, categories);
+            let path = buildBreadcrumbPath(currentCategory, categories);
+
+            // 如果在画师详情视图，添加画师名称到面包屑
+            if (viewMode === 'artist' && currentArtist) {
+                path = [
+                    ...path,
+                    {
+                        id: currentArtist.id,
+                        name: currentArtist.displayName || currentArtist.name,
+                        type: 'artist'
+                    }
+                ];
+            }
+
             setCategoryPath(path);
         }
-    }, [currentCategory, categories]);
+    }, [currentCategory, categories, viewMode, currentArtist]);
 
     // 过滤和排序
     const filteredArtists = useFilteredArtists(
@@ -97,8 +124,13 @@ export function GalleryModal({ isOpen, onClose }) {
 
     const handleCardClick = (artistIndex) => {
         const artist = filteredArtists[artistIndex];
-        setSelectedArtist(artist);
-        setShowArtistDetail(true);
+        setCurrentArtist(artist);
+        setViewMode('artist');
+    };
+
+    const handleBackToGallery = () => {
+        setViewMode('gallery');
+        setCurrentArtist(null);
     };
 
     const handleImageClick = (artistIndex, imageIndex) => {
@@ -142,8 +174,15 @@ export function GalleryModal({ isOpen, onClose }) {
         setCurrentCategory(category.id);
     };
 
-    const handleBreadcrumbNavigate = (category, index) => {
-        setCurrentCategory(category.id);
+    const handleBreadcrumbNavigate = (item, index) => {
+        if (item.type === 'artist') {
+            // 点击画师名称，不做任何事（已经是最后一项且不可点击）
+            return;
+        }
+        // 点击分类，切换到该分类并返回画廊视图
+        setCurrentCategory(item.id);
+        setViewMode('gallery');
+        setCurrentArtist(null);
     };
 
     const handleAddCategory = () => {
@@ -159,7 +198,7 @@ export function GalleryModal({ isOpen, onClose }) {
     };
 
     const handleDeleteCategory = async (category) => {
-        if (!confirm(`确定要删除分类"${category.displayName}"吗？`)) return;
+        if (!confirm(`确定要删除分类"${category.name}"吗？`)) return;
 
         try {
             await deleteCategory(category.id);
@@ -186,6 +225,79 @@ export function GalleryModal({ isOpen, onClose }) {
             loadData();
         } catch (err) {
             throw err;
+        }
+    };
+
+    // ============ 移动功能 ============
+
+    const openMoveDialog = (item, type) => {
+        setMoveItem(item);
+        setMoveItemType(type);
+        setShowMoveDialog(true);
+    };
+
+    const handleMove = async (item, target) => {
+        try {
+            let response;
+            if (moveItemType === 'category') {
+                response = await fetch(`/artist_gallery/categories/${item.id}/move`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ newParentId: target.id })
+                });
+            } else if (moveItemType === 'artist') {
+                response = await fetch(`/artist_gallery/artists/${item.id}/move`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ newCategoryId: target.id })
+                });
+            } else if (moveItemType === 'image') {
+                response = await fetch('/artist_gallery/image/move', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        imagePath: item.path,
+                        fromArtistId: currentArtist.id,
+                        toArtistId: target.id
+                    })
+                });
+            }
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                setShowMoveDialog(false);
+                setMoveItem(null);
+                setMoveItemType(null);
+
+                // 重新加载数据
+                await loadData();
+
+                // 如果在画师详情视图，更新当前画师
+                if (viewMode === 'artist' && currentArtist) {
+                    const updatedData = await fetch(`/artist_gallery/data?category=${currentCategory}`);
+                    const result = await updatedData.json();
+                    const updatedArtist = result.artists?.find(a => a.id === currentArtist.id);
+                    if (updatedArtist) {
+                        setCurrentArtist(updatedArtist);
+                    } else {
+                        // 画师被移走了，返回画廊视图
+                        setViewMode('gallery');
+                        setCurrentArtist(null);
+                    }
+                }
+
+                // 重新加载分类和所有画师
+                const catResult = await fetchCategories();
+                setCategories(catResult.categories || []);
+
+                const artistsData = await fetchAllArtists();
+                setAllArtists(artistsData.artists || []);
+            } else {
+                throw new Error(data.error || '移动失败');
+            }
+        } catch (error) {
+            throw error;
         }
     };
 
@@ -292,6 +404,100 @@ export function GalleryModal({ isOpen, onClose }) {
     };
 
     /**
+     * 渲染画师详情视图
+     */
+    const renderArtistDetail = () => {
+        if (!currentArtist) return null;
+
+        const hasImages = currentArtist.images && currentArtist.images.length > 0;
+
+        // 图片右键菜单处理
+        const handleImageContextMenu = (e, image) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const menuItems = [
+                {
+                    icon: '🔍',
+                    label: '查看大图',
+                    action: () => handleImageClick(
+                        filteredArtists.findIndex(a => a.id === currentArtist.id),
+                        currentArtist.images.indexOf(image)
+                    )
+                },
+                {
+                    icon: '📦',
+                    label: '移动图片',
+                    action: () => {
+                        setMoveItem(image);
+                        setMoveItemType('image');
+                        setShowMoveDialog(true);
+                    }
+                },
+                {
+                    icon: '🗑️',
+                    label: '删除图片',
+                    action: async () => {
+                        if (!confirm(`确定要删除这张图片吗？`)) return;
+
+                        try {
+                            const response = await fetch(`/artist_gallery/image`, {
+                                method: 'DELETE',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    imagePath: image.path,
+                                    artistId: currentArtist.id
+                                })
+                            });
+
+                            if (response.ok) {
+                                await loadData();
+                                // 更新当前画师数据
+                                const updatedData = await fetch(`/artist_gallery/data?category=${currentCategory}`);
+                                const result = await updatedData.json();
+                                const updatedArtist = result.artists?.find(a => a.id === currentArtist.id);
+                                if (updatedArtist) {
+                                    setCurrentArtist(updatedArtist);
+                                }
+                            } else {
+                                const error = await response.json();
+                                alert(`删除失败: ${error.error || '未知错误'}`);
+                            }
+                        } catch (error) {
+                            alert(`删除失败: ${error.message}`);
+                        }
+                    }
+                }
+            ];
+
+            showContextMenu(e, menuItems);
+        };
+
+        return h('div', { class: 'artist-detail-view' }, [
+            // 图片网格
+            hasImages ? h('div', { class: 'artist-detail-grid' },
+                currentArtist.images.map((img, index) =>
+                    h('div', {
+                        key: img.path,
+                        class: 'artist-detail-image-item',
+                        onClick: () => handleImageClick(
+                            filteredArtists.findIndex(a => a.id === currentArtist.id),
+                            index
+                        ),
+                        onContextMenu: (e) => handleImageContextMenu(e, img)
+                    }, [
+                        h('img', {
+                            src: buildImageUrl(img.path),
+                            alt: `${currentArtist.name} - ${index + 1}`,
+                            loading: 'lazy'
+                        })
+                    ])
+                )
+            ) : h('div', { class: 'artist-detail-empty' }, '🎨 暂无图片')
+        ]);
+    };
+
+    /**
      * 渲染主要内容区
      */
     const renderBody = () => {
@@ -303,6 +509,19 @@ export function GalleryModal({ isOpen, onClose }) {
             return renderError();
         }
 
+        // 画师详情视图
+        if (viewMode === 'artist' && currentArtist) {
+            return h('div', { class: 'gallery-container' }, [
+                // 面包屑导航
+                h(Breadcrumb, {
+                    path: categoryPath,
+                    onNavigate: handleBreadcrumbNavigate
+                }),
+                renderArtistDetail()
+            ]);
+        }
+
+        // 画廊视图
         return h('div', { class: 'gallery-container' }, [
             // 面包屑导航
             h(Breadcrumb, {
@@ -333,7 +552,8 @@ export function GalleryModal({ isOpen, onClose }) {
                 onDelete: openDeleteConfirm,
                 onCategoryClick: handleCategorySelect,
                 onCategoryEdit: handleEditCategory,
-                onCategoryDelete: handleDeleteCategory
+                onCategoryDelete: handleDeleteCategory,
+                onMove: openMoveDialog
             }),
         ]);
     };
@@ -405,17 +625,54 @@ export function GalleryModal({ isOpen, onClose }) {
     };
 
     /**
-     * 渲染画师详情模态框
+     * 渲染移动对话框
+     */
+    const renderMoveDialog = () => {
+        return h(MoveDialog, {
+            isOpen: showMoveDialog,
+            itemType: moveItemType,
+            item: moveItem,
+            categories: categories,
+            artists: allArtists,
+            onClose: () => {
+                setShowMoveDialog(false);
+                setMoveItem(null);
+                setMoveItemType(null);
+            },
+            onMove: handleMove
+        });
+    };
+
+    /**
+     * 渲染画师详情模态框（已弃用，改用内嵌视图）
      */
     const renderArtistDetailModal = () => {
+        // 旧的独立弹窗实现，现在已改用内嵌视图
+        return null;
+        /*
         return h(ArtistDetailModal, {
             isOpen: showArtistDetail,
             artist: selectedArtist,
+            categories: categories,
+            allArtists: data?.artists || [],
             onClose: () => {
                 setShowArtistDetail(false);
                 setSelectedArtist(null);
+            },
+            onImageDelete: async () => {
+                await loadData();
+                // 重新加载后更新 selectedArtist
+                if (selectedArtist) {
+                    const updatedData = await fetch(`/artist_gallery/data?category=${currentCategory}`);
+                    const result = await updatedData.json();
+                    const updatedArtist = result.artists?.find(a => a.id === selectedArtist.id);
+                    if (updatedArtist) {
+                        setSelectedArtist(updatedArtist);
+                    }
+                }
             }
         });
+        */
     };
 
     // ============ 主渲染 ============
@@ -436,7 +693,8 @@ export function GalleryModal({ isOpen, onClose }) {
             renderAddDialog(),
             renderDeleteDialog(),
             renderCategoryDialog(),
-            renderArtistDetailModal(),
+            // renderArtistDetailModal(), // 已弃用，改用内嵌视图
+            renderMoveDialog(),
         ],
     );
 }

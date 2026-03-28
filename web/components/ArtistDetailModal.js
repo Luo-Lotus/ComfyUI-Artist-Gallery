@@ -6,13 +6,18 @@ import { h } from '../lib/preact.mjs';
 import { useState } from '../lib/hooks.mjs';
 import { buildImageUrl } from '../utils.js';
 import { Lightbox } from './Lightbox.js';
+import { MoveDialog } from './MoveDialog.js';
+import { useContextMenu } from './ContextMenu.js';
 
-export function ArtistDetailModal({ isOpen, artist, onClose }) {
+export function ArtistDetailModal({ isOpen, artist, onClose, onImageDelete, categories, allArtists }) {
     const [lightbox, setLightbox] = useState({
         open: false,
         artist: null,
         imageIndex: 0
     });
+    const [showMoveDialog, setShowMoveDialog] = useState(false);
+    const [selectedImage, setSelectedImage] = useState(null);
+    const { showContextMenu } = useContextMenu();
 
     const handleImageClick = (imageIndex) => {
         setLightbox({
@@ -20,6 +25,74 @@ export function ArtistDetailModal({ isOpen, artist, onClose }) {
             artist: artist,
             imageIndex
         });
+    };
+
+    const handleDeleteImage = async (imagePath, index) => {
+        if (!confirm(`确定要删除这张图片吗？`)) return;
+
+        try {
+            // 调用删除图片的 API
+            const response = await fetch(`/artist_gallery/image`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ imagePath, artistId: artist.id })
+            });
+
+            if (response.ok) {
+                // 通知父组件刷新数据
+                if (onImageDelete) {
+                    onImageDelete();
+                }
+            } else {
+                const error = await response.json();
+                alert(`删除失败: ${error.error || '未知错误'}`);
+            }
+        } catch (error) {
+            alert(`删除失败: ${error.message}`);
+        }
+    };
+
+    const handleImageContextMenu = (e, image) => {
+        const menuItems = [
+            { icon: '🔍', label: '查看大图', action: () => handleImageClick(artist.images.indexOf(image)) },
+            { icon: '📦', label: '移动图片', action: () => handleMoveImage(image) },
+            { icon: '🗑️', label: '删除图片', action: () => handleDeleteImage(image.path, artist.images.indexOf(image)) }
+        ];
+
+        showContextMenu(e, menuItems);
+    };
+
+    const handleMoveImage = (image) => {
+        setSelectedImage(image);
+        setShowMoveDialog(true);
+    };
+
+    const handleMove = async (item, target) => {
+        try {
+            const response = await fetch('/artist_gallery/image/move', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    imagePath: selectedImage.path,
+                    fromArtistId: artist.id,
+                    toArtistId: target.id
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                setShowMoveDialog(false);
+                setSelectedImage(null);
+                if (onImageDelete) {
+                    onImageDelete();
+                }
+            } else {
+                throw new Error(data.error || '移动失败');
+            }
+        } catch (error) {
+            throw error;
+        }
     };
 
     const handleLightboxNavigate = (direction) => {
@@ -61,12 +134,15 @@ export function ArtistDetailModal({ isOpen, artist, onClose }) {
                     h('div', {
                         key: img.path,
                         class: 'artist-detail-image-item',
-                        onClick: () => handleImageClick(index)
-                    }, h('img', {
-                        src: buildImageUrl(img.path),
-                        alt: `${artist.name} - ${index + 1}`,
-                        loading: 'lazy'
-                    }))
+                        onClick: () => handleImageClick(index),
+                        onContextMenu: (e) => handleImageContextMenu(e, img)
+                    }, [
+                        h('img', {
+                            src: buildImageUrl(img.path),
+                            alt: `${artist.name} - ${index + 1}`,
+                            loading: 'lazy'
+                        })
+                    ])
                 )
             ) : h('div', { class: 'artist-detail-empty' }, '🎨 暂无图片')
         ]),
@@ -78,6 +154,20 @@ export function ArtistDetailModal({ isOpen, artist, onClose }) {
             imageIndex: lightbox.imageIndex,
             onClose: () => setLightbox({ open: false, artist: null, imageIndex: 0 }),
             onNavigate: handleLightboxNavigate
+        }),
+
+        // Move Dialog
+        showMoveDialog && h(MoveDialog, {
+            isOpen: showMoveDialog,
+            itemType: 'image',
+            item: selectedImage,
+            categories: categories || [],
+            artists: allArtists || [],
+            onClose: () => {
+                setShowMoveDialog(false);
+                setSelectedImage(null);
+            },
+            onMove: handleMove
         })
     ]);
 }

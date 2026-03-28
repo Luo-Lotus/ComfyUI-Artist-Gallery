@@ -23,6 +23,8 @@ export function ArtistSelectorWidget({
         currentCategory,
         filteredArtists,
         selectedArtistsList,
+        refreshing,
+        breadcrumbPath,
         setSearchQuery,
         setSortBy,
         setSortOrder,
@@ -30,9 +32,31 @@ export function ArtistSelectorWidget({
         handleMouseEnter,
         setHoveredImage,
         handleCategoryChange,
+        handleRefresh,
     } = useArtistSelector(nodeInstance, selectedInput, metadataInput);
 
     // ============ 子组件渲染函数 ============
+
+    /**
+     * 渲染面包屑导航
+     */
+    const renderBreadcrumb = () => {
+        if (breadcrumbPath.length === 0) return null;
+
+        return h('div', { class: 'artist-selector-breadcrumb' },
+            h('div', { class: 'artist-selector-breadcrumb-list' }, [
+                // 只显示子分类路径
+                breadcrumbPath.map((cat, index) => [
+                    index > 0 && h('span', { key: `sep-${index}`, class: 'artist-selector-breadcrumb-separator' }, '/'),
+                    h('span', {
+                        key: cat.id,
+                        class: `artist-selector-breadcrumb-item ${currentCategory === cat.id ? 'active' : ''}`,
+                        onClick: () => handleCategoryChange(cat.id)
+                    }, cat.name)
+                ])
+            ])
+        );
+    };
 
     /**
      * 渲染已选择的画师标签列表
@@ -73,62 +97,64 @@ export function ArtistSelectorWidget({
     };
 
     /**
-     * 渲染分类选择器
+     * 渲染分类卡片
      */
-    const renderCategorySelector = () => {
-        return h('div', { class: 'artist-selector-category-section' }, [
-            h('div', { class: 'artist-selector-label' }, '📁 分类'),
-            h('select', {
-                class: 'artist-selector-category-select',
-                value: currentCategory,
-                onChange: (e) => handleCategoryChange(e.target.value)
-            },
-                categories.map(cat =>
-                    h('option', { value: cat.id, key: cat.id }, cat.displayName)
-                )
-            )
+    const renderCategoryCard = (cat) => {
+        return h('div', {
+            key: cat.id,
+            class: `artist-selector-category-card ${currentCategory === cat.id ? 'active' : ''}`,
+            onClick: () => handleCategoryChange(cat.id)
+        }, [
+            h('span', { class: 'artist-selector-category-icon' }, '📁'),
+            h('span', { class: 'artist-selector-category-name' }, cat.name)
         ]);
     };
 
     /**
-     * 渲染搜索框
+     * 渲染搜索和排序控件（同一行）
      */
-    const renderSearchBar = () => {
-        return h('input', {
-            type: 'text',
-            class: 'artist-selector-search',
-            placeholder: '搜索画师...',
-            value: searchQuery,
-            onInput: (e) => setSearchQuery(e.target.value),
-        });
-    };
-
-    /**
-     * 渲染排序控件
-     */
-    const renderSortControls = () => {
-        return h('div', { class: 'artist-selector-sort-controls' }, [
-            h(
-                'select',
-                {
-                    class: 'artist-selector-sort-select',
-                    value: sortBy,
-                    onChange: (e) => setSortBy(e.target.value),
-                },
-                [
-                    h('option', { value: 'name' }, '名称'),
-                    h('option', { value: 'created_at' }, '创建时间'),
-                    h('option', { value: 'image_count' }, '图片数量'),
-                ],
-            ),
-            h(
-                'button',
-                {
-                    class: 'artist-selector-sort-button',
-                    onClick: () => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'),
-                },
-                sortOrder === 'asc' ? '↑ 升序' : '↓ 降序',
-            ),
+    const renderControls = () => {
+        return h('div', { class: 'artist-selector-controls-row' }, [
+            h('input', {
+                type: 'text',
+                class: 'artist-selector-search',
+                placeholder: '搜索画师...',
+                value: searchQuery,
+                onInput: (e) => setSearchQuery(e.target.value),
+            }),
+            h('div', { class: 'artist-selector-sort-controls' }, [
+                h(
+                    'select',
+                    {
+                        class: 'artist-selector-sort-select',
+                        value: sortBy,
+                        onChange: (e) => setSortBy(e.target.value),
+                    },
+                    [
+                        h('option', { value: 'name' }, '名称'),
+                        h('option', { value: 'created_at' }, '创建时间'),
+                        h('option', { value: 'image_count' }, '图片数量'),
+                    ],
+                ),
+                h(
+                    'button',
+                    {
+                        class: 'artist-selector-sort-button',
+                        onClick: () => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'),
+                    },
+                    sortOrder === 'asc' ? '↑ 升序' : '↓ 降序',
+                ),
+                h(
+                    'button',
+                    {
+                        class: 'artist-selector-refresh-button',
+                        onClick: handleRefresh,
+                        disabled: refreshing,
+                        title: '刷新'
+                    },
+                    refreshing ? '⟳' : '🔄',
+                ),
+            ]),
         ]);
     };
 
@@ -147,25 +173,38 @@ export function ArtistSelectorWidget({
                 onMouseLeave: () => setHoveredImage(null),
             },
             [
-                h('div', { class: 'artist-selector-item-info' }, [
-                    h('span', { class: 'artist-selector-item-name' }, artist.displayName),
-                    h('span', { class: 'artist-selector-item-count' }, `${artist.imageCount}张`),
-                ]),
+                h('span', { class: 'artist-selector-item-name' }, artist.displayName),
                 isSelected && h('span', { class: 'artist-selector-item-check' }, '✓'),
             ],
         );
     };
 
     /**
-     * 渲染画师列表
+     * 渲染画师列表（包含分类和画师）
      */
     const renderArtistList = () => {
+        if (loading) {
+            return h('div', { class: 'artist-selector-list' },
+                h('div', { class: 'artist-selector-loading' }, '加载中...')
+            );
+        }
+
+        // 获取当前分类的子分类
+        const currentCatObj = categories.find(c => c.id === currentCategory);
+        const childrenCategories = currentCatObj?.children || [];
+
+        // 混合渲染：先显示分类，再显示画师
+        const hasContent = childrenCategories.length > 0 || filteredArtists.length > 0;
+
+        if (!hasContent) {
+            return h('div', { class: 'artist-selector-list' },
+                h('div', { class: 'artist-selector-empty-artists' }, '没有找到画师')
+            );
+        }
+
         return h('div', { class: 'artist-selector-list' }, [
-            loading
-                ? h('div', { class: 'artist-selector-loading' }, '加载中...')
-                : filteredArtists.length === 0
-                  ? h('div', { class: 'artist-selector-empty-artists' }, '没有找到画师')
-                  : filteredArtists.map((artist) => renderArtistItem(artist)),
+            ...childrenCategories.map(cat => renderCategoryCard(cat)),
+            ...filteredArtists.map((artist) => renderArtistItem(artist)),
         ]);
     };
 
@@ -194,16 +233,13 @@ export function ArtistSelectorWidget({
         // 已选择的画师
         renderSelectedArtists(),
 
-        // 分类选择器
-        renderCategorySelector(),
+        // 面包屑导航
+        renderBreadcrumb(),
 
-        // 搜索框
-        renderSearchBar(),
+        // 搜索和排序控件（同一行）
+        renderControls(),
 
-        // 排序控件
-        renderSortControls(),
-
-        // 画师列表
+        // 画师列表（包含分类和画师）
         renderArtistList(),
 
         // 图片预览悬浮窗

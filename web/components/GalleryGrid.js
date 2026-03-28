@@ -17,7 +17,8 @@ export function GalleryGrid({
     onDelete,
     onCategoryClick,
     onCategoryEdit,
-    onCategoryDelete
+    onCategoryDelete,
+    onMove
 }) {
     // 计算每个分类的画师数量
     const categoryArtistCounts = useMemo(() => {
@@ -41,7 +42,8 @@ export function GalleryGrid({
                 artistCount: categoryArtistCounts[category.id] || 0,
                 onClick: onCategoryClick,
                 onEdit: onCategoryEdit,
-                onDelete: onCategoryDelete
+                onDelete: onCategoryDelete,
+                onMove: () => onMove && onMove(category, 'category')
             })
         ),
         // 再渲染画师卡片
@@ -55,6 +57,7 @@ export function GalleryGrid({
                 onImageClick,
                 onEdit,
                 onDelete,
+                onMove: () => onMove && onMove(artist, 'artist')
             }),
         ),
     ]);

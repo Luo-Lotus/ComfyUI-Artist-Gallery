@@ -5,6 +5,7 @@
 import { h } from '../lib/preact.mjs';
 import { useState } from '../lib/hooks.mjs';
 import { buildImageUrl } from '../utils.js';
+import { useContextMenu } from './ContextMenu.js';
 
 export function GalleryCard({
     artist,
@@ -15,14 +16,20 @@ export function GalleryCard({
     onDelete,
     onEdit,
     onSetCover,
+    onMove,
 }) {
     const [copied, setCopied] = useState(false);
     const isFav = favorites.has(artist.name);
     const hasImages = artist.images && artist.images.length > 0;
+    const { showContextMenu } = useContextMenu();
 
     // 获取封面图片路径
-    const coverImagePath = artist.coverImageId || (hasImages ? artist.images[0].path : null);
-    const coverImage = hasImages ? artist.images.find(img => img.path === coverImagePath) || artist.images[0] : null;
+    const coverImagePath =
+        artist.coverImageId || (hasImages ? artist.images[0].path : null);
+    const coverImage = hasImages
+        ? artist.images.find((img) => img.path === coverImagePath) ||
+          artist.images[0]
+        : null;
 
     // ============ 事件处理 ============
 
@@ -33,48 +40,69 @@ export function GalleryCard({
         });
     };
 
+    const handleContextMenu = (e) => {
+        const menuItems = [
+            { icon: '📋', label: '复制名称', action: handleCopy },
+            {
+                icon: '☆',
+                label: '收藏',
+                action: () => onFavoriteToggle(artist.name),
+            },
+            {
+                icon: '✏️',
+                label: '编辑',
+                action: () => onEdit && onEdit(artist),
+            },
+            {
+                icon: '📦',
+                label: '移动',
+                action: () => onMove && onMove(artist),
+            },
+            {
+                icon: '🗑️',
+                label: '删除',
+                action: () => onDelete && onDelete(artist),
+            },
+        ];
+
+        showContextMenu(e, menuItems);
+    };
+
     // ============ 渲染函数 ============
 
     /**
-     * 渲染卡片头部（包含信息 + 操作按钮）
+     * 渲染卡片头部（包含信息 + 收藏按钮）
      */
     const renderHeader = () => {
         return h('div', { class: 'gallery-card-header' }, [
             // 左侧：画师名称和数量
-            h('span', {
-                class: 'gallery-artist-name',
-                title: artist.name,
-            }, artist.displayName || artist.name),
-            h('span', { class: 'gallery-artist-count' }, `${artist.imageCount}张`),
+            h(
+                'span',
+                {
+                    class: 'gallery-artist-name',
+                    title: artist.name,
+                },
+                artist.displayName || artist.name,
+            ),
+            h(
+                'span',
+                { class: 'gallery-artist-count' },
+                `${artist.imageCount}张`,
+            ),
 
-            // 右侧：操作按钮
-            h('div', { class: 'gallery-actions' }, [
-                // 复制按钮
-                h('button', {
-                    class: `gallery-icon-btn ${copied ? 'copied' : ''}`,
-                    onClick: handleCopy,
-                    title: '复制画师名称',
-                }, copied ? '✓' : '📋'),
-                // 收藏按钮
-                h('button', {
-                    class: `gallery-icon-btn ${isFav ? 'fav-active' : ''}`,
-                    onClick: () => onFavoriteToggle(artist.name),
+            // 右侧：收藏按钮
+            h(
+                'button',
+                {
+                    class: `gallery-fav-btn ${isFav ? 'fav-active' : ''}`,
+                    onClick: (e) => {
+                        e.stopPropagation();
+                        onFavoriteToggle(artist.name);
+                    },
                     title: isFav ? '取消收藏' : '添加收藏',
-                }, isFav ? '⭐' : '☆'),
-                // 编辑按钮
-                onEdit && h('button', {
-                    class: 'gallery-icon-btn',
-                    onClick: () => onEdit(artist),
-                    title: '编辑画师',
-                }, '✏️'),
-                // 删除按钮
-                onDelete && h('button', {
-                    class: 'gallery-icon-btn',
-                    onClick: () => onDelete(artist),
-                    style: { color: '#ef4444' },
-                    title: '删除画师',
-                }, '🗑️'),
-            ]),
+                },
+                isFav ? '⭐' : '☆',
+            ),
         ]);
     };
 
@@ -84,14 +112,18 @@ export function GalleryCard({
     const renderCoverImage = () => {
         if (!coverImage) return renderEmptyState();
 
-        return h('div', {
-            class: 'gallery-image-cover',
-            onClick: () => onImageClick && onImageClick(artistIndex)
-        }, h('img', {
-            src: buildImageUrl(coverImage.path),
-            alt: artist.name,
-            loading: 'lazy'
-        }));
+        return h(
+            'div',
+            {
+                class: 'gallery-image-cover',
+                onClick: () => onImageClick && onImageClick(artistIndex),
+            },
+            h('img', {
+                src: buildImageUrl(coverImage.path),
+                alt: artist.name,
+                loading: 'lazy',
+            }),
+        );
     };
 
     /**
@@ -160,8 +192,15 @@ export function GalleryCard({
 
     // ============ 主渲染 ============
 
-    return h('div', { class: 'gallery-card' }, [
-        renderHeader(),  // 头部（包含名称、数量和操作按钮）
-        renderImages(),  // 图片区域
-    ]);
+    return h(
+        'div',
+        {
+            class: `gallery-card`,
+            onContextMenu: handleContextMenu,
+        },
+        [
+            renderHeader(), // 头部（包含名称、数量和收藏按钮）
+            renderImages(), // 图片区域
+        ],
+    );
 }

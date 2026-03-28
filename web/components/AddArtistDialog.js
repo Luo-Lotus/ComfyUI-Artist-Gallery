@@ -232,7 +232,7 @@ export function AddArtistDialog({
                             h(
                                 'option',
                                 { value: cat.id, key: cat.id },
-                                cat.displayName,
+                                cat.name,
                             ),
                         ),
                     ),

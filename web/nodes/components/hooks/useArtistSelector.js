@@ -17,11 +17,34 @@ function flattenCategories(tree) {
     return result;
 }
 
+// 辅助函数：构建面包屑路径
+function buildBreadcrumbPath(categoryId, categories) {
+    const path = [];
+
+    function findPath(id) {
+        const cat = categories.find(c => c.id === id);
+        if (!cat) return;
+
+        path.unshift(cat);
+
+        if (cat.parentId) {
+            findPath(cat.parentId);
+        }
+    }
+
+    if (categoryId && categoryId !== 'root') {
+        findPath(categoryId);
+    }
+
+    return path;
+}
+
 export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
     // 状态管理
     const [artists, setArtists] = useState([]);
     const [categories, setCategories] = useState([]);
     const [selectedIds, setSelectedIds] = useState(new Set());
+    const [selectedArtistsCache, setSelectedArtistsCache] = useState({}); // 缓存所有已选择的画师信息
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [hoveredImage, setHoveredImage] = useState(null);
@@ -29,6 +52,17 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
     const [sortBy, setSortBy] = useState('name');
     const [sortOrder, setSortOrder] = useState('asc');
     const [currentCategory, setCurrentCategory] = useState('root');
+    const [refreshing, setRefreshing] = useState(false);
+
+    // 计算面包屑路径
+    const breadcrumbPath = useMemo(() => {
+        return buildBreadcrumbPath(currentCategory, categories);
+    }, [currentCategory, categories]);
+
+    // 计算已选择的画师列表（从缓存中获取，不在当前分类的也显示）
+    const selectedArtistsList = useMemo(() => {
+        return Array.from(selectedIds).map(id => selectedArtistsCache[id]).filter(Boolean);
+    }, [selectedIds, selectedArtistsCache]);
 
     // 加载分类列表
     useEffect(() => {
@@ -67,7 +101,19 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
                     try {
                         const savedIds = JSON.parse(savedSelection);
                         if (Array.isArray(savedIds) && savedIds.length > 0) {
-                            setSelectedIds(new Set(savedIds));
+                            const newSet = new Set(savedIds);
+                            setSelectedIds(newSet);
+                            // 更新缓存：添加当前分类中的已选画师
+                            setSelectedArtistsCache(prev => {
+                                const newCache = { ...prev };
+                                savedIds.forEach(id => {
+                                    const artist = artistsList.find(a => a.id === id);
+                                    if (artist && !newCache[id]) {
+                                        newCache[id] = artist;
+                                    }
+                                });
+                                return newCache;
+                            });
                         }
                     } catch (e) {
                         console.error(
@@ -120,12 +166,22 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
     // 切换选择状态
     const toggleSelection = (artistId) => {
         const newSelected = new Set(selectedIds);
+        const newCache = { ...selectedArtistsCache };
+
         if (newSelected.has(artistId)) {
             newSelected.delete(artistId);
+            delete newCache[artistId];
         } else {
             newSelected.add(artistId);
+            // 从当前画师列表中找到完整的画师信息并缓存
+            const artist = artists.find(a => a.id === artistId);
+            if (artist) {
+                newCache[artistId] = artist;
+            }
         }
+
         setSelectedIds(newSelected);
+        setSelectedArtistsCache(newCache);
 
         // 保存到 localStorage
         localStorage.setItem(
@@ -134,12 +190,12 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
         );
 
         // 更新节点值
-        updateNodeValue(newSelected);
+        updateNodeValue(newSelected, newCache);
     };
 
     // 更新节点值
-    const updateNodeValue = (selectedSet) => {
-        const selectedArtists = artists.filter((a) => selectedSet.has(a.id));
+    const updateNodeValue = (selectedSet, cache = selectedArtistsCache) => {
+        const selectedArtists = Array.from(selectedSet).map(id => cache[id]).filter(Boolean);
 
         if (selectedArtists.length > 0) {
             // 原样输出，不添加或删除任何符号
@@ -184,13 +240,29 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
         }
     };
 
-    const selectedArtistsList = artists.filter((a) => selectedIds.has(a.id));
-
     // 分类切换处理
     const handleCategoryChange = (categoryId) => {
         setCurrentCategory(categoryId);
         // 切换分类时清空搜索
         setSearchQuery('');
+    };
+
+    // 刷新数据
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        try {
+            const url = currentCategory === 'root'
+                ? '/artist_gallery/artists'
+                : `/artist_gallery/data?category=${currentCategory}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            const artistsList = data.artists || [];
+            setArtists(artistsList);
+        } catch (error) {
+            console.error('[ArtistSelector] Failed to refresh:', error);
+        } finally {
+            setRefreshing(false);
+        }
     };
 
     return {
@@ -207,6 +279,8 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
         currentCategory,
         filteredArtists,
         selectedArtistsList,
+        refreshing,
+        breadcrumbPath,
         // 操作
         setSearchQuery,
         setSortBy,
@@ -215,5 +289,6 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
         handleMouseEnter,
         setHoveredImage,
         handleCategoryChange,
+        handleRefresh,
     };
 }

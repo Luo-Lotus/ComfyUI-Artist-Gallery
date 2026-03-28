@@ -113,6 +113,14 @@ export async function deleteCategory(categoryId) {
     return await response.json();
 }
 
+export async function fetchAllArtists() {
+    const response = await fetch('/artist_gallery/artists');
+    if (!response.ok) {
+        throw new Error('获取画师列表失败');
+    }
+    return await response.json();
+}
+
 // ============ Breadcrumb Helper ============
 
 export function buildBreadcrumbPath(categoryId, categories) {

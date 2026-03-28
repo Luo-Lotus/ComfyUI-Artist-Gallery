@@ -333,6 +333,28 @@ class ImageMappingStorage:
                 return True
             return False
 
+    def update_mapping(self, image_path: str, artist_ids: List[str], metadata: Optional[dict] = None) -> bool:
+        """
+        更新图片映射的画师列表
+        :param image_path: 图片路径
+        :param artist_ids: 新的画师 ID 列表
+        :param metadata: 可选的元数据更新
+        :return: 是否更新成功
+        """
+        with self._lock:
+            data = self._read_data()
+
+            # 查找并更新映射
+            for mapping in data["mappings"]:
+                if mapping.get("imagePath") == image_path:
+                    mapping["artistIds"] = artist_ids
+                    if metadata is not None:
+                        mapping["metadata"] = {**mapping.get("metadata", {}), **metadata}
+                    self._write_data(data)
+                    return True
+
+            return False
+
 
 class CategoryStorage:
     """分类数据存储管理"""
@@ -353,8 +375,7 @@ class CategoryStorage:
             default_data = {
                 "categories": [{
                     "id": "root",
-                    "name": "all",
-                    "displayName": "全部",
+                    "name": "全部",
                     "parentId": None,
                     "order": 0,
                     "createdAt": int(time.time() * 1000)
@@ -411,7 +432,7 @@ class CategoryStorage:
 
         return build_tree(None)
 
-    def add_category(self, name: str, display_name: str, parent_id: str = "root") -> dict:
+    def add_category(self, name: str, parent_id: str = "root") -> dict:
         """添加分类"""
         import time
 
@@ -428,7 +449,6 @@ class CategoryStorage:
         new_category = {
             "id": str(uuid.uuid4()),
             "name": name,
-            "displayName": display_name,
             "parentId": parent_id,
             "order": max_order + 1,
             "createdAt": int(time.time() * 1000)
@@ -455,7 +475,7 @@ class CategoryStorage:
             for cat in data["categories"]:
                 if cat.get("id") == category_id:
                     for key, value in kwargs.items():
-                        if key in ["name", "displayName", "order"]:
+                        if key in ["name", "order", "parentId"]:
                             cat[key] = value
                     self._write_data(data)
                     return True
@@ -466,15 +486,14 @@ class CategoryStorage:
         with self._lock:
             data = self._read_data()
 
+            # 不允许删除根分类 - 直接在已读取的数据中查找
+            if category_id == "root":
+                raise ValueError("不能删除根分类")
+
             # 检查是否有子分类
             has_children = any(c.get("parentId") == category_id for c in data["categories"])
             if has_children:
                 raise ValueError("请先删除子分类")
-
-            # 不允许删除根分类
-            cat = self.get_category_by_id(category_id)
-            if cat and cat.get("name") == "all":
-                raise ValueError("不能删除根分类")
 
             original_count = len(data["categories"])
             data["categories"] = [c for c in data["categories"] if c.get("id") != category_id]

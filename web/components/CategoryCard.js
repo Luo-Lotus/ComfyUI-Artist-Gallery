@@ -4,16 +4,19 @@
  */
 import { h } from '../lib/preact.mjs';
 import { useState } from '../lib/hooks.mjs';
+import { useContextMenu } from './ContextMenu.js';
 
 export function CategoryCard({
     category,
     artistCount = 0,
     onClick,
     onEdit,
-    onDelete
+    onDelete,
+    onMove,
 }) {
     const [isHovered, setIsHovered] = useState(false);
-    const isRoot = category.name === 'all';
+    const isRoot = category.name === '全部';
+    const { showContextMenu } = useContextMenu();
 
     const handleClick = () => {
         if (onClick) {
@@ -21,51 +24,50 @@ export function CategoryCard({
         }
     };
 
-    const handleEdit = (e) => {
-        e.stopPropagation();
-        if (onEdit) {
-            onEdit(category);
-        }
+    const handleContextMenu = (e) => {
+        if (isRoot) return;
+
+        const menuItems = [
+            {
+                icon: '✏️',
+                label: '编辑',
+                action: () => onEdit && onEdit(category),
+            },
+            {
+                icon: '📦',
+                label: '移动',
+                action: () => onMove && onMove(category),
+            },
+            {
+                icon: '🗑️',
+                label: '删除',
+                action: () => onDelete && onDelete(category),
+            },
+        ];
+
+        showContextMenu(e, menuItems);
     };
 
-    const handleDelete = (e) => {
-        e.stopPropagation();
-        if (onDelete) {
-            onDelete(category);
-        }
-    };
+    return h(
+        'div',
+        {
+            class: `category-card`,
+            onClick: handleClick,
+            onContextMenu: handleContextMenu,
+        },
+        [
+            // 文件夹图标
+            h('div', { class: 'category-icon' }, '📁'),
 
-    return h('div', {
-        class: `category-card ${isHovered ? 'hovered' : ''}`,
-        onClick: handleClick,
-        onMouseEnter: () => setIsHovered(true),
-        onMouseLeave: () => setIsHovered(false)
-    }, [
-        // 文件夹图标
-        h('div', { class: 'category-icon' }, '📁'),
-
-        // 分类信息
-        h('div', { class: 'category-info' }, [
-            h('div', { class: 'category-name' }, category.displayName),
-            h('div', { class: 'category-meta' },
-                artistCount > 0 ? `${artistCount} 位画师` : '空分类'
-            )
-        ]),
-
-        // 操作按钮（悬停时显示）
-        !isRoot && h('div', {
-            class: `category-actions ${isHovered ? 'visible' : ''}`
-        }, [
-            h('button', {
-                class: 'category-action-btn edit-btn',
-                onClick: handleEdit,
-                title: '编辑分类'
-            }, '✏️'),
-            h('button', {
-                class: 'category-action-btn delete-btn',
-                onClick: handleDelete,
-                title: '删除分类'
-            }, '🗑️')
-        ])
-    ]);
+            // 分类信息
+            h('div', { class: 'category-info' }, [
+                h('div', { class: 'category-name' }, category.name),
+                h(
+                    'div',
+                    { class: 'category-meta' },
+                    artistCount > 0 ? `${artistCount} 位画师` : '空分类',
+                ),
+            ]),
+        ],
+    );
 }
