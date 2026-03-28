@@ -121,6 +121,114 @@ export async function fetchAllArtists() {
     return await response.json();
 }
 
+// ============ Artist API (Composite Key) ============
+
+export async function fetchArtist(categoryId, name) {
+    const response = await fetch(`/artist_gallery/artists/${encodeURIComponent(categoryId)}/${encodeURIComponent(name)}`);
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '获取画师失败');
+    }
+    return await response.json();
+}
+
+export async function updateArtist(categoryId, name, data) {
+    const response = await fetch(`/artist_gallery/artists/${encodeURIComponent(categoryId)}/${encodeURIComponent(name)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '更新画师失败');
+    }
+    return await response.json();
+}
+
+export async function deleteArtist(categoryId, name) {
+    const response = await fetch(`/artist_gallery/artists/${encodeURIComponent(categoryId)}/${encodeURIComponent(name)}`, {
+        method: 'DELETE'
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '删除画师失败');
+    }
+    return await response.json();
+}
+
+export async function copyArtist(categoryId, name, targetCategoryId, newName) {
+    const response = await fetch(`/artist_gallery/artists/${encodeURIComponent(categoryId)}/${encodeURIComponent(name)}/copy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            targetCategoryId,
+            newName
+        })
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '复制画师失败');
+    }
+    return await response.json();
+}
+
+export async function copyImage(imagePath, toArtistId) {
+    const response = await fetch('/artist_gallery/image/copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            imagePath,
+            toArtistId
+        })
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '复制图片失败');
+    }
+    return await response.json();
+}
+
+// ============ Legacy Artist API (ID-based, for compatibility) ============
+
+export async function addArtist(data) {
+    const response = await fetch('/artist_gallery/artists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '添加画师失败');
+    }
+    return await response.json();
+}
+
+export async function addArtistsBatch(artistsData) {
+    const response = await fetch('/artist_gallery/artists/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ artists: artistsData })
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '批量添加画师失败');
+    }
+    return await response.json();
+}
+
+export async function moveArtist(artistId, newCategoryId) {
+    const response = await fetch(`/artist_gallery/artists/${artistId}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newCategoryId })
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '移动画师失败');
+    }
+    return await response.json();
+}
+
 // ============ Breadcrumb Helper ============
 
 export function buildBreadcrumbPath(categoryId, categories) {

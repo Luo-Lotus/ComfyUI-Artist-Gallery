@@ -13,6 +13,7 @@ export function CategoryCard({
     onEdit,
     onDelete,
     onMove,
+    onCopy,
 }) {
     const [isHovered, setIsHovered] = useState(false);
     const isRoot = category.name === '全部';
@@ -37,6 +38,11 @@ export function CategoryCard({
                 icon: '📦',
                 label: '移动',
                 action: () => onMove && onMove(category),
+            },
+            {
+                icon: '📄',
+                label: '复制到',
+                action: () => onCopy && onCopy(category),
             },
             {
                 icon: '🗑️',

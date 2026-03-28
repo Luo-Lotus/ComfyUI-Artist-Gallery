@@ -7,6 +7,7 @@ import { showToast } from './Toast.js';
 import {
     addArtist,
     updateArtist,
+    updateArtistByKey,
     addArtistsBatch,
 } from '../services/artistApi.js';
 import {
@@ -88,9 +89,18 @@ export function AddArtistDialog({
         };
 
         try {
-            const data = editModeArtist
-                ? await updateArtist(editModeArtist.id, artistData)
-                : await addArtist(artistData);
+            let data;
+            if (editModeArtist) {
+                // 使用组合键更新画师
+                data = await updateArtistByKey(
+                    editModeArtist.categoryId,
+                    editModeArtist.name,
+                    artistData
+                );
+            } else {
+                // 添加新画师
+                data = await addArtist(artistData);
+            }
 
             if (data.success) {
                 showToast(

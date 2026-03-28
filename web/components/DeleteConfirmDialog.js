@@ -3,7 +3,7 @@
  */
 import { h } from '../lib/preact.mjs';
 import { showToast } from './Toast.js';
-import { deleteArtist } from '../services/artistApi.js';
+import { deleteArtistByKey } from '../services/artistApi.js';
 import { Dialog, DialogButton } from './Dialog.js';
 
 export function DeleteConfirmDialog({ isOpen, artist, onConfirm, onCancel }) {
@@ -14,7 +14,8 @@ export function DeleteConfirmDialog({ isOpen, artist, onConfirm, onCancel }) {
         if (!artist) return;
 
         try {
-            const data = await deleteArtist(artist.id);
+            // 使用组合键删除画师
+            const data = await deleteArtistByKey(artist.categoryId, artist.name);
 
             if (data.success) {
                 showToast(data.message || '删除成功', 'success');

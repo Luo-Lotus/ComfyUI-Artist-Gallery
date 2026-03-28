@@ -1,0 +1,31 @@
+{
+  "artists": [
+    {
+      "id": "0e0b19c6-9f8f-4281-8dc4-2d5c7e9a9c56",
+      "name": "@tianliang duohe fangdongye",
+      "displayName": "@tianliang duohe fangdongye",
+      "createdAt": 1774544126025,
+      "imageCount": 0,
+      "categoryId": "root",
+      "coverImageId": null
+    },
+    {
+      "id": "77bb40a6-10f3-415d-a54c-8e03a0367409",
+      "name": "@sy4",
+      "displayName": "@sy4",
+      "createdAt": 1774616679532,
+      "imageCount": 4,
+      "categoryId": "root",
+      "coverImageId": null
+    },
+    {
+      "id": "c5ab34df-8ffd-47cb-9ba4-12ac0132642e",
+      "name": "22",
+      "displayName": "22",
+      "categoryId": "root",
+      "coverImageId": null,
+      "createdAt": 1774664106753,
+      "imageCount": 6
+    }
+  ]
+}

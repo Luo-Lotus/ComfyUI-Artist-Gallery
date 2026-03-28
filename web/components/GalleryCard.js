@@ -17,6 +17,7 @@ export function GalleryCard({
     onEdit,
     onSetCover,
     onMove,
+    onCopy,
 }) {
     const [copied, setCopied] = useState(false);
     const isFav = favorites.has(artist.name);
@@ -57,6 +58,11 @@ export function GalleryCard({
                 icon: '📦',
                 label: '移动',
                 action: () => onMove && onMove(artist),
+            },
+            {
+                icon: '📄',
+                label: '复制到',
+                action: () => onCopy && onCopy(artist),
             },
             {
                 icon: '🗑️',

@@ -3,7 +3,8 @@
     "allow": [
       "Read(//e/sd/ComfyUI_windows_portable/ComfyUI/custom_nodes/ComfyUI-Danbooru-Gallery/js/danbooru_gallery/**)",
       "Read(//e/sd/ComfyUI_windows_portable/ComfyUI/custom_nodes/ComfyUI-Danbooru-Gallery/**)",
-      "Bash(python -c \":*)"
+      "Bash(python -c \":*)",
+      "Bash(python -c \"with open\\(''e:/sd/ComfyUI_windows_portable/ComfyUI/custom_nodes/artist_gallery/storage.py'', ''r'', encoding=''utf-8''\\) as f: print\\(len\\(f.readlines\\(\\)\\)\\)\")"
     ]
   }
 }

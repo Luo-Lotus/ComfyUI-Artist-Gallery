@@ -5,7 +5,6 @@
 import { h } from '../lib/preact.mjs';
 import { useState, useEffect, useMemo } from '../lib/hooks.mjs';
 import { Storage, fetchCategories, fetchAllArtists, buildBreadcrumbPath, addCategory, updateCategory, deleteCategory, buildImageUrl } from '../utils.js';
-import { GalleryHeader } from './GalleryHeader.js';
 import { GalleryGrid } from './GalleryGrid.js';
 import { Lightbox } from './Lightbox.js';
 import { AddArtistDialog } from './AddArtistDialog.js';
@@ -14,6 +13,7 @@ import { CategoryDialog } from './CategoryDialog.js';
 import { ArtistDetailModal } from './ArtistDetailModal.js';
 import { Breadcrumb } from './Breadcrumb.js';
 import { MoveDialog } from './MoveDialog.js';
+import { CopyDialog } from './CopyDialog.js';
 import { useGalleryData } from './hooks/useGalleryData.js';
 import { useFilteredArtists } from './hooks/useFilteredArtists.js';
 import { useContextMenu } from './ContextMenu.js';
@@ -49,6 +49,9 @@ export function GalleryModal({ isOpen, onClose }) {
     const [showMoveDialog, setShowMoveDialog] = useState(false);
     const [moveItem, setMoveItem] = useState(null);
     const [moveItemType, setMoveItemType] = useState(null);
+    const [showCopyDialog, setShowCopyDialog] = useState(false);
+    const [copyItem, setCopyItem] = useState(null);
+    const [copyItemType, setCopyItemType] = useState(null);
 
     // ============ 灯箱状态 ============
     const [lightbox, setLightbox] = useState({
@@ -143,8 +146,9 @@ export function GalleryModal({ isOpen, onClose }) {
     };
 
     const handleLightboxNavigate = (direction) => {
+        // 使用组合键查找画师（categoryId + name）
         const currentArtistIndex = filteredArtists.findIndex(
-            (a) => a.name === lightbox.artist.name,
+            (a) => a.categoryId === lightbox.artist.categoryId && a.name === lightbox.artist.name,
         );
         const artist = filteredArtists[currentArtistIndex];
         let newIndex = lightbox.imageIndex + direction;
@@ -236,6 +240,63 @@ export function GalleryModal({ isOpen, onClose }) {
         setShowMoveDialog(true);
     };
 
+    // ============ 复制功能 ============
+
+    const openCopyDialog = (item, type) => {
+        setCopyItem(item);
+        setCopyItemType(type);
+        setShowCopyDialog(true);
+    };
+
+    const handleCopy = async (item, target, newName) => {
+        try {
+            let response;
+            if (copyItemType === 'artist') {
+                response = await fetch(`/artist_gallery/artists/${encodeURIComponent(item.categoryId)}/${encodeURIComponent(item.name)}/copy`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        targetCategoryId: target.id,
+                        newName: newName || undefined
+                    })
+                });
+            } else if (copyItemType === 'image') {
+                response = await fetch('/artist_gallery/image/copy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        imagePath: item.path,
+                        toArtistId: target.id
+                    })
+                });
+            }
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                setShowCopyDialog(false);
+                setCopyItem(null);
+                setCopyItemType(null);
+
+                // 重新加载数据
+                await loadData();
+
+                // 重新加载分类和所有画师
+                const catResult = await fetchCategories();
+                setCategories(catResult.categories || []);
+
+                const artistsData = await fetchAllArtists();
+                setAllArtists(artistsData.artists || []);
+
+                return data;
+            } else {
+                throw new Error(data.error || '复制失败');
+            }
+        } catch (error) {
+            throw error;
+        }
+    };
+
     const handleMove = async (item, target) => {
         try {
             let response;
@@ -246,18 +307,21 @@ export function GalleryModal({ isOpen, onClose }) {
                     body: JSON.stringify({ newParentId: target.id })
                 });
             } else if (moveItemType === 'artist') {
-                response = await fetch(`/artist_gallery/artists/${item.id}/move`, {
-                    method: 'POST',
+                // 使用组合键移动画师（需要更新 categoryId）
+                response = await fetch(`/artist_gallery/artists/${encodeURIComponent(item.categoryId)}/${encodeURIComponent(item.name)}`, {
+                    method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ newCategoryId: target.id })
+                    body: JSON.stringify({ categoryId: target.id })
                 });
             } else if (moveItemType === 'image') {
+                // 移动图片需要从源画师的 artistNames 中移除，添加到目标画师的 artistNames
+                // 注意：这里需要使用旧的 ID API 因为前端还不知道目标画师的 name
                 response = await fetch('/artist_gallery/image/move', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         imagePath: item.path,
-                        fromArtistId: currentArtist.id,
+                        fromArtistId: currentArtist.id, // 注意：迁移后不会有 id 字段
                         toArtistId: target.id
                     })
                 });
@@ -277,7 +341,10 @@ export function GalleryModal({ isOpen, onClose }) {
                 if (viewMode === 'artist' && currentArtist) {
                     const updatedData = await fetch(`/artist_gallery/data?category=${currentCategory}`);
                     const result = await updatedData.json();
-                    const updatedArtist = result.artists?.find(a => a.id === currentArtist.id);
+                    // 使用组合键查找画师
+                    const updatedArtist = result.artists?.find(
+                        a => a.categoryId === currentArtist.categoryId && a.name === currentArtist.name
+                    );
                     if (updatedArtist) {
                         setCurrentArtist(updatedArtist);
                     } else {
@@ -421,7 +488,7 @@ export function GalleryModal({ isOpen, onClose }) {
                     icon: '🔍',
                     label: '查看大图',
                     action: () => handleImageClick(
-                        filteredArtists.findIndex(a => a.id === currentArtist.id),
+                        filteredArtists.findIndex(a => a.categoryId === currentArtist.categoryId && a.name === currentArtist.name),
                         currentArtist.images.indexOf(image)
                     )
                 },
@@ -435,18 +502,28 @@ export function GalleryModal({ isOpen, onClose }) {
                     }
                 },
                 {
+                    icon: '📄',
+                    label: '复制图片',
+                    action: () => {
+                        setMoveItem(image);
+                        setMoveItemType('image');
+                        setShowMoveDialog(true);
+                    }
+                },
+                {
                     icon: '🗑️',
                     label: '删除图片',
                     action: async () => {
                         if (!confirm(`确定要删除这张图片吗？`)) return;
 
                         try {
+                            // 删除图片 API 仍使用 artistId（需要更新后端 API）
                             const response = await fetch(`/artist_gallery/image`, {
                                 method: 'DELETE',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
                                     imagePath: image.path,
-                                    artistId: currentArtist.id
+                                    artistId: currentArtist.id // 注意：迁移后需要改用 name
                                 })
                             });
 
@@ -455,7 +532,9 @@ export function GalleryModal({ isOpen, onClose }) {
                                 // 更新当前画师数据
                                 const updatedData = await fetch(`/artist_gallery/data?category=${currentCategory}`);
                                 const result = await updatedData.json();
-                                const updatedArtist = result.artists?.find(a => a.id === currentArtist.id);
+                                const updatedArtist = result.artists?.find(
+                                    a => a.categoryId === currentArtist.categoryId && a.name === currentArtist.name
+                                );
                                 if (updatedArtist) {
                                     setCurrentArtist(updatedArtist);
                                 }
@@ -481,7 +560,7 @@ export function GalleryModal({ isOpen, onClose }) {
                         key: img.path,
                         class: 'artist-detail-image-item',
                         onClick: () => handleImageClick(
-                            filteredArtists.findIndex(a => a.id === currentArtist.id),
+                            filteredArtists.findIndex(a => a.categoryId === currentArtist.categoryId && a.name === currentArtist.name),
                             index
                         ),
                         onContextMenu: (e) => handleImageContextMenu(e, img)
@@ -512,36 +591,17 @@ export function GalleryModal({ isOpen, onClose }) {
         // 画师详情视图
         if (viewMode === 'artist' && currentArtist) {
             return h('div', { class: 'gallery-container' }, [
-                // 面包屑导航
-                h(Breadcrumb, {
-                    path: categoryPath,
-                    onNavigate: handleBreadcrumbNavigate
-                }),
+                // 合并的头部（面包屑 + 筛选）
+                renderMergedHeader(),
                 renderArtistDetail()
             ]);
         }
 
         // 画廊视图
         return h('div', { class: 'gallery-container' }, [
-            // 面包屑导航
-            h(Breadcrumb, {
-                path: categoryPath,
-                onNavigate: handleBreadcrumbNavigate
-            }),
+            // 合并的头部（面包屑 + 筛选）
+            renderMergedHeader(),
 
-            h(GalleryHeader, {
-                totalCount: data?.totalCount || 0,
-                currentCount: filteredArtists.length,
-                searchQuery,
-                sortBy,
-                sortOrder,
-                showFavoritesOnly,
-                onSearchChange: setSearchQuery,
-                onSortChange: setSortBy,
-                onOrderChange: () =>
-                    setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc')),
-                onFavoriteToggle: () => setShowFavoritesOnly((prev) => !prev),
-            }),
             h(GalleryGrid, {
                 categories: currentCategoryChildren,
                 artists: filteredArtists,
@@ -553,14 +613,68 @@ export function GalleryModal({ isOpen, onClose }) {
                 onCategoryClick: handleCategorySelect,
                 onCategoryEdit: handleEditCategory,
                 onCategoryDelete: handleDeleteCategory,
-                onMove: openMoveDialog
+                onMove: openMoveDialog,
+                onCopy: openCopyDialog
             }),
         ]);
     };
 
     /**
-     * 渲染模态框内容
+     * 渲染合并的面包屑和筛选栏
      */
+    const renderMergedHeader = () => {
+        return h('div', { class: 'gallery-merged-header' }, [
+            // 左侧：面包屑导航
+            h('div', { class: 'gallery-breadcrumb-section' }, [
+                h(Breadcrumb, {
+                    path: categoryPath,
+                    onNavigate: handleBreadcrumbNavigate
+                })
+            ]),
+
+            // 右侧：筛选和排序控件
+            h('div', { class: 'gallery-filter-section' }, [
+                // 搜索框
+                h('input', {
+                    class: 'gallery-search-input',
+                    type: 'text',
+                    placeholder: '搜索画师...',
+                    value: searchQuery,
+                    onInput: (e) => setSearchQuery(e.target.value)
+                }),
+
+                // 收藏筛选按钮
+                h('button', {
+                    class: `gallery-filter-btn ${showFavoritesOnly ? 'active' : ''}`,
+                    onClick: () => setShowFavoritesOnly(prev => !prev),
+                    title: '只显示收藏'
+                }, '⭐'),
+
+                // 排序选择
+                h('select', {
+                    class: 'gallery-filter-select',
+                    value: sortBy,
+                    onChange: (e) => setSortBy(e.target.value)
+                }, [
+                    h('option', { value: 'name' }, '名称'),
+                    h('option', { value: 'created_at' }, '创建时间'),
+                    h('option', { value: 'image_count' }, '图片数量')
+                ]),
+
+                // 排序顺序按钮
+                h('button', {
+                    class: 'gallery-filter-btn',
+                    onClick: () => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc'),
+                    title: sortOrder === 'asc' ? '升序' : '降序'
+                }, sortOrder === 'asc' ? '↑' : '↓'),
+
+                // 计数显示
+                h('span', { class: 'gallery-count-badge' },
+                    `${filteredArtists.length}/${data?.totalCount || 0}`
+                )
+            ])
+        ]);
+    };
     const renderModal = () => {
         return h('div', { class: 'gallery-modal-content' }, [
             renderHeader(),
@@ -643,6 +757,22 @@ export function GalleryModal({ isOpen, onClose }) {
         });
     };
 
+    const renderCopyDialog = () => {
+        return h(CopyDialog, {
+            isOpen: showCopyDialog,
+            itemType: copyItemType,
+            item: copyItem,
+            categories: categories,
+            artists: allArtists,
+            onClose: () => {
+                setShowCopyDialog(false);
+                setCopyItem(null);
+                setCopyItemType(null);
+            },
+            onCopy: handleCopy
+        });
+    };
+
     /**
      * 渲染画师详情模态框（已弃用，改用内嵌视图）
      */
@@ -695,6 +825,7 @@ export function GalleryModal({ isOpen, onClose }) {
             renderCategoryDialog(),
             // renderArtistDetailModal(), // 已弃用，改用内嵌视图
             renderMoveDialog(),
+            renderCopyDialog(),
         ],
     );
 }

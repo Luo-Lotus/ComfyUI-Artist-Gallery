@@ -117,7 +117,7 @@ class SaveToGallery:
         """
         保存图片到 output/artist_gallery/ 并创建映射关系
         :param images: ComfyUI 图片张量
-        :param metadata_json: 画师元数据 JSON 字符串 {"artist_ids": [...], "artist_names": [...], "display_names": [...]}
+        :param metadata_json: 画师元数据 JSON 字符串 {"artist_names": [...], "display_names": [...], "selected_artists": [...], "selected_categories": [...]}
         :param filename_prefix: 文件名前缀
         :param prompt: ComfyUI 工作流提示词（自动传入）
         :param extra_pnginfo: 额外的 PNG 元数据（自动传入）
@@ -134,12 +134,15 @@ class SaveToGallery:
         except:
             metadata = {}
 
-        artist_ids = metadata.get("artist_ids", [])
+        # 新架构：使用 artist_names 而不是 artist_ids
         artist_names = metadata.get("artist_names", [])
 
-        if not artist_ids:
+        if not artist_names:
             print("[SaveToGallery] 错误: 未选择画师")
             return ()
+
+        # 为了兼容旧代码，创建一个空的 artist_ids 列表
+        artist_ids = []
 
         # 获取输出目录
         output_dir = Path(folder_paths.get_output_directory())
@@ -166,11 +169,12 @@ class SaveToGallery:
             if prompt is not None:
                 pnginfo.add_text("prompt", json.dumps(prompt))
 
-            # 添加画师元数据
+            # 添加画师元数据（新架构）
             pnginfo.add_text("artist_gallery", json.dumps({
-                "artist_ids": artist_ids,
                 "artist_names": artist_names,
-                "display_names": metadata.get("display_names", [])
+                "display_names": metadata.get("display_names", []),
+                "selected_categories": metadata.get("selected_categories", []),
+                "selected_artists": metadata.get("selected_artists", [])
             }))
 
             # 添加额外的 PNG 元数据（如果提供）
@@ -183,19 +187,23 @@ class SaveToGallery:
                 img.save(save_path, format="PNG", pnginfo=pnginfo)
                 saved_count += 1
 
-                # 创建映射关系
+                # 创建映射关系（新架构：使用 artist_names）
                 image_path = f"artist_gallery/{filename}"
                 mapping_storage = get_storage()[1]
                 mapping_storage.add_mapping(
                     image_path,
-                    artist_ids,
+                    artist_names,
                     {"width": img.width, "height": img.height}
                 )
 
-                # 更新画师的图片计数
+                # 更新画师的图片计数（新架构：使用 selected_artists）
                 artist_storage = get_storage()[0]
-                for artist_id in artist_ids:
-                    artist_storage.update_image_count(artist_id, 1)
+                selected_artists = metadata.get("selected_artists", [])
+                for artist_info in selected_artists:
+                    category_id = artist_info.get("categoryId", "root")
+                    name = artist_info.get("name", "")
+                    if category_id and name:
+                        artist_storage.update_image_count(category_id, name, 1)
 
                 print(f"[SaveToGallery] 已保存: {filename} -> 画师: {', '.join(artist_names)}")
 
