@@ -13,6 +13,13 @@
       "parentId": "root",
       "order": 0,
       "createdAt": 1774695481413
+    },
+    {
+      "id": "2db09365-df69-4034-acde-5eaff767af80",
+      "name": "提示词",
+      "parentId": "root",
+      "order": 1,
+      "createdAt": 1774724214575
     }
   ]
 }

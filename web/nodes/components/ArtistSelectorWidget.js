@@ -308,17 +308,22 @@ export function ArtistSelectorWidget({
 
         // 主内容
         !showPartitionConfig && [
-            // 已选择的画师（分区列表）
-            renderSelectedArtists(),
+            // 已选择区域（分区列表）
+            h('div', { class: 'artist-selector-section' }, [
+                renderSelectedArtists(),
+            ]),
 
-            // 面包屑导航
-            renderBreadcrumb(),
+            // 浏览区域
+            h('div', { class: 'artist-selector-section' }, [
+                // 面包屑导航
+                renderBreadcrumb(),
 
-            // 搜索和排序控件（同一行）
-            renderControls(),
+                // 搜索和排序控件（同一行）
+                renderControls(),
 
-            // 画师列表（包含分类和画师）
-            renderArtistList(),
+                // 画师列表（包含分类和画师）
+                renderArtistList(),
+            ]),
         ],
     ]);
 }

@@ -2,7 +2,7 @@
  * 分区系统管理 Hook
  * 封装所有分区状态和操作，确保原子性更新
  */
-import { useState, useCallback, useEffect } from '../../../lib/hooks.mjs';
+import { useState, useCallback, useMemo } from '../../../lib/hooks.mjs';
 
 /**
  * 创建默认分区数据
@@ -43,13 +43,14 @@ function validatePartitionData(data) {
     // 确保至少有一个默认分区
     const hasDefault = data.partitions && data.partitions.some(p => p.isDefault);
     if (!hasDefault) {
-        console.warn('No default partition found, resetting...');
-        return createDefaultPartitionData();
+        console.warn('[PartitionSystem] No default partition found, resetting...');
+        return null;
     }
 
     // 确保 partitions 数组存在
-    if (!data.partitions) {
-        data.partitions = [];
+    if (!data.partitions || !Array.isArray(data.partitions)) {
+        console.warn('[PartitionSystem] Invalid partitions array, resetting...');
+        return null;
     }
 
     // 确保 artistPartitionMap 存在
@@ -75,9 +76,9 @@ function validatePartitionData(data) {
  */
 function savePartitionData(data) {
     try {
-        localStorage.setItem('artist_selector_partition_data', JSON.stringify(data));
+        localStorage.setItem('artist_selector_partitions', JSON.stringify(data));
     } catch (e) {
-        console.error('Failed to save partition data:', e);
+        console.error('[PartitionSystem] Failed to save partition data:', e);
     }
 }
 
@@ -86,61 +87,31 @@ function savePartitionData(data) {
  */
 function loadPartitionData() {
     try {
-        const saved = localStorage.getItem('artist_selector_partition_data');
+        const saved = localStorage.getItem('artist_selector_partitions');
         if (saved) {
-            const parsed = JSON.parse(saved);
-            return validatePartitionData(parsed);
+            const data = JSON.parse(saved);
+            const validated = validatePartitionData(data);
+            if (validated) {
+                return validated;
+            }
         }
     } catch (e) {
-        console.error('Failed to load partition data:', e);
+        console.error('[PartitionSystem] Failed to load partition data:', e);
     }
     return createDefaultPartitionData();
 }
 
-/**
- * 分区系统管理 Hook
- */
-export function usePartitionSystem(nodeInstance, selectedInput, metadataInput) {
+export function usePartitionSystem() {
     // 初始化分区数据
     const [partitionData, setPartitionData] = useState(() => loadPartitionData());
-
-    /**
-     * 更新节点值（当分区数据变化时调用）
-     */
-    const updateNodeValue = useCallback(() => {
-        if (!metadataInput) return;
-
-        // 构建完整的分区配置
-        const partitionConfigs = {};
-        partitionData.partitions.forEach(p => {
-            partitionConfigs[p.id] = {
-                format: p.config.format,
-                randomMode: p.config.randomMode,
-                randomCount: p.config.randomCount,
-                cycleMode: p.config.cycleMode,
-                enabled: p.enabled,
-                isDefault: p.isDefault,
-                name: p.name,
-            };
-        });
-
-        const metadata = {
-            globalConfig: partitionData.globalConfig,
-            partitionConfigs,
-            artistPartitionMap: partitionData.artistPartitionMap,
-            categoryPartitionMap: partitionData.categoryPartitionMap,
-        };
-
-        metadataInput.value = JSON.stringify(metadata);
-    }, [partitionData, metadataInput]);
 
     /**
      * 添加新分区
      */
     const addPartition = useCallback((name) => {
-        setPartitionData(prev => {
+        setPartitionData((prev) => {
             if (prev.partitions.length >= 10) {
-                console.warn('Maximum 10 partitions allowed');
+                console.warn('[PartitionSystem] Maximum 10 partitions allowed');
                 return prev;
             }
 
@@ -168,23 +139,23 @@ export function usePartitionSystem(nodeInstance, selectedInput, metadataInput) {
      * 删除分区
      */
     const deletePartition = useCallback((partitionId) => {
-        setPartitionData(prev => {
-            const partition = prev.partitions.find(p => p.id === partitionId);
+        setPartitionData((prev) => {
+            const partition = prev.partitions.find((p) => p.id === partitionId);
 
             // 不允许删除默认分区
             if (partition && partition.isDefault) {
-                console.warn('Cannot delete default partition');
+                console.warn('[PartitionSystem] Cannot delete default partition');
                 return prev;
             }
 
             // 只有最后一个分区时不允许删除
             if (prev.partitions.length <= 1) {
-                console.warn('Must have at least one partition');
+                console.warn('[PartitionSystem] Must have at least one partition');
                 return prev;
             }
 
             // 将该分区的画师移到默认分区
-            const defaultPartition = prev.partitions.find(p => p.isDefault);
+            const defaultPartition = prev.partitions.find((p) => p.isDefault);
             const newArtistPartitionMap = { ...prev.artistPartitionMap };
             const newCategoryPartitionMap = { ...prev.categoryPartitionMap };
 
@@ -202,7 +173,7 @@ export function usePartitionSystem(nodeInstance, selectedInput, metadataInput) {
 
             const newData = {
                 ...prev,
-                partitions: prev.partitions.filter(p => p.id !== partitionId),
+                partitions: prev.partitions.filter((p) => p.id !== partitionId),
                 artistPartitionMap: newArtistPartitionMap,
                 categoryPartitionMap: newCategoryPartitionMap,
             };
@@ -216,11 +187,11 @@ export function usePartitionSystem(nodeInstance, selectedInput, metadataInput) {
      * 更新分区配置
      */
     const updatePartition = useCallback((partitionId, updates) => {
-        setPartitionData(prev => {
+        setPartitionData((prev) => {
             const newData = {
                 ...prev,
-                partitions: prev.partitions.map(p =>
-                    p.id === partitionId ? { ...p, ...updates } : p
+                partitions: prev.partitions.map((p) =>
+                    p.id === partitionId ? { ...p, ...updates } : p,
                 ),
             };
 
@@ -233,7 +204,7 @@ export function usePartitionSystem(nodeInstance, selectedInput, metadataInput) {
      * 移动画师到分区
      */
     const moveArtistToPartition = useCallback((artistKey, partitionId) => {
-        setPartitionData(prev => {
+        setPartitionData((prev) => {
             const newData = {
                 ...prev,
                 artistPartitionMap: {
@@ -251,7 +222,7 @@ export function usePartitionSystem(nodeInstance, selectedInput, metadataInput) {
      * 移动分类到分区
      */
     const moveCategoryToPartition = useCallback((categoryId, partitionId) => {
-        setPartitionData(prev => {
+        setPartitionData((prev) => {
             const newData = {
                 ...prev,
                 categoryPartitionMap: {
@@ -269,11 +240,11 @@ export function usePartitionSystem(nodeInstance, selectedInput, metadataInput) {
      * 切换分区启用状态
      */
     const togglePartition = useCallback((partitionId) => {
-        setPartitionData(prev => {
+        setPartitionData((prev) => {
             const newData = {
                 ...prev,
-                partitions: prev.partitions.map(p =>
-                    p.id === partitionId ? { ...p, enabled: !p.enabled } : p
+                partitions: prev.partitions.map((p) =>
+                    p.id === partitionId ? { ...p, enabled: !p.enabled } : p,
                 ),
             };
 
@@ -286,10 +257,10 @@ export function usePartitionSystem(nodeInstance, selectedInput, metadataInput) {
      * 设置为默认分区
      */
     const setAsDefaultPartition = useCallback((partitionId) => {
-        setPartitionData(prev => {
+        setPartitionData((prev) => {
             const newData = {
                 ...prev,
-                partitions: prev.partitions.map(p => ({
+                partitions: prev.partitions.map((p) => ({
                     ...p,
                     isDefault: p.id === partitionId,
                 })),
@@ -301,32 +272,26 @@ export function usePartitionSystem(nodeInstance, selectedInput, metadataInput) {
     }, []);
 
     /**
-     * 获取分区中的画师列表
+     * 获取每个分区的画师列表
      */
-    const getArtistsByPartition = useCallback((partitionId, selectedArtists) => {
-        if (!selectedArtists) return [];
-
-        return selectedArtists.filter(artist => {
-            const key = `${artist.categoryId}:${artist.name}`;
-            return partitionData.artistPartitionMap[key] === partitionId;
+    const getArtistsByPartition = useMemo(() => {
+        const result = {};
+        partitionData.partitions.forEach((partition) => {
+            result[partition.id] = [];
         });
-    }, [partitionData.artistPartitionMap]);
+        return result;
+    }, [partitionData.partitions]);
 
     /**
-     * 获取分区中的分类列表
+     * 获取每个分区的分类列表
      */
-    const getCategoriesByPartition = useCallback((partitionId, selectedCategoriesList, categories) => {
-        if (!selectedCategoriesList || !categories) return [];
-
-        return selectedCategoriesList.filter(category => {
-            return partitionData.categoryPartitionMap[category.id] === partitionId;
+    const getCategoriesByPartition = useMemo(() => {
+        const result = {};
+        partitionData.partitions.forEach((partition) => {
+            result[partition.id] = [];
         });
-    }, [partitionData.categoryPartitionMap]);
-
-    // 当分区数据变化时，自动更新节点值
-    useEffect(() => {
-        updateNodeValue();
-    }, [updateNodeValue]);
+        return result;
+    }, [partitionData.partitions]);
 
     return {
         partitionData,
@@ -340,7 +305,6 @@ export function usePartitionSystem(nodeInstance, selectedInput, metadataInput) {
         setAsDefaultPartition,
         getArtistsByPartition,
         getCategoriesByPartition,
-        updateNodeValue,
     };
 }
 

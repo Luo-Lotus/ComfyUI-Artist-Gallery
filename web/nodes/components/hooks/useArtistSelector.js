@@ -594,7 +594,9 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
         // 获取分类中的所有画师，并按分类所属分区分配
         selectedCategories.forEach((catId) => {
             const catArtists = allArtists.filter((a) => a.categoryId === catId);
-            const categoryPartitionId = currentPartitionData.categoryPartitionMap[catId] || defaultPartitionId;
+            const categoryPartitionId =
+                currentPartitionData.categoryPartitionMap[catId] ||
+                defaultPartitionId;
 
             // console.log(`[ArtistSelector] Category ${catId} has ${catArtists.length} artists, assigned to partition ${categoryPartitionId}`);
 
@@ -661,11 +663,11 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
             }
 
             // console.log('[ArtistSelector] 更新节点值:', {
-                artistsString,
-                metadata,
-                selectedInputValue: selectedInput?.value,
-                metadataInputValue: metadataInput?.value,
-            });
+            //     artistsString,
+            //     metadata,
+            //     selectedInputValue: selectedInput?.value,
+            //     metadataInputValue: metadataInput?.value,
+            // });
         } else {
             if (selectedInput) {
                 selectedInput.value = '';

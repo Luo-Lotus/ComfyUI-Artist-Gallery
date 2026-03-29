@@ -676,7 +676,7 @@
 
 .artist-selector-search {
     width: 100%;
-    padding: 6px 10px;
+    padding: 5px 8px; /* 减小内边距 */
     background: #2a2a2a;
     border: 1px solid #444;
     border-radius: 6px;
@@ -708,7 +708,7 @@
 }
 
 .artist-selector-sort-button {
-    padding: 6px 12px;
+    padding: 5px 10px; /* 减小内边距 */
     background: #3b82f6;
     border: none;
     border-radius: 6px;
@@ -1327,8 +1327,8 @@
 /* 搜索和排序控件行 */
 .artist-selector-controls-row {
     display: flex;
-    gap: 12px;
-    margin-bottom: 16px;
+    gap: 8px; /* 减小间距 */
+    margin-bottom: 8px; /* 减小底部间距 */
     align-items: center;
 }
 
@@ -1366,8 +1366,8 @@
 
 /* 面包屑导航 */
 .artist-selector-breadcrumb {
-    margin-bottom: 12px;
-    padding: 8px 12px;
+    margin-bottom: 8px; /* 减小底部间距 */
+    padding: 6px 10px; /* 减小内边距 */
     background: #1a1a1a;
     border: 1px solid #333;
     border-radius: 6px;
@@ -1377,8 +1377,8 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 6px;
-    font-size: 13px;
+    gap: 4px; /* 减小间距 */
+    font-size: 12px; /* 减小字体 */
 }
 
 .artist-selector-breadcrumb-item {
@@ -3025,35 +3025,34 @@
 
 /* 分区项 */
 .partition-item {
-    background: #2a2a2a;
-    border: 1px solid #3a3a3a;
+    background: rgba(30, 30, 30, 0.8);
+    border: 1px solid rgba(58, 58, 58, 0.6);
     border-radius: 6px;
-    padding: 10px;
-    transition: all 0.2s;
+    padding: 6px 8px; /* 减少内边距 */
+    transition: all 0.2s ease;
 }
 
-/* 默认分区标识 */
+.partition-item:hover {
+    border-color: rgba(100, 100, 100, 0.8);
+    background: rgba(35, 35, 35, 0.9);
+}
+
 .partition-item.is-default {
-    background: #2d3748;
-    border-color: #4299e1;
-    border-width: 2px;
+    background: rgba(30, 58, 138, 0.15);
+    border-color: rgba(59, 130, 246, 0.4);
 }
 
-.partition-item.is-default .partition-name {
-    color: #63b3ed;
-    font-weight: 600;
+.partition-item.is-default:hover {
+    border-color: rgba(59, 130, 246, 0.6);
 }
 
-/* 禁用状态 */
 .partition-item.disabled {
-    opacity: 0.5;
-    background: #1a1a1a;
+    opacity: 0.6;
 }
 
-/* 拖拽悬停状态 */
 .partition-item.drag-over {
     border-color: #4CAF50;
-    border-width: 2px;
+    background: rgba(76, 175, 80, 0.1);
 }
 
 /* 分区头部 */
@@ -3061,47 +3060,25 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
+    margin-bottom: 6px; /* 减少底部间距 */
 }
 
 .partition-info {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
 }
 
 .partition-name {
-    font-size: 14px;
+    font-size: 13px; /* 减小字体 */
     font-weight: 500;
-    color: #ccc;
+    color: #d0d0d0;
 }
 
 .partition-disabled-badge {
-    font-size: 11px;
-    color: #888;
+    font-size: 10px; /* 缩小字体 */
+    color: #f44336;
     font-style: italic;
-}
-
-.partition-count {
-    font-size: 12px;
-    color: #888;
-}
-
-/* 分区操作按钮 */
-.partition-actions {
-    display: flex;
-    gap: 4px;
-}
-
-.partition-btn {
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    padding: 4px 6px;
-    font-size: 14px;
-    opacity: 0.6;
-    transition: opacity 0.2s;
-    border-radius: 3px;
 }
 
 .partition-btn:hover {
@@ -3205,8 +3182,328 @@
 .partition-list-content {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px; /* 减少间距 */
 }
 
+/* ==================== 分区规则指示器 ==================== */
+.partition-rule-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 6px;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.partition-rule-badge.random {
+    background: rgba(156, 89, 182, 0.3);
+    border: 1px solid rgba(156, 89, 182, 0.5);
+}
+
+.partition-rule-badge.cycle {
+    background: rgba(33, 150, 243, 0.3);
+    border: 1px solid rgba(33, 150, 243, 0.5);
+}
+
+/* ==================== UI 间距优化 ==================== */
+/* 增强分区列表与选择区域的视觉分隔 */
+.artist-selector-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px; /* 减少区域间距 */
+    height: 100%;
+    padding: 4px;
+}
+
+/* 区域容器 */
+.artist-selector-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px; /* 减少间距 */
+}
+
+/* 区域标题 */
+.artist-selector-section-header {
+    padding: 6px 10px;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(156, 89, 182, 0.1) 100%);
+    border-radius: 6px;
+    border-left: 3px solid #3b82f6;
+}
+
+.artist-selector-section-title {
+    font-size: 12px; /* 缩小字体 */
+    font-weight: 600;
+    color: #b0b0b0;
+    letter-spacing: 0.5px;
+}
+
+/* 分区列表区域的视觉优化 */
+.partition-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px; /* 减少分区间距 */
+    padding: 8px; /* 减少内边距 */
+    background: rgba(42, 42, 42, 0.3);
+    border-radius: 6px; /* 减少圆角 */
+    border: 1px solid rgba(58, 58, 58, 0.5);
+}
+
+/* 分区列表头部优化 */
+.partition-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 4px; /* 减少内边距 */
+    border-bottom: 1px solid #3a3a3a;
+    margin-bottom: 2px; /* 减少底部间距 */
+}
+
+.partition-list-title {
+    font-size: 13px; /* 减小字体 */
+    font-weight: 600;
+    color: #d0d0d0;
+    letter-spacing: 0.3px;
+}
+
+/* 分区项优化 */
+.partition-item {
+    background: rgba(30, 30, 30, 0.8);
+    border: 1px solid rgba(58, 58, 58, 0.6);
+    border-radius: 6px;
+    padding: 10px;
+    transition: all 0.2s ease;
+}
+
+.partition-item:hover {
+    border-color: rgba(100, 100, 100, 0.8);
+    background: rgba(35, 35, 35, 0.9);
+}
+
+.partition-item.is-default {
+    background: rgba(30, 58, 138, 0.15);
+    border-color: rgba(59, 130, 246, 0.4);
+}
+
+.partition-item.is-default:hover {
+    border-color: rgba(59, 130, 246, 0.6);
+}
+
+.partition-item.disabled {
+    opacity: 0.6;
+}
+
+.partition-item.drag-over {
+    border-color: #4CAF50;
+    background: rgba(76, 175, 80, 0.1);
+}
+
+/* 分区头部信息区域 */
+.partition-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+}
+
+.partition-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #d0d0d0;
+}
+
+.partition-disabled-badge {
+    font-size: 11px;
+    color: #f44336;
+    font-style: italic;
+}
+
+/* 分区操作按钮优化 */
+.partition-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.partition-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.partition-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.partition-btn.toggle:hover {
+    background: rgba(76, 175, 80, 0.2);
+}
+
+.partition-btn.delete:hover {
+    background: rgba(244, 67, 54, 0.2);
+}
+
+/* 分区画师区域 */
+.partition-artists {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px; /* 增加标签间距 */
+    padding: 8px 4px 4px 4px;
+    min-height: 36px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.partition-artists:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.partition-empty {
+    color: #666;
+    font-size: 12px;
+    font-style: italic;
+    padding: 8px;
+    width: 100%;
+    text-align: center;
+}
+
+/* ==================== 选择器列表区域优化 ==================== */
+.artist-selector-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px; /* 减小间距 */
+    padding: 8px;
+    background: rgba(30, 30, 30, 0.4);
+    border-radius: 8px;
+    border: 1px solid rgba(58, 58, 58, 0.4);
+    min-height: 200px;
+    max-height: 400px;
+    overflow-y: auto;
+    align-content: flex-start;
+}
+
+/* 面包屑导航优化 */
+.artist-selector-breadcrumb {
+    padding: 8px 12px;
+    background: rgba(40, 40, 40, 0.6);
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+
+/* 控制区域优化 */
+.artist-selector-controls-row {
+    padding: 8px 12px;
+    background: rgba(40, 40, 40, 0.5);
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+
+/* 画师项优化 */
+.artist-selector-item {
+    background: rgba(45, 45, 45, 0.8);
+    border: 1px solid rgba(60, 60, 60, 0.6);
+    padding: 6px 10px; /* 减小内边距 */
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.artist-selector-item:hover {
+    background: rgba(55, 55, 55, 0.9);
+    border-color: rgba(80, 80, 80, 0.8);
+}
+
+.artist-selector-item.selected {
+    background: rgba(59, 130, 246, 0.3);
+    border-color: rgba(59, 130, 246, 0.6);
+}
+
+/* 分类卡片优化 */
+.artist-selector-category-card {
+    background: rgba(40, 40, 40, 0.8);
+    border: 1px solid rgba(60, 60, 60, 0.6);
+    padding: 6px 10px; /* 减小内边距 */
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.artist-selector-category-card:hover {
+    background: rgba(50, 50, 50, 0.9);
+    border-color: rgba(80, 80, 80, 0.8);
+}
+
+.artist-selector-category-card.selected {
+    background: rgba(156, 89, 182, 0.3);
+    border-color: rgba(156, 89, 182, 0.6);
+}
+
+/* 画师标签优化 */
+.artist-selector-tag {
+    background: #3b82f6;
+    color: white;
+    padding: 4px 10px; /* 增加内边距 */
+    border-radius: 4px;
+    font-size: 12px; /* 稍微增大 */
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+}
+
+.artist-selector-tag:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.artist-selector-tag.category-tag {
+    background: #9c27b0;
+}
+
+/* 空状态优化 */
+.artist-selector-empty-artists {
+    color: #666;
+    font-size: 13px;
+    text-align: center;
+    padding: 40px 20px;
+}
+
+/* 加载状态优化 */
+.artist-selector-loading {
+    color: #888;
+    font-size: 13px;
+    text-align: center;
+    padding: 40px 20px;
+}
+
+/* ==================== 滚动条样式优化 ==================== */
+.artist-selector-list::-webkit-scrollbar,
+.partition-list-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.artist-selector-list::-webkit-scrollbar-track,
+.partition-list-content::-webkit-scrollbar-track {
+    background: rgba(30, 30, 30, 0.5);
+    border-radius: 4px;
+}
+
+.artist-selector-list::-webkit-scrollbar-thumb,
+.partition-list-content::-webkit-scrollbar-thumb {
+    background: rgba(80, 80, 80, 0.5);
+    border-radius: 4px;
+}
+
+.artist-selector-list::-webkit-scrollbar-thumb:hover,
+.partition-list-content::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 100, 100, 0.6);
+}
 
 
