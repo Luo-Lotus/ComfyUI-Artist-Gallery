@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from aiohttp import web
 import server
-from .storage import get_storage, migrate_to_composite_key
+from .storage import get_storage, migrate_to_composite_key, _resolve_storage_dir
 from .utils import decode_filename
 from . import import_handler
 
@@ -1008,10 +1008,8 @@ async def migrate_data(request):
     从 UUID 架构迁移到 (categoryId, name) 组合键架构
     """
     try:
-        from pathlib import Path
-
         # 获取存储目录
-        storage_dir = Path(__file__).parent
+        storage_dir = _resolve_storage_dir()
 
         # 执行迁移
         result = migrate_to_composite_key(storage_dir)
