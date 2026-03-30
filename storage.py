@@ -127,10 +127,11 @@ class ArtistStorage:
 
             return new_artist
 
-    def add_artists_batch(self, artists_data: List[dict]) -> Tuple[List[dict], List[str]]:
+    def add_artists_batch(self, artists_data: List[dict], category_id: str = "root") -> Tuple[List[dict], List[str]]:
         """
         批量添加画师
         :param artists_data: 画师数据列表，每个元素包含 {"name": str, "displayName": str(可选)}
+        :param category_id: 所属分类ID，默认为root
         :return: (成功添加的画师列表, 失败的名称列表)
         """
         with self._lock:
@@ -156,7 +157,7 @@ class ArtistStorage:
                     "id": str(uuid.uuid4()),
                     "name": name,
                     "displayName": display_name,
-                    "categoryId": "root",
+                    "categoryId": category_id,
                     "coverImageId": None,
                     "createdAt": int(__import__('time').time() * 1000),
                     "imageCount": 0

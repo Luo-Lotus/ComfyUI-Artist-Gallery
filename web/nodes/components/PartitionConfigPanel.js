@@ -16,6 +16,9 @@ export function PartitionConfigPanel({
     const [randomMode, setRandomMode] = useState(partition.config.randomMode);
     const [randomCount, setRandomCount] = useState(partition.config.randomCount);
     const [cycleMode, setCycleMode] = useState(partition.config.cycleMode);
+    const [saveToGallery, setSaveToGallery] = useState(
+        partition.config.saveToGallery !== false,
+    );
 
     // 预览格式效果
     const previewFormat = format.replace('{content}', 'artist_name').replace(/\{random\([^)]+\)\}/g, '1.3');
@@ -28,6 +31,7 @@ export function PartitionConfigPanel({
                 randomMode,
                 randomCount,
                 cycleMode,
+                saveToGallery,
             },
         });
         onClose();
@@ -139,6 +143,31 @@ export function PartitionConfigPanel({
                             onChange: () => setCycleMode(true),
                         }),
                         h('span', null, '启用循环（每次执行只输出一个画师）'),
+                    ]),
+                ]),
+            ]),
+
+            // 保存到画廊
+            h('div', { class: 'node-config-section' }, [
+                h('label', { class: 'node-config-label' }, '保存到画廊'),
+                h('div', { class: 'config-radio-group' }, [
+                    h('label', { class: 'config-radio-item' }, [
+                        h('input', {
+                            type: 'radio',
+                            name: `save-gallery-${partition.id}`,
+                            checked: saveToGallery,
+                            onChange: () => setSaveToGallery(true),
+                        }),
+                        h('span', null, '启用（图片会关联到该分区画师）'),
+                    ]),
+                    h('label', { class: 'config-radio-item' }, [
+                        h('input', {
+                            type: 'radio',
+                            name: `save-gallery-${partition.id}`,
+                            checked: !saveToGallery,
+                            onChange: () => setSaveToGallery(false),
+                        }),
+                        h('span', null, '禁用（仅用于提示词，不保存关联）'),
                     ]),
                 ]),
             ]),

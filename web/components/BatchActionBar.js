@@ -43,6 +43,7 @@ export function BatchActionBar({
         switch(selectionType) {
             case 'category': return '分类';
             case 'artist': return '画师';
+            case 'image': return '图片';
             case 'mixed': return '混合';
             default: return '项目';
         }

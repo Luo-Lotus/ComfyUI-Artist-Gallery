@@ -20,6 +20,13 @@
       "parentId": "root",
       "order": 1,
       "createdAt": 1774724214575
+    },
+    {
+      "id": "76dd3b20-a721-4b53-a75f-8a15d5ee133d",
+      "name": "tag",
+      "parentId": "root",
+      "order": 2,
+      "createdAt": 1774798992545
     }
   ]
 }

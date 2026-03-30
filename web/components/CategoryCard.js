@@ -3,7 +3,7 @@
  * 显示单个分类的卡片（文件夹样式）
  */
 import { h } from '../lib/preact.mjs';
-import { useState } from '../lib/hooks.mjs';
+import { BaseCard } from './BaseCard.js';
 import { useContextMenu } from './ContextMenu.js';
 
 export function CategoryCard({
@@ -19,29 +19,17 @@ export function CategoryCard({
     selected = false,
     onSelect,
 }) {
-    const [isHovered, setIsHovered] = useState(false);
     const isRoot = category.name === '全部';
     const { showContextMenu } = useContextMenu();
 
     // 生成选择键（用于多选）
     const selectionKey = `category:${category.id}`;
 
-    const handleClick = () => {
-        if (selectionMode && onSelect) {
-            onSelect({
-                id: selectionKey,
-                type: 'category',
-                data: category
-            });
-        } else if (onClick) {
-            onClick(category);
-        }
-    };
-
     const handleContextMenu = (e) => {
         // 多选模式或根分类不显示右键菜单
         if (selectionMode || isRoot) return;
 
+        e.preventDefault();
         const menuItems = [
             {
                 icon: '✏️',
@@ -68,26 +56,26 @@ export function CategoryCard({
         showContextMenu(e, menuItems);
     };
 
-    return h(
-        'div',
-        {
-            class: `category-card ${selectionMode ? 'selection-mode' : ''} ${selected ? 'selected' : ''}`,
-            onClick: handleClick,
-            onContextMenu: handleContextMenu,
-        },
-        [
-            // 文件夹图标
-            h('div', { class: 'category-icon' }, '📁'),
+    return h(BaseCard, {
+        cardType: 'category',
+        selectionMode,
+        selected,
+        selectionKey,
+        onSelect,
+        onClick: () => onClick && onClick(category),
+        onContextMenu: handleContextMenu,
+    }, [
+        // 文件夹图标
+        h('div', { class: 'category-icon' }, '📁'),
 
-            // 分类信息
-            h('div', { class: 'category-info' }, [
-                h('div', { class: 'category-name' }, category.name),
-                h(
-                    'div',
-                    { class: 'category-meta' },
-                    artistCount > 0 ? `${artistCount} 位画师` : '空分类',
-                ),
-            ]),
-        ],
-    );
+        // 分类信息
+        h('div', { class: 'category-info' }, [
+            h('div', { class: 'category-name' }, category.name),
+            h(
+                'div',
+                { class: 'category-meta' },
+                artistCount > 0 ? `${artistCount} 位画师` : '空分类',
+            ),
+        ]),
+    ]);
 }

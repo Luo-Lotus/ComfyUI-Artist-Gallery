@@ -2,6 +2,21 @@
  * 工具函数模块
  */
 
+/**
+ * 扁平化分类树（将嵌套 children 展开为一维数组）
+ */
+export function flattenCategories(tree) {
+    const result = [];
+    function traverse(node) {
+        result.push(node);
+        if (node.children) {
+            node.children.forEach(traverse);
+        }
+    }
+    tree.forEach(traverse);
+    return result;
+}
+
 export const Storage = {
     getButtonPosition() {
         try {
@@ -40,6 +55,18 @@ export const Storage = {
         }
         this.saveFavorites(favorites);
         return favorites;
+    },
+    getCardSize() {
+        try {
+            const saved = localStorage.getItem('artist-gallery-card-size');
+            const val = parseFloat(saved);
+            return isNaN(val) ? 1.0 : Math.min(1.5, Math.max(0.5, val));
+        } catch {
+            return 1.0;
+        }
+    },
+    saveCardSize(scale) {
+        localStorage.setItem('artist-gallery-card-size', String(scale));
     },
 };
 

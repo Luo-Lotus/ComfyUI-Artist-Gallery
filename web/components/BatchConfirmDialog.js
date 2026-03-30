@@ -15,10 +15,11 @@ export function BatchConfirmDialog({
 }) {
     // 计算统计信息
     const getSummary = () => {
+        const imageCount = Array.isArray(items.images) ? items.images.length : (items.images || 0);
         const counts = {
             categories: items.categories?.length || 0,
             artists: items.artists?.length || 0,
-            images: items.images || 0
+            images: imageCount
         };
 
         const summary = [];
@@ -32,7 +33,7 @@ export function BatchConfirmDialog({
         }
 
         if (counts.images > 0) {
-            summary.push(`共 ${counts.images} 张图片`);
+            summary.push(`${counts.images} 张图片`);
         }
 
         return summary.join('，');
@@ -57,7 +58,8 @@ export function BatchConfirmDialog({
     };
 
     const getConfirmationLevel = () => {
-        const totalItems = (items.categories?.length || 0) + (items.artists?.length || 0);
+        const imageCount = Array.isArray(items.images) ? items.images.length : (items.images || 0);
+        const totalItems = (items.categories?.length || 0) + (items.artists?.length || 0) + imageCount;
 
         if (totalItems <= 5) return 'low';
         if (totalItems <= 20) return 'medium';
@@ -66,7 +68,8 @@ export function BatchConfirmDialog({
 
     const renderWarning = () => {
         const level = getConfirmationLevel();
-        const totalItems = (items.categories?.length || 0) + (items.artists?.length || 0);
+        const imageCount = Array.isArray(items.images) ? items.images.length : (items.images || 0);
+        const totalItems = (items.categories?.length || 0) + (items.artists?.length || 0) + imageCount;
 
         if (level === 'low') {
             return null; // 少量项目，无需特殊警告
@@ -84,7 +87,7 @@ export function BatchConfirmDialog({
             h('div', { class: 'warning-icon' }, '⚠️'),
             h('div', { class: 'warning-content' }, [
                 h('p', {}, `危险操作：即将${getOperationLabel()} ${totalItems} 个项目`),
-                items.images > 0 && h('p', {}, `包含 ${items.images} 张图片`),
+                imageCount > 0 && h('p', {}, `包含 ${imageCount} 张图片`),
                 h('p', { class: 'critical-warning' }, '此操作不可撤销！')
             ])
         ]);
@@ -121,8 +124,8 @@ export function BatchConfirmDialog({
                     items.artists?.length > 0 && h('li', {},
                         `• ${items.artists.length} 个画师`
                     ),
-                    items.images > 0 && h('li', {},
-                        `• 共 ${items.images} 张图片`
+                    (Array.isArray(items.images) ? items.images.length : 0) > 0 && h('li', {},
+                        `• ${items.images.length} 张图片`
                     )
                 )
             ]),

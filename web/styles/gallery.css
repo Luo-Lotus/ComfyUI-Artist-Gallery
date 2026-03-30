@@ -1,3 +1,23 @@
+/* ============ 卡片大小 CSS 变量（默认 scale=1.0） ============ */
+:root {
+    --card-grid-min-width: 250px;
+    --card-grid-gap: 14px;
+    --card-radius: 16px;
+    --card-padding: 10px;
+    --card-header-gap: 8px;
+    --card-artist-name-font: 14px;
+    --card-artist-count-font: 11px;
+    --card-fav-btn-size: 14px;
+    --card-category-icon-size: 48px;
+    --card-category-padding: 20px;
+    --card-category-name-font: 16px;
+    --card-category-meta-font: 13px;
+    --card-empty-height: 200px;
+    --card-empty-icon-size: 48px;
+    --card-empty-text-font: 14px;
+    --card-image-radius: 8px;
+}
+
 /* 悬浮按钮样式 */
 #artist-gallery-floating-btn {
     position: fixed;
@@ -238,15 +258,15 @@
 
 .gallery-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-grid-min-width), 1fr));
+    gap: var(--card-grid-gap);
 }
 
 /* 画师卡片 */
 .gallery-card {
     background: rgba(255, 255, 255, 0.95);
     border-radius: 16px;
-    padding: 12px;
+    padding: var(--card-padding);
     box-shadow: 0 2px 12px rgba(255, 182, 159, 0.15);
     transition: all 0.2s;
 }
@@ -259,13 +279,13 @@
 .gallery-card-header {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--card-header-gap);
     margin-bottom: 10px;
     flex-wrap: wrap;
 }
 
 .gallery-artist-name {
-    font-size: 14px;
+    font-size: var(--card-artist-name-font);
     font-weight: 700;
     color: #ff6b9d;
     flex: 1;
@@ -277,7 +297,7 @@
 
 .gallery-artist-count {
     color: #ffb6c1;
-    font-size: 11px;
+    font-size: var(--card-artist-count-font);
     font-weight: 600;
     background: #fff5f8;
     padding: 3px 8px;
@@ -325,7 +345,7 @@
     background: #fff;
     color: #ff6b9d;
     cursor: pointer;
-    font-size: 14px;
+    font-size: var(--card-fav-btn-size);
     transition: all 0.2s;
 }
 
@@ -923,7 +943,7 @@
 .category-card {
     background: white;
     border-radius: 16px;
-    padding: 20px;
+    padding: var(--card-category-padding);
     display: flex;
     align-items: center;
     gap: 16px;
@@ -941,7 +961,7 @@
 }
 
 .category-icon {
-    font-size: 48px;
+    font-size: var(--card-category-icon-size);
     flex-shrink: 0;
 }
 
@@ -951,7 +971,7 @@
 }
 
 .category-name {
-    font-size: 16px;
+    font-size: var(--card-category-name-font);
     font-weight: 700;
     color: #ff6b9d;
     margin-bottom: 4px;
@@ -961,7 +981,7 @@
 }
 
 .category-meta {
-    font-size: 13px;
+    font-size: var(--card-category-meta-font);
     color: #999;
 }
 
@@ -1076,14 +1096,14 @@
     padding: 24px;
     overflow-y: auto;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-grid-min-width), 1fr));
+    gap: var(--card-grid-gap);
 }
 
 .artist-detail-image-item {
     aspect-ratio: 1;
     overflow: hidden;
-    border-radius: 12px;
+    border-radius: var(--card-image-radius);
     cursor: pointer;
     transition: transform 0.2s;
     background: #2a2a2a;
@@ -1118,8 +1138,8 @@
 
 .artist-detail-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-grid-min-width), 1fr));
+    gap: var(--card-grid-gap);
     padding: 20px;
 }
 
@@ -1142,6 +1162,43 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+/* 图片多选样式 */
+.artist-detail-image-item.selection-mode {
+    cursor: pointer;
+    position: relative;
+}
+
+.artist-detail-image-item.selection-mode::after {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 22px;
+    height: 22px;
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.3);
+    transition: all 0.2s;
+    z-index: 2;
+}
+
+.artist-detail-image-item.selected {
+    outline: 3px solid #ff6b9d;
+    outline-offset: -3px;
+}
+
+.artist-detail-image-item.selected::after {
+    background: #ff6b9d;
+    border-color: #ff6b9d;
+    content: '✓';
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: bold;
 }
 
 .artist-detail-empty {
@@ -1275,7 +1332,7 @@
 .gallery-image-cover {
     position: relative;
     width: 100%;
-    aspect-ratio: 16 / 10;
+    aspect-ratio: 1 / 1;
     overflow: hidden;
     border-radius: 12px;
     cursor: pointer;
@@ -1291,6 +1348,27 @@
 
 .gallery-image-cover:hover img {
     transform: scale(1.05);
+}
+
+/* ============ GalleryCard 空状态类 ============ */
+.gallery-card-empty {
+    height: var(--card-empty-height);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #2a2a2a;
+    border-radius: 8px;
+}
+
+.gallery-card-empty-icon {
+    font-size: var(--card-empty-icon-size);
+    margin-bottom: 10px;
+}
+
+.gallery-card-empty-text {
+    font-size: var(--card-empty-text-font);
+    color: #888;
 }
 
 /* ============ ArtistSelector 分类选择样式 ============ */
@@ -3067,6 +3145,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
+    cursor: pointer;
 }
 
 .partition-name {
@@ -3207,6 +3286,11 @@
     border: 1px solid rgba(33, 150, 243, 0.5);
 }
 
+.partition-rule-badge.no-save {
+    background: rgba(244, 67, 54, 0.2);
+    border: 1px solid rgba(244, 67, 54, 0.5);
+}
+
 /* ==================== UI 间距优化 ==================== */
 /* 增强分区列表与选择区域的视觉分隔 */
 .artist-selector-container {
@@ -3305,6 +3389,7 @@
     align-items: center;
     gap: 6px;
     flex: 1;
+    cursor: pointer;
 }
 
 .partition-name {
@@ -3506,4 +3591,55 @@
     background: rgba(100, 100, 100, 0.6);
 }
 
+/* ============ 大小滑块样式 ============ */
+.gallery-size-slider {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
 
+.gallery-size-slider input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 80px;
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #ffb6c1, #ff6b9d);
+    outline: none;
+    cursor: pointer;
+}
+
+.gallery-size-slider input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid #ff6b9d;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 1px 4px rgba(255, 107, 157, 0.3);
+}
+
+.gallery-size-slider input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    box-shadow: 0 2px 8px rgba(255, 107, 157, 0.5);
+}
+
+.gallery-size-slider input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid #ff6b9d;
+    cursor: pointer;
+}
+
+.gallery-size-label {
+    font-size: 12px;
+    color: #ff6b9d;
+    font-weight: 600;
+    min-width: 16px;
+    text-align: center;
+}

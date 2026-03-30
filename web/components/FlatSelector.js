@@ -56,10 +56,13 @@ export function FlatSelector({
         });
     }, [flattenedCategories, excludeIds, searchQuery]);
 
+    // 获取画师的唯一标识（画师可能没有id字段，使用 name:categoryId 组合）
+    const getArtistKey = (artist) => artist.id || `${artist.categoryId}:${artist.name}`;
+
     const filteredArtists = useMemo(() => {
         if (!artists || artists.length === 0) return [];
         return artists.filter(artist => {
-            if (excludeIds.includes(artist.id)) return false;
+            if (excludeIds.includes(getArtistKey(artist))) return false;
             if (searchQuery) {
                 const name = (artist.displayName || artist.name).toLowerCase();
                 return name.includes(searchQuery.toLowerCase());
@@ -102,8 +105,8 @@ export function FlatSelector({
                 )
                 : filteredArtists.map(artist =>
                     h('div', {
-                        key: artist.id,
-                        class: `flat-selector-item ${currentId === artist.id ? 'selected' : ''}`,
+                        key: getArtistKey(artist),
+                        class: `flat-selector-item ${currentId === getArtistKey(artist) ? 'selected' : ''}`,
                         onClick: () => handleSelect(artist)
                     }, [
                         h('span', { class: 'flat-selector-icon' }, '👤'),

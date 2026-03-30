@@ -45,11 +45,11 @@ export async function updateArtistByKey(categoryId, name, artistData) {
 /**
  * 批量添加画师
  */
-export async function addArtistsBatch(artistsData) {
+export async function addArtistsBatch(artistsData, categoryId) {
     const response = await fetch('/artist_gallery/artists/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artists: artistsData }),
+        body: JSON.stringify({ artists: artistsData, categoryId }),
     });
     return await response.json();
 }

@@ -33,7 +33,9 @@ app.registerExtension({
                 const selectedInput = this.widgets.find(
                     (w) => w.name === 'selected_artists',
                 );
-                const metadataInput = this.widgets.find((w) => w.name === 'metadata');
+                const metadataInput = this.widgets.find(
+                    (w) => w.name === 'metadata',
+                );
 
                 // 配置隐藏显示
                 if (selectedInput) {
@@ -47,6 +49,7 @@ app.registerExtension({
                     metadataInput.draw = () => {};
                     metadataInput.type = 'hidden';
                 }
+                console.log(nodeInstance, 'initialized');
 
                 // 创建容器
                 const container = $el('div.artist-selector-widget', {
@@ -78,7 +81,8 @@ app.registerExtension({
                 setTimeout(async () => {
                     try {
                         // 动态导入组件
-                        const { ArtistSelectorWidget } = await import('./components/ArtistSelectorWidget.js');
+                        const { ArtistSelectorWidget } =
+                            await import('./components/ArtistSelectorWidget.js');
 
                         // 渲染组件
                         const vnode = h(ArtistSelectorWidget, {
@@ -89,7 +93,10 @@ app.registerExtension({
 
                         render(vnode, container);
                     } catch (error) {
-                        console.error('[ArtistSelector] Failed to load widget:', error);
+                        console.error(
+                            '[ArtistSelector] Failed to load widget:',
+                            error,
+                        );
                         container.innerHTML =
                             '<div class="artist-selector-loading" style="color: #ff4444;">加载失败，请刷新页面重试</div>';
                     }

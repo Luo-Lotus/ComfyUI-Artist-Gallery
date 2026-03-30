@@ -25,9 +25,9 @@ export function useFilteredArtists(data, searchQuery, sortBy, sortOrder, showFav
             let comparison = 0;
             if (sortBy === 'name') {
                 comparison = a.name.localeCompare(b.name, 'zh-CN');
-            } else if (sortBy === 'count') {
+            } else if (sortBy === 'count' || sortBy === 'image_count') {
                 comparison = a.imageCount - b.imageCount;
-            } else if (sortBy === 'time') {
+            } else if (sortBy === 'time' || sortBy === 'created_at') {
                 // 使用预计算的 maxTime，避免重复计算
                 comparison = (a.maxTime || 0) - (b.maxTime || 0);
             }

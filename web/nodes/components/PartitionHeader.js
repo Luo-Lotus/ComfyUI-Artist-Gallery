@@ -23,11 +23,22 @@ export function PartitionHeader({ partition, onAction }) {
             }, '🔄'));
         }
 
+        if (partition.config.saveToGallery === false) {
+            indicators.push(h('span', {
+                class: 'partition-rule-badge no-save',
+                title: '不保存到画廊：图片不会关联到该分区画师',
+            }, '🚫'));
+        }
+
         return indicators;
     };
 
     return h('div', { class: 'partition-header' }, [
-        h('div', { class: 'partition-info' }, [
+        h('div', {
+            class: 'partition-info',
+            onClick: () => onAction('setDefault', partition.id),
+            title: '点击切换为默认分区',
+        }, [
             h('span', { class: 'partition-name' }, [
                 partition.name,
                 !partition.enabled && h('span', { class: 'partition-disabled-badge' }, '(禁用)'),
@@ -51,13 +62,6 @@ export function PartitionHeader({ partition, onAction }) {
                 onClick: () => onAction('config', partition.id),
                 title: '配置分区',
             }, '⚙️'),
-
-            // 设为默认按钮（非默认分区显示）
-            !partition.isDefault && h('button', {
-                class: 'partition-btn set-default',
-                onClick: () => onAction('setDefault', partition.id),
-                title: '设为默认分区',
-            }, '⭐'),
 
             // 删除按钮（默认分区不可删除）
             !partition.isDefault && h('button', {

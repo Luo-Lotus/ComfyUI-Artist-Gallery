@@ -291,12 +291,13 @@ async def add_artists_batch(request):
     try:
         data = await request.json()
         artists_data = data.get("artists", [])
+        category_id = data.get("categoryId", "root")
 
         if not artists_data:
             return web.json_response({"error": "画师列表不能为空"}, status=400)
 
         artist_storage, _, _ = get_storage()
-        success_artists, failed_names = artist_storage.add_artists_batch(artists_data)
+        success_artists, failed_names = artist_storage.add_artists_batch(artists_data, category_id)
 
         return web.json_response({
             "success": True,
@@ -837,19 +838,21 @@ async def move_image(request):
     try:
         data = await request.json()
         image_path = data.get("imagePath")
-        from_artist_id = data.get("fromArtistId")
-        to_artist_id = data.get("toArtistId")
+        from_artist_name = data.get("fromArtistName")
+        to_artist_name = data.get("toArtistName")
+        to_category_id = data.get("toCategoryId")
 
-        if not image_path or not from_artist_id or not to_artist_id:
+        if not image_path or not from_artist_name or not to_artist_name:
             return web.json_response({"error": "缺少必要参数"}, status=400)
 
-        if from_artist_id == to_artist_id:
+        if from_artist_name == to_artist_name:
             return web.json_response({"error": "不能移动到同一个画师"}, status=400)
 
         artist_storage, mapping_storage, _ = get_storage()
 
         # 验证目标画师存在
-        to_artist = artist_storage.get_artist_by_id(to_artist_id)
+        to_category_id = to_category_id or "root"
+        to_artist = artist_storage.get_artist(to_category_id, to_artist_name)
         if not to_artist:
             return web.json_response({"error": "目标画师不存在"}, status=400)
 
@@ -858,21 +861,29 @@ async def move_image(request):
         if not mapping:
             return web.json_response({"error": "图片映射不存在"}, status=404)
 
-        # 从映射中移除原画师
-        artist_ids = mapping.get("artistIds", [])
-        if from_artist_id not in artist_ids:
+        # 从映射中移除原画师，添加目标画师
+        artist_names = mapping.get("artistNames", [])
+        if from_artist_name not in artist_names:
             return web.json_response({"error": "原画师未关联此图片"}, status=400)
 
-        artist_ids.remove(from_artist_id)
-        artist_ids.append(to_artist_id)
+        artist_names.remove(from_artist_name)
+        if to_artist_name not in artist_names:
+            artist_names.append(to_artist_name)
 
         # 更新映射到文件
-        success = mapping_storage.update_mapping(image_path, artist_ids)
+        success = mapping_storage.update_mapping(image_path, artist_names)
 
         if success:
-            # 更新图片计数
-            artist_storage.update_image_count_by_id(from_artist_id, -1)
-            artist_storage.update_image_count_by_id(to_artist_id, 1)
+            # 更新图片计数：使用组合键
+            from_artist = None
+            for a in artist_storage.get_all_artists():
+                if a.get("name") == from_artist_name:
+                    from_artist = a
+                    break
+
+            if from_artist:
+                artist_storage.update_image_count(from_artist.get("categoryId", "root"), from_artist_name, -1)
+            artist_storage.update_image_count(to_category_id, to_artist_name, 1)
 
             return web.json_response({
                 "success": True,
@@ -942,15 +953,17 @@ async def copy_image(request):
     try:
         data = await request.json()
         image_path = data.get("imagePath")
-        to_artist_id = data.get("toArtistId")
+        to_artist_name = data.get("toArtistName")
+        to_category_id = data.get("toCategoryId")
 
-        if not image_path or not to_artist_id:
+        if not image_path or not to_artist_name:
             return web.json_response({"error": "缺少必要参数"}, status=400)
 
         artist_storage, mapping_storage, _ = get_storage()
 
         # 验证目标画师存在
-        to_artist = artist_storage.get_artist_by_id(to_artist_id)
+        to_category_id = to_category_id or "root"
+        to_artist = artist_storage.get_artist(to_category_id, to_artist_name)
         if not to_artist:
             return web.json_response({"error": "目标画师不存在"}, status=400)
 
@@ -960,21 +973,21 @@ async def copy_image(request):
             return web.json_response({"error": "图片映射不存在"}, status=404)
 
         # 获取当前画师列表
-        artist_ids = mapping.get("artistIds", [])
+        artist_names = mapping.get("artistNames", [])
 
         # 如果已经关联，不重复添加
-        if to_artist_id in artist_ids:
+        if to_artist_name in artist_names:
             return web.json_response({"error": "图片已关联到目标画师"}, status=400)
 
         # 添加目标画师到映射
-        artist_ids.append(to_artist_id)
+        artist_names.append(to_artist_name)
 
         # 更新映射到文件
-        success = mapping_storage.update_mapping(image_path, artist_ids)
+        success = mapping_storage.update_mapping(image_path, artist_names)
 
         if success:
             # 更新目标画师图片计数
-            artist_storage.update_image_count_by_id(to_artist_id, 1)
+            artist_storage.update_image_count(to_category_id, to_artist_name, 1)
 
             return web.json_response({
                 "success": True,

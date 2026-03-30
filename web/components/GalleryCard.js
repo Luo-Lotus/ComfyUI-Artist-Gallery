@@ -5,6 +5,7 @@
 import { h } from '../lib/preact.mjs';
 import { useState } from '../lib/hooks.mjs';
 import { buildImageUrl } from '../utils.js';
+import { BaseCard } from './BaseCard.js';
 import { useContextMenu } from './ContextMenu.js';
 
 export function GalleryCard({
@@ -84,18 +85,6 @@ export function GalleryCard({
         showContextMenu(e, menuItems);
     };
 
-    // 处理卡片点击（多选模式）
-    const handleCardClick = (e) => {
-        if (selectionMode && onSelect) {
-            e.stopPropagation();
-            onSelect({
-                id: selectionKey,
-                type: 'artist',
-                data: artist
-            });
-        }
-    };
-
     // ============ 渲染函数 ============
 
     /**
@@ -119,18 +108,18 @@ export function GalleryCard({
             ),
 
             // 右侧：收藏按钮
-            h(
-                'button',
-                {
-                    class: `gallery-fav-btn ${isFav ? 'fav-active' : ''}`,
-                    onClick: (e) => {
-                        e.stopPropagation();
-                        onFavoriteToggle(artist.name);
-                    },
-                    title: isFav ? '取消收藏' : '添加收藏',
-                },
-                isFav ? '⭐' : '☆',
-            ),
+            // h(
+            //     'button',
+            //     {
+            //         class: `gallery-fav-btn ${isFav ? 'fav-active' : ''}`,
+            //         onClick: (e) => {
+            //             e.stopPropagation();
+            //             onFavoriteToggle(artist.name);
+            //         },
+            //         title: isFav ? '取消收藏' : '添加收藏',
+            //     },
+            //     isFav ? '⭐' : '☆',
+            // ),
         ]);
     };
 
@@ -145,9 +134,7 @@ export function GalleryCard({
             {
                 class: 'gallery-image-cover',
                 onClick: (e) => {
-                    if (selectionMode) {
-                        handleCardClick(e);
-                    } else {
+                    if (!selectionMode) {
                         onImageClick && onImageClick(artistIndex);
                     }
                 },
@@ -161,81 +148,33 @@ export function GalleryCard({
     };
 
     /**
-     * 渲染有图片的状态
-     */
-    const renderWithImages = () => {
-        return renderCoverImage();
-    };
-
-    /**
      * 渲染空状态（无图片）
      */
     const renderEmptyState = () => {
-        return h(
-            'div',
-            {
-                class: 'gallery-image-main',
-                style: {
-                    height: '200px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: '#2a2a2a',
-                    borderRadius: '8px',
-                },
-            },
-            h(
-                'div',
-                {
-                    style: {
-                        textAlign: 'center',
-                        color: '#888',
-                    },
-                },
-                [
-                    h(
-                        'div',
-                        {
-                            style: {
-                                fontSize: '48px',
-                                marginBottom: '10px',
-                            },
-                        },
-                        '🎨',
-                    ),
-                    h(
-                        'div',
-                        {
-                            style: {
-                                fontSize: '14px',
-                            },
-                        },
-                        '暂无图片',
-                    ),
-                ],
-            ),
-        );
+        return h('div', { class: 'gallery-card-empty' }, [
+            h('div', { class: 'gallery-card-empty-icon' }, '🎨'),
+            h('div', { class: 'gallery-card-empty-text' }, '暂无图片'),
+        ]);
     };
 
     /**
      * 渲染图片区域
      */
     const renderImages = () => {
-        return hasImages ? renderWithImages() : renderEmptyState();
+        return hasImages ? renderCoverImage() : renderEmptyState();
     };
 
     // ============ 主渲染 ============
 
     return h(
-        'div',
+        BaseCard,
         {
-            class: `gallery-card ${selectionMode ? 'selection-mode' : ''} ${selected ? 'selected' : ''}`,
+            cardType: 'gallery',
+            selectionMode,
+            selected,
+            selectionKey,
+            onSelect,
             onContextMenu: handleContextMenu,
-            onClick: (e) => {
-                if (selectionMode) {
-                    handleCardClick(e);
-                }
-            },
         },
         [
             renderHeader(), // 头部（包含名称、数量和收藏按钮）

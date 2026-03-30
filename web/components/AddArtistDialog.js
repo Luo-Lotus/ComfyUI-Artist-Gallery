@@ -21,7 +21,6 @@ export function AddArtistDialog({
     isOpen,
     mode,
     editModeArtist,
-    categories,
     currentCategoryId,
     onClose,
     onSave,
@@ -31,10 +30,7 @@ export function AddArtistDialog({
     const [newArtistName, setNewArtistName] = useState('');
     const [newArtistDisplayName, setNewArtistDisplayName] = useState('');
     const [batchArtistText, setBatchArtistText] = useState('');
-    const [selectedCategoryId, setSelectedCategoryId] = useState(
-        currentCategoryId || 'root',
-    );
-    console.log(currentCategoryId);
+    const [batchDelimiter, setBatchDelimiter] = useState(',');
 
     // ============ 工具函数 ============
 
@@ -42,21 +38,24 @@ export function AddArtistDialog({
         setNewArtistName('');
         setNewArtistDisplayName('');
         setBatchArtistText('');
+        setBatchDelimiter(',');
         setAddArtistMode('single');
     };
 
-    const parseBatchText = (text) => {
+    const parseBatchText = (text, delimiter) => {
+        // 按换行分割，每行再用自定义分隔符分割出多个画师
         const lines = text
             .split('\n')
             .map((line) => line.trim())
             .filter((line) => line);
-        return lines.map((line) => {
-            const parts = line.split(',');
-            return {
-                name: parts[0].trim(),
-                displayName: parts[1]?.trim() || parts[0].trim(),
-            };
-        });
+        const artists = [];
+        for (const line of lines) {
+            const parts = line.split(delimiter).map((s) => s.trim()).filter((s) => s);
+            for (const name of parts) {
+                artists.push({ name, displayName: name });
+            }
+        }
+        return artists;
     };
 
     const validateSingleForm = () => {
@@ -85,7 +84,7 @@ export function AddArtistDialog({
             displayName: newArtistDisplayName,
             categoryId: editModeArtist
                 ? editModeArtist.categoryId
-                : selectedCategoryId,
+                : (currentCategoryId || 'root'),
         };
 
         try {
@@ -120,10 +119,10 @@ export function AddArtistDialog({
     const handleBatchSave = async () => {
         if (!validateBatchForm()) return;
 
-        const artistsData = parseBatchText(batchArtistText);
+        const artistsData = parseBatchText(batchArtistText, batchDelimiter);
 
         try {
-            const data = await addArtistsBatch(artistsData);
+            const data = await addArtistsBatch(artistsData, currentCategoryId || 'root');
 
             if (data.success) {
                 showToast(
@@ -157,11 +156,7 @@ export function AddArtistDialog({
     if (editModeArtist && mode === 'edit' && !newArtistName) {
         setNewArtistName(editModeArtist.name);
         setNewArtistDisplayName(editModeArtist.displayName || '');
-        setSelectedCategoryId(editModeArtist.categoryId || 'root');
         setAddArtistMode('single');
-    } else if (isOpen && mode === 'add') {
-        // 添加模式时，使用当前分类
-        setSelectedCategoryId(currentCategoryId || 'root');
     }
 
     // ============ 渲染函数 ============
@@ -223,30 +218,6 @@ export function AddArtistDialog({
                     class: 'gallery-form-input',
                 }),
             ),
-            categories &&
-                categories.length > 0 &&
-                h(
-                    DialogFormItem,
-                    {
-                        label: '所属分类',
-                    },
-                    h(
-                        'select',
-                        {
-                            value: selectedCategoryId,
-                            onInput: (e) =>
-                                setSelectedCategoryId(e.target.value),
-                            class: 'gallery-form-input',
-                        },
-                        categories.map((cat) =>
-                            h(
-                                'option',
-                                { value: cat.id, key: cat.id },
-                                cat.name,
-                            ),
-                        ),
-                    ),
-                ),
         ]);
     };
 
@@ -254,19 +225,37 @@ export function AddArtistDialog({
      * 渲染批量添加表单
      */
     const renderBatchForm = () => {
-        return h(
-            DialogFormItem,
-            {
-                label: '画师列表（每行一个，格式: 名称,显示名称 或仅名称）',
-            },
-            h('textarea', {
-                value: batchArtistText,
-                onInput: (e) => setBatchArtistText(e.target.value),
-                placeholder: 'artist1,艺术家一\nartist2,Artist Two\nartist3',
-                rows: 10,
-                class: 'gallery-form-textarea',
-            }),
-        );
+        return [
+            h(DialogFormGroup, {}, [
+                h(
+                    DialogFormItem,
+                    {
+                        label: '分隔符',
+                    },
+                    h('input', {
+                        type: 'text',
+                        value: batchDelimiter,
+                        onInput: (e) => setBatchDelimiter(e.target.value),
+                        placeholder: '默认: ,',
+                        class: 'gallery-form-input',
+                        style: { width: '80px' },
+                    }),
+                ),
+            ]),
+            h(
+                DialogFormItem,
+                {
+                    label: '画师列表（每行可用分隔符分隔多个画师，name 与 displayName 相同）',
+                },
+                h('textarea', {
+                    value: batchArtistText,
+                    onInput: (e) => setBatchArtistText(e.target.value),
+                    placeholder: `例如（分隔符 "${batchDelimiter || ','}"）:\n1girl${batchDelimiter || ','}set${batchDelimiter || ','}two\nartist1${batchDelimiter || ','}artist2`,
+                    rows: 8,
+                    class: 'gallery-form-textarea',
+                }),
+            ),
+        ];
     };
 
     /**

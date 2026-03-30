@@ -90,20 +90,17 @@ class ArtistSelector:
         返回选择的画师信息
         根据分区配置处理输出
         """
-        # print(f"[ArtistSelector] Backend received:")
-        # print(f"  selected_artists: {selected_artists}")
-        # print(f"  metadata: {metadata}")
-
         # 解析 metadata
         try:
             metadata_dict = json.loads(metadata) if metadata else {}
         except:
             metadata_dict = {}
 
-        # print(f"[ArtistSelector] Parsed metadata:")
-        # print(f"  partition_configs: {metadata_dict.get('partitionConfigs', {})}")
-        # print(f"  artist_partition_map: {metadata_dict.get('artistPartitionMap', {})}")
+        # 新格式路由：version == 1
+        if metadata_dict.get('version') == 1:
+            return self._process_v1_metadata(metadata_dict, metadata)
 
+        # ===== 旧格式兼容 =====
         # 获取分区配置
         global_config = metadata_dict.get('globalConfig', {})
         partition_configs = metadata_dict.get('partitionConfigs', {})
@@ -125,12 +122,21 @@ class ArtistSelector:
 
         # 解析画师列表
         if not selected_artists:
-            return ("", metadata)
+            return ("", "{}")
 
-        artists = [a.strip() for a in selected_artists.split(',') if a.strip()]
+        # 优先从 metadata 中获取画师名列表（避免分隔符问题）
+        metadata_artist_names = metadata_dict.get('artist_names', [])
+        if metadata_artist_names and len(metadata_artist_names) > 0:
+            artists = [a.strip() for a in metadata_artist_names if a.strip()]
+        elif '\n' in selected_artists:
+            artists = [a.strip() for a in selected_artists.split('\n') if a.strip()]
+        elif selected_artists:
+            artists = [a.strip() for a in selected_artists.split(',') if a.strip()]
+        else:
+            artists = []
 
         if not artists:
-            return ("", metadata)
+            return ("", "{}")
 
         # 按分区分组画师
         partition_groups = {}
@@ -142,31 +148,19 @@ class ArtistSelector:
                 partition_groups[partition_id] = []
             partition_groups[partition_id].append(artist)
 
-        # print(f"[ArtistSelector] Partition groups: {partition_groups}")
-
         # 为每个分区应用配置
         formatted_results = []
 
         for partition_id, partition_artists in partition_groups.items():
-            # print(f"[ArtistSelector] Processing partition {partition_id} with {len(partition_artists)} artists")
-
-            # 获取分区配置（优先使用 partition_configs，包括默认分区）
+            # 获取分区配置
             if partition_id in partition_configs:
                 config = partition_configs[partition_id]
             elif partition_id == default_partition_id or partition_id == 'default':
-                # 对于默认分区，如果没有专门配置，使用 global_config
                 config = global_config
             else:
-                # 其他分区没有配置时，使用 global_config
                 config = global_config
 
-            # print(f"[ArtistSelector] Partition config: {config}")
-            # print(f"[ArtistSelector] Partition enabled: {config.get('enabled', False)}")
-
-            # 修复：正确检查 enabled 状态，默认为 False 而非 True
-            # 只有明确启用（enabled=True）的分区才会输出
             if not config.get('enabled', False):
-                # print(f"[ArtistSelector] Skipping disabled partition {partition_id}")
                 continue  # 跳过禁用的分区
 
             # 获取配置项
@@ -196,11 +190,137 @@ class ArtistSelector:
                 for artist in working_artists:
                     formatted = self._apply_format(artist, partition_format)
                     formatted_results.append(formatted)
-                    # print(f"[ArtistSelector] Formatted artist: {artist} -> {formatted}")
 
         result = ','.join(formatted_results)
-        # print(f"[ArtistSelector] Final result: {result}")
-        return (result, metadata)
+        enriched = json.dumps({
+            "artist_names": artists,
+            "selected_artists": [{"categoryId": "", "name": a} for a in artists],
+            "formatted_result": result,
+        })
+        return (result, enriched)
+
+    def _resolve_category_to_artists(self, category_id, all_artists, all_categories, visited=None):
+        """递归解析分类，收集所有画师名"""
+        if visited is None:
+            visited = set()
+        if category_id in visited:
+            return []
+        visited.add(category_id)
+
+        names = []
+
+        # 递归获取子分类
+        for cat in all_categories:
+            if cat.get('parentId') == category_id:
+                names.extend(self._resolve_category_to_artists(
+                    cat['id'], all_artists, all_categories, visited
+                ))
+
+        # 获取当前分类下的画师
+        for artist in all_artists:
+            if artist.get('categoryId') == category_id:
+                name = artist.get('name', '').strip()
+                if name:
+                    names.append(name)
+
+        return names
+
+    def _process_v1_metadata(self, metadata_dict, raw_metadata):
+        """处理新版 v1 格式的 metadata，返回 (格式化结果, 富化后的 metadata JSON)"""
+        try:
+            artist_storage, _, category_storage = get_storage()
+            all_artists = artist_storage.get_all_artists()
+            all_categories = category_storage.get_all_categories()
+        except Exception as e:
+            print(f"[ArtistSelector] Failed to load storage: {e}")
+            return ("", "{}")
+
+        partitions = metadata_dict.get('partitions', [])
+        if not partitions:
+            return ("", "{}")
+
+        formatted_results = []
+        # 跨分区收集全部已解析画师（用于 SaveToGallery）
+        all_resolved = []      # [{categoryId, name, saveToGallery}, ...]
+        seen_keys = set()
+
+        def collect_artist(cat_id, name, save_to_gallery=True):
+            key = f"{cat_id}:{name}"
+            if key not in seen_keys:
+                seen_keys.add(key)
+                all_resolved.append({
+                    "categoryId": cat_id,
+                    "name": name,
+                    "saveToGallery": save_to_gallery,
+                })
+
+        for partition in partitions:
+            if not partition.get('enabled', True):
+                continue
+
+            config = partition.get('config', {})
+            partition_format = config.get('format', '{content}')
+            random_mode = config.get('randomMode', False)
+            random_count = config.get('randomCount', 1)
+            cycle_mode = config.get('cycleMode', False)
+            save_to_gallery = config.get('saveToGallery', True)
+
+            # 收集画师名：直接选择 + 分类递归解析
+            artist_names = []
+
+            # 从 artistKeys 提取画师名（格式 "categoryId:artistName"）
+            for key in partition.get('artistKeys', []):
+                parts = key.split(':', 1)
+                name = parts[-1].strip() if parts else ''
+                cat_id = parts[0] if len(parts) > 1 else ''
+                if name:
+                    artist_names.append(name)
+                    collect_artist(cat_id, name, save_to_gallery)
+
+            # 从 categoryIds 递归解析画师
+            for cat_id in partition.get('categoryIds', []):
+                resolved = self._resolve_category_to_artists(cat_id, all_artists, all_categories)
+                for n in resolved:
+                    artist_names.append(n)
+                    collect_artist(cat_id, n, save_to_gallery)
+
+            # 去重保序
+            seen = set()
+            unique_names = []
+            for n in artist_names:
+                if n not in seen:
+                    seen.add(n)
+                    unique_names.append(n)
+
+            if not unique_names:
+                continue
+
+            # 处理循环模式
+            if cycle_mode:
+                node_id = id(self)
+                partition_id = partition.get('id', 'default')
+                cycle_key = f"{node_id}_{partition_id}"
+                cycle_index = _cycle_states.get(cycle_key, 0)
+                current = unique_names[cycle_index % len(unique_names)]
+                _cycle_states[cycle_key] = (cycle_index + 1) % len(unique_names)
+                formatted_results.append(self._apply_format(current, partition_format))
+            else:
+                working = unique_names
+                if random_mode and random_count > 0 and random_count < len(working):
+                    working = random.sample(working, random_count)
+                for name in working:
+                    formatted_results.append(self._apply_format(name, partition_format))
+
+        result = ','.join(formatted_results)
+
+        # 构建富化 metadata：包含解析结果，供 SaveToGallery 直接使用
+        enriched_metadata = json.dumps({
+            "artist_names": [a["name"] for a in all_resolved],
+            "selected_artists": all_resolved,
+            "formatted_result": result,
+        })
+
+        return (result, enriched_metadata)
 
     def _apply_format(self, artist_name, format_str):
         """应用格式字符串到画师名称"""
@@ -246,10 +366,6 @@ class ArtistSelector:
         return None
 
 
-# 全局循环状态存储
-_cycle_states = {}
-
-
 class SaveToGallery:
     """保存图片到画廊节点"""
 
@@ -277,11 +393,10 @@ class SaveToGallery:
     def save_image(self, images, metadata_json, filename_prefix="AG", prompt=None, extra_pnginfo=None):
         """
         保存图片到 output/artist_gallery/ 并创建映射关系
-        :param images: ComfyUI 图片张量
-        :param metadata_json: 画师元数据 JSON 字符串 {"artist_names": [...], "display_names": [...], "selected_artists": [...], "selected_categories": [...]}
-        :param filename_prefix: 文件名前缀
-        :param prompt: ComfyUI 工作流提示词（自动传入）
-        :param extra_pnginfo: 额外的 PNG 元数据（自动传入）
+        :param metadata_json: 由 ArtistSelector 输出的 JSON，包含:
+            - artist_names: 解析后的完整画师名列表
+            - selected_artists: [{categoryId, name}, ...]
+            - formatted_result: 格式化后的完整字符串
         """
         import folder_paths
         import numpy as np
@@ -289,78 +404,63 @@ class SaveToGallery:
         import time
         import json
 
-        # 解析元数据 JSON 字符串
         try:
             metadata = json.loads(metadata_json) if metadata_json else {}
         except:
             metadata = {}
 
-        # 新架构：使用 artist_names 而不是 artist_ids
         artist_names = metadata.get("artist_names", [])
-
         if not artist_names:
             print("[SaveToGallery] 错误: 未选择画师")
             return ()
 
-        # 为了兼容旧代码，创建一个空的 artist_ids 列表
-        artist_ids = []
+        # 仅 saveToGallery=true 的画师参与关联和计数
+        selected_artists = metadata.get("selected_artists", [])
+        saveable_artists = [a for a in selected_artists if a.get("saveToGallery", True)]
+        saveable_names = [a["name"] for a in saveable_artists]
 
-        # 获取输出目录
         output_dir = Path(folder_paths.get_output_directory())
         save_dir = output_dir / "artist_gallery"
         save_dir.mkdir(parents=True, exist_ok=True)
 
-        # 保存图片
         saved_count = 0
         for idx, image_tensor in enumerate(images):
-            # 转换图片张量为 PIL Image
             i = 255. * image_tensor.cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
 
-            # 生成文件名
             timestamp = int(time.time() * 1000)
-            counter = idx
-            filename = f"{filename_prefix}_{timestamp}_{counter:05}.png"
+            filename = f"{filename_prefix}_{timestamp}_{idx:05}.png"
             save_path = save_dir / filename
 
-            # 创建 PNG 元数据
             pnginfo = PngImagePlugin.PngInfo()
-
-            # 添加 ComfyUI 工作流（如果提供）
             if prompt is not None:
                 pnginfo.add_text("prompt", json.dumps(prompt))
 
-            # 添加画师元数据（新架构）
             pnginfo.add_text("artist_gallery", json.dumps({
-                "artist_names": artist_names,
-                "display_names": metadata.get("display_names", []),
-                "selected_categories": metadata.get("selected_categories", []),
-                "selected_artists": metadata.get("selected_artists", [])
+                "artist_names": saveable_names,
+                "selected_artists": saveable_artists,
             }))
 
-            # 添加额外的 PNG 元数据（如果提供）
             if extra_pnginfo is not None:
                 for key, value in extra_pnginfo.items():
                     pnginfo.add_text(key, json.dumps(value) if isinstance(value, (dict, list)) else str(value))
 
-            # 保存图片文件（带元数据）
             try:
                 img.save(save_path, format="PNG", pnginfo=pnginfo)
                 saved_count += 1
 
-                # 创建映射关系（新架构：使用 artist_names）
+                # 创建映射关系（仅 saveToGallery=true 的画师）
                 image_path = f"artist_gallery/{filename}"
                 mapping_storage = get_storage()[1]
                 mapping_storage.add_mapping(
                     image_path,
-                    artist_names,
+                    saveable_names,
                     {"width": img.width, "height": img.height}
                 )
 
-                # 更新画师的图片计数（新架构：使用 selected_artists）
+                # 更新画师图片计数（仅 saveToGallery=true 的画师）
                 artist_storage = get_storage()[0]
-                selected_artists = metadata.get("selected_artists", [])
-                for artist_info in selected_artists:
+                for artist_info in saveable_artists:
                     category_id = artist_info.get("categoryId", "root")
                     name = artist_info.get("name", "")
                     if category_id and name:
