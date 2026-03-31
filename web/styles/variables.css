@@ -1,0 +1,19 @@
+/* ============ 卡片大小 CSS 变量（默认 scale=1.0） ============ */
+:root {
+    --card-grid-min-width: 250px;
+    --card-grid-gap: 14px;
+    --card-radius: 16px;
+    --card-padding: 10px;
+    --card-header-gap: 8px;
+    --card-artist-name-font: 14px;
+    --card-artist-count-font: 11px;
+    --card-fav-btn-size: 14px;
+    --card-category-icon-size: 48px;
+    --card-category-padding: 20px;
+    --card-category-name-font: 16px;
+    --card-category-meta-font: 13px;
+    --card-empty-height: 200px;
+    --card-empty-icon-size: 48px;
+    --card-empty-text-font: 14px;
+    --card-image-radius: 8px;
+}

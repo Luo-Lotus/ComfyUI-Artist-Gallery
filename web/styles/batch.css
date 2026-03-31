@@ -1,0 +1,214 @@
+/* ============ 多选功能样式 ============ */
+
+/* 卡片选择状态 */
+.gallery-card.selection-mode,
+.category-card.selection-mode {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.gallery-card.selection-mode:hover,
+.category-card.selection-mode:hover {
+    transform: translateY(-2px);
+}
+
+.gallery-card.selected,
+.category-card.selected {
+    border: 3px solid #ff6b9d !important;
+    box-shadow: 0 0 0 4px rgba(255, 107, 157, 0.1), 0 4px 12px rgba(255, 107, 157, 0.3);
+}
+
+/* 卡片复选框 */
+.card-checkbox {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 24px;
+    height: 24px;
+    border: 2px solid #ffb6c1;
+    border-radius: 6px;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: white;
+    cursor: pointer;
+    z-index: 10;
+    transition: all 0.2s;
+}
+
+.card-checkbox:hover {
+    border-color: #ff6b9d;
+    background: #fff5f8;
+}
+
+.card-checkbox.checked {
+    background: #ff6b9d;
+    border-color: #ff6b9d;
+}
+
+/* 批量操作工具栏 */
+.batch-action-bar {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #ff6b9d 0%, #ffb6c1 100%);
+    border-radius: 12px;
+    margin: 10px 0;
+    flex-wrap: wrap;
+}
+
+.batch-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: white;
+    font-weight: 600;
+}
+
+.batch-icon {
+    font-size: 20px;
+}
+
+.batch-title {
+    font-size: 15px;
+}
+
+.batch-count {
+    font-size: 13px;
+    opacity: 0.9;
+}
+
+.batch-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.batch-action-btn {
+    padding: 6px 12px;
+    border: 2px solid white;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.batch-action-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.05);
+}
+
+.batch-operations {
+    display: flex;
+    gap: 8px;
+}
+
+.batch-op-btn {
+    padding: 8px 16px;
+    border: 2px solid white;
+    border-radius: 8px;
+    background: white;
+    color: #ff6b9d;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.batch-op-btn:hover {
+    background: #fff5f8;
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.batch-op-btn.delete-btn:hover {
+    background: #ffe5e8;
+    color: #dc3545;
+}
+
+.batch-op-btn.exit-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border-color: white;
+}
+
+.batch-op-btn.exit-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    color: white;
+}
+
+/* 批量确认对话框 */
+.batch-confirm-content {
+    padding: 10px 0;
+}
+
+.batch-confirm-summary {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 15px;
+}
+
+.batch-confirm-summary p {
+    margin: 5px 0;
+    font-weight: 600;
+    color: #333;
+}
+
+.batch-confirm-summary ul {
+    margin: 10px 0 0 20px;
+    list-style-type: disc;
+}
+
+.batch-confirm-summary li {
+    margin: 5px 0;
+    color: #555;
+}
+
+/* 批量确认警告 */
+.batch-confirm-warning-medium {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    background: rgba(255, 193, 7, 0.1);
+    border: 2px solid #ffc107;
+    border-radius: 12px;
+    color: #856404;
+    font-weight: 600;
+}
+
+.batch-confirm-warning-high {
+    padding: 15px;
+    background: rgba(220, 53, 69, 0.1);
+    border: 2px solid #dc3545;
+    border-radius: 12px;
+    color: #721c24;
+}
+
+.batch-confirm-warning-high .warning-icon {
+    font-size: 24px;
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.batch-confirm-warning-high .warning-content p {
+    margin: 8px 0;
+    font-weight: 600;
+}
+
+.batch-confirm-warning-high .critical-warning {
+    color: #dc3545;
+    font-size: 16px;
+    font-weight: 700;
+    margin-top: 10px;
+}

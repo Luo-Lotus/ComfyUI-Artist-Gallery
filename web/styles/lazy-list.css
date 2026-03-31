@@ -1,0 +1,19 @@
+/* ============ LazyList 懒加载哨兵样式 ============ */
+
+/* Grid 布局哨兵：横跨整行 */
+.lazy-list-sentinel--grid {
+    grid-column: 1 / -1;
+    height: 0;
+    min-height: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+/* Flex 布局哨兵：占满一行 */
+.lazy-list-sentinel--flex {
+    width: 100%;
+    height: 0;
+    min-height: 0;
+    overflow: hidden;
+    pointer-events: none;
+}

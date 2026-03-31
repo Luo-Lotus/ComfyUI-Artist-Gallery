@@ -1,0 +1,63 @@
+/* ============ Context Menu 右键菜单 ============ */
+#global-context-menu-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 99999;
+}
+
+.context-menu {
+    position: absolute;
+    min-width: 160px;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+    z-index: 99999;
+    padding: 6px;
+    animation: contextMenuFadeIn 0.15s ease-out;
+    pointer-events: auto;
+}
+
+@keyframes contextMenuFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    margin: 2px 0;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 14px;
+    color: #333;
+    border-radius: 6px;
+}
+
+.context-menu-item:hover {
+    background: #fff5f8;
+    color: #ff6b9d;
+}
+
+.context-menu-icon {
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+}
+
+.context-menu-label {
+    flex: 1;
+    font-weight: 500;
+}

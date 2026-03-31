@@ -3,11 +3,12 @@
  * 画师选择器的 UI 渲染部分
  */
 import { h } from '../../lib/preact.mjs';
-import { useState } from '../../lib/hooks.mjs';
+import { useState, useMemo, useCallback } from '../../lib/hooks.mjs';
 import { useArtistSelector } from './hooks/useArtistSelector.js';
 import { useImagePreview } from './hooks/useImagePreview.js';
 import { PartitionList } from './PartitionList.js';
 import { PartitionConfigPanel } from './PartitionConfigPanel.js';
+import { LazyList } from '../../components/LazyList.js';
 
 export function ArtistSelectorWidget({
     nodeInstance,
@@ -255,7 +256,7 @@ export function ArtistSelectorWidget({
     };
 
     /**
-     * 渲染画师列表（包含分类和画师）
+     * 渲染画师列表（包含分类和画师）- 使用 LazyList 懒加载
      */
     const renderArtistList = () => {
         if (loading) {
@@ -270,26 +271,29 @@ export function ArtistSelectorWidget({
         const currentCatObj = categories.find((c) => c.id === currentCategory);
         const childrenCategories = currentCatObj?.children || [];
 
-        // 混合渲染：先显示分类，再显示画师
-        const hasContent =
-            childrenCategories.length > 0 || filteredArtists.length > 0;
+        // 合并为扁平数组
+        const listItems = [
+            ...childrenCategories.map(cat => ({ type: 'category', data: cat })),
+            ...filteredArtists.map(artist => ({ type: 'artist', data: artist })),
+        ];
 
-        if (!hasContent) {
-            return h(
+        const renderListItem = (item, index) => {
+            if (item.type === 'category') return renderCategoryCard(item.data);
+            return renderArtistItem(item.data);
+        };
+
+        return h(LazyList, {
+            items: listItems,
+            renderItem: renderListItem,
+            layout: 'flex',
+            className: 'artist-selector-list',
+            scrollContainer: 'self',
+            emptyMessage: h(
                 'div',
-                { class: 'artist-selector-list' },
-                h(
-                    'div',
-                    { class: 'artist-selector-empty-artists' },
-                    '没有找到画师',
-                ),
-            );
-        }
-
-        return h('div', { class: 'artist-selector-list' }, [
-            ...childrenCategories.map((cat) => renderCategoryCard(cat)),
-            ...filteredArtists.map((artist) => renderArtistItem(artist)),
-        ]);
+                { class: 'artist-selector-empty-artists' },
+                '没有找到画师',
+            ),
+        });
     };
 
     // ============ 主渲染 ============

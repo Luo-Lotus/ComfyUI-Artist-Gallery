@@ -1,0 +1,1393 @@
+/* Artist Selector Widget */
+.artist-selector-widget {
+    width: 100%;
+    min-height: 260px;
+    height: 100%;
+    background: #1e1e1e;
+    border-radius: 8px;
+    padding: 12px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow: hidden;
+}
+
+.artist-selector-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: 100%;
+}
+
+.artist-selector-selected-section {
+    border-bottom: 1px solid #333;
+    padding-bottom: 8px;
+}
+
+.artist-selector-label {
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 4px;
+}
+
+.artist-selector-selected-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-height: 24px;
+}
+
+.artist-selector-tag {
+    background: #3b82f6;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.artist-selector-tag button {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 0;
+    font-size: 12px;
+    line-height: 1;
+}
+
+.artist-selector-empty {
+    color: #666;
+    font-size: 11px;
+    font-style: italic;
+}
+
+.artist-selector-search {
+    width: 100%;
+    padding: 5px 8px; /* 减小内边距 */
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    color: white;
+    font-size: 12px;
+    box-sizing: border-box;
+}
+
+.artist-selector-search:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+
+.artist-selector-sort-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.artist-selector-sort-select {
+    flex: 1;
+    padding: 6px 10px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    color: white;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.artist-selector-sort-button {
+    padding: 5px 10px; /* 减小内边距 */
+    background: #3b82f6;
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.artist-selector-sort-button:hover {
+    background: #2563eb;
+}
+
+.artist-selector-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.artist-selector-loading,
+.artist-selector-empty-artists {
+    text-align: center;
+    padding: 20px;
+    color: #888;
+    font-size: 12px;
+    width: 100%;
+}
+
+.artist-selector-item-name {
+    font-size: 13px;
+    font-weight: 400;
+    color: white;
+}
+
+.artist-selector-item.selected .artist-selector-item-name {
+    font-weight: 600;
+}
+
+.artist-selector-hover-preview {
+    position: fixed;
+    z-index: 10000;
+    background: #1a1a1a;
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 6px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+
+    pointer-events: none;
+}
+
+.artist-selector-hover-preview img {
+    max-width: 40vw;
+    max-height: 40vh;
+    display: block;
+    border-radius: 4px;
+}
+
+/* ============ ArtistSelector 分类选择样式 ============ */
+.artist-selector-category-section {
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.artist-selector-category-select {
+    flex: 1;
+    padding: 6px 8px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    color: #e0e0e0;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.artist-selector-category-select:hover {
+    border-color: #4a9eff;
+    background: #3a3a3a;
+}
+
+.artist-selector-category-select:focus {
+    outline: none;
+    border-color: #4a9eff;
+    box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
+}
+
+/* 搜索和排序控件行 */
+.artist-selector-controls-row {
+    display: flex;
+    gap: 8px; /* 减小间距 */
+    margin-bottom: 8px; /* 减小底部间距 */
+    align-items: center;
+}
+
+.artist-selector-controls-row .artist-selector-search {
+    flex: 1;
+}
+
+.artist-selector-controls-row .artist-selector-sort-controls {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.artist-selector-refresh-button {
+    padding: 6px 10px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    color: #e0e0e0;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 36px;
+}
+
+.artist-selector-refresh-button:hover:not(:disabled) {
+    background: #3a3a3a;
+    border-color: #4a9eff;
+}
+
+.artist-selector-refresh-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* 面包屑导航 */
+.artist-selector-breadcrumb {
+    margin-bottom: 8px; /* 减小底部间距 */
+    padding: 6px 10px; /* 减小内边距 */
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 6px;
+}
+
+.artist-selector-breadcrumb-list {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px; /* 减小间距 */
+    font-size: 12px; /* 减小字体 */
+}
+
+.artist-selector-breadcrumb-item {
+    color: #4a9eff;
+    cursor: pointer;
+    transition: all 0.2s;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.artist-selector-breadcrumb-item:hover {
+    background: #2a2a2a;
+    text-decoration: underline;
+}
+
+.artist-selector-breadcrumb-item.active {
+    color: #e0e0e0;
+    cursor: default;
+    font-weight: 600;
+}
+
+.artist-selector-breadcrumb-item.active:hover {
+    background: transparent;
+    text-decoration: none;
+}
+
+.artist-selector-breadcrumb-separator {
+    color: #666;
+    padding: 0 4px;
+}
+
+/* 画师列表改为 flex-wrap */
+.artist-selector-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 2px;
+    align-content: flex-start;
+}
+
+/* 画师项改为 inline-flex */
+.artist-selector-item {
+    display: inline-flex;
+    align-items: center;
+    height: 38px;
+    padding: 0 14px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+    color: #e0e0e0;
+    gap: 8px;
+}
+
+.artist-selector-item:hover {
+    background: #3a3a3a;
+}
+
+.artist-selector-item.selected {
+    background: #3b82f6;
+    border-color: #3b82f6;
+}
+
+/* 分类卡片样式（与画师项统一高度） */
+.artist-selector-category-card {
+    display: inline-flex;
+    align-items: center;
+    height: 38px;
+    padding: 0px 4px 0px 8px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+    color: #e0e0e0;
+    gap: 8px;
+}
+
+.artist-selector-category-card:hover {
+    background: #3a3a3a;
+    border-color: #4a9eff;
+}
+
+.artist-selector-category-card.active {
+    background: #3a3a3a;
+    border-color: #4a9eff;
+    box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
+}
+
+.artist-selector-category-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.artist-selector-category-name {
+    font-size: 13px;
+    color: #e0e0e0;
+    font-weight: 500;
+}
+
+/* 分类标签样式（已选择的分类） */
+.artist-selector-tag.artist-selector-category-tag {
+    background: #4a9eff;
+}
+
+.artist-selector-tag-icon {
+    margin-right: 4px;
+}
+
+/* 分类选择状态标记 */
+.artist-selector-category-card.selected {
+    background: #3b82f6;
+    border-color: #3b82f6;
+}
+
+/* 进入分类按钮 */
+.artist-selector-category-enter {
+    margin-left: auto;
+    background: transparent;
+    border-radius: 4px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+/* 选择器操作提示 */
+.artist-selector-hint {
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 6px;
+    font-style: italic;
+}
+
+/* ============ Artist Selector Config Styles ============ */
+
+/* 配置按钮 */
+.artist-selector-config-btn {
+    background: #3a3a3a;
+    border: 1px solid #4a4a4a;
+    color: #bbb;
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.artist-selector-config-btn:hover {
+    background: #4a4a4a;
+    color: #fff;
+    border-color: #5a5a5a;
+}
+
+/* 分类配置按钮 */
+.artist-selector-category-config-btn {
+    background: transparent;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    padding: 2px 4px;
+    margin-left: 4px;
+    opacity: 0.5;
+    font-size: 11px;
+    transition: opacity 0.2s;
+}
+
+.artist-selector-category-config-btn:hover {
+    opacity: 1;
+    color: #888;
+}
+
+/* 配置指示器 */
+.artist-selector-config-indicator {
+    color: #6a9f6a;
+    font-size: 8px;
+    margin-left: 2px;
+}
+
+/* 已选择区域头部 */
+.artist-selector-selected-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+/* 配置对话框 */
+.config-dialog-content {
+    padding: 16px;
+}
+
+.config-section {
+    margin-bottom: 20px;
+}
+
+.config-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #ccc;
+    margin-bottom: 8px;
+}
+
+.config-input-group {
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    padding: 12px;
+}
+
+.config-label {
+    display: block;
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 6px;
+}
+
+.config-input {
+    width: 100%;
+    background: #1a1a1a;
+    border: 1px solid #3a3a3a;
+    color: #fff;
+    padding: 8px;
+    border-radius: 4px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 13px;
+    box-sizing: border-box;
+}
+
+.config-input:focus {
+    outline: none;
+    border-color: #4CAF50;
+}
+
+.config-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.config-preview {
+    background: #1a1a1a;
+    border: 1px solid #3a3a3a;
+    border-left: 3px solid #4CAF50;
+    color: #888;
+    padding: 8px;
+    border-radius: 4px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    margin-top: 8px;
+}
+
+.config-hint {
+    color: #666;
+    font-size: 11px;
+    margin-top: 8px;
+    line-height: 1.4;
+}
+
+.config-hint ul {
+    margin: 4px 0 0 0;
+    padding-left: 20px;
+}
+
+.config-hint li {
+    margin: 2px 0;
+}
+
+/* 配置单选框组 */
+.config-radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.config-radio-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.config-radio-label {
+    cursor: pointer;
+    color: #ccc;
+    font-size: 13px;
+}
+
+.config-radio-label:hover {
+    color: #fff;
+}
+
+.config-radio-item input[type="radio"]:disabled + .config-radio-label {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* 配置数字输入框 */
+.config-number-input {
+    width: 80px;
+    background: #1a1a1a;
+    border: 1px solid #3a3a3a;
+    color: #fff;
+    padding: 6px 8px;
+    border-radius: 4px;
+    text-align: center;
+    font-size: 13px;
+}
+
+.config-number-input:focus {
+    outline: none;
+    border-color: #4CAF50;
+}
+
+.config-number-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* 配置复选框项 */
+.config-checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+}
+
+.config-checkbox-label {
+    cursor: pointer;
+    color: #ccc;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.config-checkbox-label:hover {
+    color: #fff;
+}
+
+.config-checkbox-item input[type="checkbox"] {
+    cursor: pointer;
+}
+
+/* ============ Node Style Config Panel ============ */
+
+.node-config-panel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+}
+
+.node-config-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: #252525;
+    border-bottom: 1px solid #333;
+    font-size: 13px;
+    font-weight: 600;
+    color: #ccc;
+}
+
+.node-config-close {
+    background: transparent;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: all 0.2s;
+}
+
+.node-config-close:hover {
+    background: #333;
+    color: #fff;
+}
+
+.node-config-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+}
+
+.node-config-section {
+    margin-bottom: 16px;
+}
+
+.node-config-section:last-child {
+    margin-bottom: 0;
+}
+
+.node-config-section.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.node-config-section > label {
+    display: block;
+    font-size: 12px;
+    color: #aaa;
+    margin-bottom: 6px;
+}
+
+.node-config-input {
+    width: 100%;
+    background: #252525;
+    border: 1px solid #444;
+    color: #ddd;
+    padding: 6px 8px;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    box-sizing: border-box;
+}
+
+.node-config-input:focus {
+    outline: none;
+    border-color: #555;
+}
+
+.node-config-number {
+    width: 60px;
+    background: #252525;
+    border: 1px solid #444;
+    color: #ddd;
+    padding: 4px 6px;
+    border-radius: 3px;
+    text-align: center;
+    font-size: 12px;
+    margin-left: 8px;
+}
+
+.node-config-number:focus {
+    outline: none;
+    border-color: #555;
+}
+
+.node-config-hint {
+    font-size: 11px;
+    color: #666;
+    margin-top: 4px;
+}
+
+.node-config-info {
+    background: #252525;
+    border: 1px solid #444;
+    border-radius: 3px;
+    padding: 8px;
+    font-size: 12px;
+    color: #888;
+}
+
+.node-config-info code {
+    display: block;
+    margin-top: 4px;
+    background: #1a1a1a;
+    padding: 4px 6px;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 11px;
+    color: #4CAF50;
+}
+
+.node-config-radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.node-config-radio {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #bbb;
+    cursor: pointer;
+}
+
+.node-config-radio input[type="radio"] {
+    cursor: pointer;
+}
+
+.node-config-radio span {
+    flex: 1;
+}
+
+.node-config-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #bbb;
+    cursor: pointer;
+    user-select: none;
+}
+
+.node-config-checkbox input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.node-config-checkbox span {
+    font-weight: 600;
+}
+
+.node-config-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #252525;
+    border-top: 1px solid #333;
+}
+
+.node-config-btn {
+    background: #333;
+    border: 1px solid #444;
+    color: #ccc;
+    padding: 6px 12px;
+    border-radius: 3px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.node-config-btn:hover {
+    background: #444;
+    color: #fff;
+}
+
+.node-config-btn.primary {
+    background: #4a4a4a;
+    border-color: #555;
+    color: #fff;
+}
+
+.node-config-btn.primary:hover {
+    background: #5a5a5a;
+}
+
+/* 配置面板覆盖层 */
+.artist-selector-config-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+}
+
+/* 修复配置面板在覆盖层中的定位 */
+.artist-selector-config-overlay .node-config-panel {
+    position: relative;
+    height: 100%;
+}
+
+/* ============ 分区系统样式 ============ */
+
+/* 分区列表容器 */
+.partition-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* 分区列表头部 */
+.partition-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #3a3a3a;
+}
+
+.partition-list-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #ccc;
+}
+
+/* 添加分区按钮 */
+.add-partition-btn {
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    color: #888;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.add-partition-btn:hover:not(:disabled) {
+    background: #3a3a3a;
+    color: #fff;
+}
+
+.add-partition-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* 添加分区表单 */
+.add-partition-form {
+    display: flex;
+    gap: 8px;
+    padding: 8px 0;
+    align-items: center;
+}
+
+.add-partition-input {
+    flex: 1;
+    background: #1a1a1a;
+    border: 1px solid #3a3a3a;
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.add-partition-confirm,
+.add-partition-cancel {
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.add-partition-confirm:hover {
+    background: #4CAF50;
+    border-color: #4CAF50;
+}
+
+.add-partition-cancel:hover {
+    background: #f44336;
+    border-color: #f44336;
+}
+
+/* 分区项 */
+.partition-item {
+    background: rgba(30, 30, 30, 0.8);
+    border: 1px solid rgba(58, 58, 58, 0.6);
+    border-radius: 6px;
+    padding: 6px 8px; /* 减少内边距 */
+    transition: all 0.2s ease;
+}
+
+.partition-item:hover {
+    border-color: rgba(100, 100, 100, 0.8);
+    background: rgba(35, 35, 35, 0.9);
+}
+
+.partition-item.is-default {
+    background: rgba(30, 58, 138, 0.15);
+    border-color: rgba(59, 130, 246, 0.4);
+}
+
+.partition-item.is-default:hover {
+    border-color: rgba(59, 130, 246, 0.6);
+}
+
+.partition-item.disabled {
+    opacity: 0.6;
+}
+
+.partition-item.drag-over {
+    border-color: #4CAF50;
+    background: rgba(76, 175, 80, 0.1);
+}
+
+/* 分区头部 */
+.partition-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px; /* 减少底部间距 */
+}
+
+.partition-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.partition-name {
+    font-size: 13px; /* 减小字体 */
+    font-weight: 500;
+    color: #d0d0d0;
+}
+
+.partition-disabled-badge {
+    font-size: 10px; /* 缩小字体 */
+    color: #f44336;
+    font-style: italic;
+}
+
+.partition-btn:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.partition-btn.delete:hover {
+    background: rgba(244, 67, 54, 0.2);
+}
+
+/* 分区画师区域 */
+.partition-artists {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 0;
+    min-height: 40px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.partition-empty {
+    width: 100%;
+    text-align: center;
+    color: #888;
+    font-size: 12px;
+    padding: 10px;
+    border: 2px dashed #3a3a3a;
+    border-radius: 4px;
+}
+
+/* 画师标签 */
+.artist-selector-tag {
+    background: #3a3a3a;
+    border: 1px solid #4a4a4a;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: move;
+    user-select: none;
+    transition: all 0.2s;
+}
+
+.artist-selector-tag:hover {
+    background: #4a4a4a;
+    border-color: #5a5a5a;
+}
+
+.artist-selector-tag:active {
+    cursor: grabbing;
+}
+
+.artist-name {
+    color: #ddd;
+}
+
+/* 分类标签样式 */
+.artist-selector-tag.category-tag {
+    background: #4a3a3a;
+    border-color: #6a4a4a;
+    cursor: move;
+}
+
+.artist-selector-tag.category-tag:hover {
+    background: #5a4a4a;
+}
+
+.artist-selector-tag.category-tag:active {
+    cursor: grabbing;
+}
+
+.artist-selector-tag-icon {
+    font-size: 11px;
+}
+
+.artist-remove-btn {
+    background: transparent;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 0;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 2px;
+}
+
+.artist-remove-btn:hover {
+    background: rgba(244, 67, 54, 0.3);
+    color: #fff;
+}
+
+/* 分区列表内容区 */
+.partition-list-content {
+    display: flex;
+    flex-direction: column;
+    gap: 6px; /* 减少间距 */
+}
+
+/* ==================== 分区规则指示器 ==================== */
+.partition-rule-badge {
+    display: inline-flex;
+    align-items: center;
+    justify: center;
+    margin-left: 6px;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.partition-rule-badge.random {
+    background: rgba(156, 89, 182, 0.3);
+    border: 1px solid rgba(156, 89, 182, 0.5);
+}
+
+.partition-rule-badge.cycle {
+    background: rgba(33, 150, 243, 0.3);
+    border: 1px solid rgba(33, 150, 243, 0.5);
+}
+
+.partition-rule-badge.no-save {
+    background: rgba(244, 67, 54, 0.2);
+    border: 1px solid rgba(244, 67, 54, 0.5);
+}
+
+/* ==================== UI 间距优化 ==================== */
+/* 增强分区列表与选择区域的视觉分隔 */
+.artist-selector-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px; /* 减少区域间距 */
+    height: 100%;
+    padding: 4px;
+}
+
+/* 区域容器 */
+.artist-selector-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px; /* 减少间距 */
+}
+
+/* 区域标题 */
+.artist-selector-section-header {
+    padding: 6px 10px;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(156, 89, 182, 0.1) 100%);
+    border-radius: 6px;
+    border-left: 3px solid #3b82f6;
+}
+
+.artist-selector-section-title {
+    font-size: 12px; /* 缩小字体 */
+    font-weight: 600;
+    color: #b0b0b0;
+    letter-spacing: 0.5px;
+}
+
+/* 分区列表区域的视觉优化 */
+.partition-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px; /* 减少分区间距 */
+    padding: 8px; /* 减少内边距 */
+    background: rgba(42, 42, 42, 0.3);
+    border-radius: 6px; /* 减少圆角 */
+    border: 1px solid rgba(58, 58, 58, 0.5);
+}
+
+/* 分区列表头部优化 */
+.partition-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 4px; /* 减少内边距 */
+    border-bottom: 1px solid #3a3a3a;
+    margin-bottom: 2px; /* 减少底部间距 */
+}
+
+.partition-list-title {
+    font-size: 13px; /* 减小字体 */
+    font-weight: 600;
+    color: #d0d0d0;
+    letter-spacing: 0.3px;
+}
+
+/* 分区项优化 */
+.partition-item {
+    background: rgba(30, 30, 30, 0.8);
+    border: 1px solid rgba(58, 58, 58, 0.6);
+    border-radius: 6px;
+    padding: 10px;
+    transition: all 0.2s ease;
+}
+
+.partition-item:hover {
+    border-color: rgba(100, 100, 100, 0.8);
+    background: rgba(35, 35, 35, 0.9);
+}
+
+.partition-item.is-default {
+    background: rgba(30, 58, 138, 0.15);
+    border-color: rgba(59, 130, 246, 0.4);
+}
+
+.partition-item.is-default:hover {
+    border-color: rgba(59, 130, 246, 0.6);
+}
+
+.partition-item.disabled {
+    opacity: 0.6;
+}
+
+.partition-item.drag-over {
+    border-color: #4CAF50;
+    background: rgba(76, 175, 80, 0.1);
+}
+
+/* 分区头部信息区域 */
+.partition-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    cursor: pointer;
+}
+
+.partition-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #d0d0d0;
+}
+
+.partition-disabled-badge {
+    font-size: 11px;
+    color: #f44336;
+    font-style: italic;
+}
+
+/* 分区操作按钮优化 */
+.partition-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.partition-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.partition-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.partition-btn.toggle:hover {
+    background: rgba(76, 175, 80, 0.2);
+}
+
+.partition-btn.delete:hover {
+    background: rgba(244, 67, 54, 0.2);
+}
+
+/* 分区画师区域 */
+.partition-artists {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px; /* 增加标签间距 */
+    padding: 8px 4px 4px 4px;
+    min-height: 36px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.partition-artists:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.partition-empty {
+    color: #666;
+    font-size: 12px;
+    font-style: italic;
+    padding: 8px;
+    width: 100%;
+    text-align: center;
+}
+
+/* ==================== 选择器列表区域优化 ==================== */
+.artist-selector-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px; /* 减小间距 */
+    padding: 8px;
+    background: rgba(30, 30, 30, 0.4);
+    border-radius: 8px;
+    border: 1px solid rgba(58, 58, 58, 0.4);
+    min-height: 200px;
+    max-height: 400px;
+    overflow-y: auto;
+    align-content: flex-start;
+}
+
+/* 面包屑导航优化 */
+.artist-selector-breadcrumb {
+    padding: 8px 12px;
+    background: rgba(40, 40, 40, 0.6);
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+
+/* 控制区域优化 */
+.artist-selector-controls-row {
+    padding: 8px 12px;
+    background: rgba(40, 40, 40, 0.5);
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+
+/* 画师项优化 */
+.artist-selector-item {
+    background: rgba(45, 45, 45, 0.8);
+    border: 1px solid rgba(60, 60, 60, 0.6);
+    padding: 6px 10px; /* 减小内边距 */
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.artist-selector-item:hover {
+    background: rgba(55, 55, 55, 0.9);
+    border-color: rgba(80, 80, 80, 0.8);
+}
+
+.artist-selector-item.selected {
+    background: rgba(59, 130, 246, 0.3);
+    border-color: rgba(59, 130, 246, 0.6);
+}
+
+/* 分类卡片优化 */
+.artist-selector-category-card {
+    background: rgba(40, 40, 40, 0.8);
+    border: 1px solid rgba(60, 60, 60, 0.6);
+    padding: 6px 10px; /* 减小内边距 */
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.artist-selector-category-card:hover {
+    background: rgba(50, 50, 50, 0.9);
+    border-color: rgba(80, 80, 80, 0.8);
+}
+
+.artist-selector-category-card.selected {
+    background: rgba(156, 89, 182, 0.3);
+    border-color: rgba(156, 89, 182, 0.6);
+}
+
+/* 画师标签优化 */
+.artist-selector-tag {
+    background: #3b82f6;
+    color: white;
+    padding: 4px 10px; /* 增加内边距 */
+    border-radius: 4px;
+    font-size: 12px; /* 稍微增大 */
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+}
+
+.artist-selector-tag:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.artist-selector-tag.category-tag {
+    background: #9c27b0;
+}
+
+/* 空状态优化 */
+.artist-selector-empty-artists {
+    color: #666;
+    font-size: 13px;
+    text-align: center;
+    padding: 40px 20px;
+}
+
+/* 加载状态优化 */
+.artist-selector-loading {
+    color: #888;
+    font-size: 13px;
+    text-align: center;
+    padding: 40px 20px;
+}
+
+/* ==================== 滚动条样式优化 ==================== */
+.artist-selector-list::-webkit-scrollbar,
+.partition-list-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.artist-selector-list::-webkit-scrollbar-track,
+.partition-list-content::-webkit-scrollbar-track {
+    background: rgba(30, 30, 30, 0.5);
+    border-radius: 4px;
+}
+
+.artist-selector-list::-webkit-scrollbar-thumb,
+.partition-list-content::-webkit-scrollbar-thumb {
+    background: rgba(80, 80, 80, 0.5);
+    border-radius: 4px;
+}
+
+.artist-selector-list::-webkit-scrollbar-thumb:hover,
+.partition-list-content::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 100, 100, 0.6);
+}

@@ -1,0 +1,92 @@
+/* ============ 分类卡片样式 ============ */
+.category-card {
+    background: white;
+    border-radius: 16px;
+    padding: var(--card-category-padding);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 2px 8px rgba(255, 107, 157, 0.1);
+    border: 2px solid transparent;
+    position: relative;
+}
+
+.category-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(255, 107, 157, 0.2);
+    border-color: #ffb6c1;
+}
+
+.category-icon {
+    font-size: var(--card-category-icon-size);
+    flex-shrink: 0;
+}
+
+.category-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.category-name {
+    font-size: var(--card-category-name-font);
+    font-weight: 700;
+    color: #ff6b9d;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.category-meta {
+    font-size: var(--card-category-meta-font);
+    color: #999;
+}
+
+/* ============ 面包屑导航样式 ============ */
+.breadcrumb {
+    display: flex;
+    align-items: center;
+
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.breadcrumb-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.breadcrumb-link {
+    background: none;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+}
+
+.breadcrumb-link:hover:not(:disabled) {
+    background: #e0e0e0;
+    color: #333;
+}
+
+.breadcrumb-link:disabled {
+    color: #333;
+    cursor: default;
+    font-weight: 600;
+}
+
+.breadcrumb-separator {
+    color: #999;
+    font-weight: 400;
+    font-size: 14px;
+    margin: 0 4px;
+}

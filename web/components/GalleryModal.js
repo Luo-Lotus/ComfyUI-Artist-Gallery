@@ -33,6 +33,7 @@ import { useFilteredArtists } from './hooks/useFilteredArtists.js';
 import { useContextMenu } from './ContextMenu.js';
 import { showToast } from './Toast.js';
 import { computeSizeVars } from './SizePresets.js';
+import { LazyList } from './LazyList.js';
 
 export function GalleryModal({ isOpen, onClose }) {
     // 获取右键菜单 hook
@@ -1071,57 +1072,56 @@ export function GalleryModal({ isOpen, onClose }) {
                 onExit: handleToggleSelectionMode,
             }),
 
-            // 图片网格
+            // 图片网格（使用 LazyList 懒加载）
             hasImages
-                ? h(
-                      'div',
-                      { class: 'artist-detail-grid' },
-                      currentArtist.images.map((img, index) => {
-                          const imgKey = `image:${img.path}`;
-                          const isSelected = selectedItems.has(imgKey);
-                          return h(
-                              'div',
-                              {
-                                  key: img.path,
-                                  class: `artist-detail-image-item ${selectionMode ? 'selection-mode' : ''} ${isSelected ? 'selected' : ''}`,
-                                  onClick: () => {
-                                      if (selectionMode) {
-                                          // 多选模式：切换选中状态
-                                          setSelectedItems(prev => {
-                                              const newSet = new Set(prev);
-                                              if (newSet.has(imgKey)) {
-                                                  newSet.delete(imgKey);
-                                              } else {
-                                                  newSet.add(imgKey);
-                                              }
-                                              return newSet;
-                                          });
-                                      } else {
-                                          // 普通模式：打开灯箱
-                                          handleImageClick(
-                                              filteredArtists.findIndex(
-                                                  (a) =>
-                                                      a.categoryId ===
-                                                          currentArtist.categoryId &&
-                                                      a.name === currentArtist.name,
-                                              ),
-                                              index,
-                                          );
-                                      }
-                                  },
-                                  onContextMenu: (e) =>
-                                      handleImageContextMenu(e, img),
-                              },
-                              [
-                                  h('img', {
-                                      src: buildImageUrl(img.path),
-                                      alt: `${currentArtist.name} - ${index + 1}`,
-                                      loading: 'lazy',
-                                  }),
-                              ],
-                          );
-                      }),
-                  )
+                ? h(LazyList, {
+                    items: currentArtist.images,
+                    renderItem: (img, index) => {
+                        const imgKey = `image:${img.path}`;
+                        const isSelected = selectedItems.has(imgKey);
+                        return h(
+                            'div',
+                            {
+                                key: img.path,
+                                class: `artist-detail-image-item ${selectionMode ? 'selection-mode' : ''} ${isSelected ? 'selected' : ''}`,
+                                onClick: () => {
+                                    if (selectionMode) {
+                                        setSelectedItems(prev => {
+                                            const newSet = new Set(prev);
+                                            if (newSet.has(imgKey)) {
+                                                newSet.delete(imgKey);
+                                            } else {
+                                                newSet.add(imgKey);
+                                            }
+                                            return newSet;
+                                        });
+                                    } else {
+                                        handleImageClick(
+                                            filteredArtists.findIndex(
+                                                (a) =>
+                                                    a.categoryId ===
+                                                        currentArtist.categoryId &&
+                                                    a.name === currentArtist.name,
+                                            ),
+                                            index,
+                                        );
+                                    }
+                                },
+                                onContextMenu: (e) =>
+                                    handleImageContextMenu(e, img),
+                            },
+                            [
+                                h('img', {
+                                    src: buildImageUrl(img.path),
+                                    alt: `${currentArtist.name} - ${index + 1}`,
+                                    loading: 'lazy',
+                                }),
+                            ],
+                        );
+                    },
+                    layout: 'grid',
+                    className: 'artist-detail-grid',
+                })
                 : h('div', { class: 'artist-detail-empty' }, '🎨 暂无图片'),
         ]);
     };

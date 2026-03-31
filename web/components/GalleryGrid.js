@@ -1,11 +1,13 @@
 /**
  * 画师网格组件
  * 支持混合渲染分类卡片和画师卡片
+ * 使用 LazyList 实现懒加载
  */
 import { h } from '../lib/preact.mjs';
-import { useMemo } from '../lib/hooks.mjs';
+import { useMemo, useCallback } from '../lib/hooks.mjs';
 import { GalleryCard } from './GalleryCard.js';
 import { CategoryCard } from './CategoryCard.js';
+import { LazyList } from './LazyList.js';
 
 export function GalleryGrid({
     categories = [],
@@ -35,14 +37,18 @@ export function GalleryGrid({
         return counts;
     }, [categories, artists]);
 
-    if (categories.length === 0 && artists.length === 0) {
-        return h('div', { class: 'gallery-empty' }, '🔍 没有找到匹配的内容');
-    }
+    // 合并为扁平数组（分类在前，画师在后）
+    const allItems = useMemo(() => {
+        const catItems = categories.map(cat => ({ type: 'category', data: cat }));
+        const artItems = artists.map(artist => ({ type: 'artist', data: artist }));
+        return [...catItems, ...artItems];
+    }, [categories, artists]);
 
-    return h('div', { class: 'gallery-grid' }, [
-        // 先渲染分类卡片
-        ...categories.map(category =>
-            h(CategoryCard, {
+    // 渲染单个元素
+    const renderItem = useCallback((item, index) => {
+        if (item.type === 'category') {
+            const category = item.data;
+            return h(CategoryCard, {
                 key: `cat-${category.id}`,
                 category,
                 artistCount: categoryArtistCounts[category.id] || 0,
@@ -51,18 +57,16 @@ export function GalleryGrid({
                 onDelete: onCategoryDelete,
                 onMove: () => onMove && onMove(category, 'category'),
                 onCopy: () => onCopy && onCopy(category, 'category'),
-                // 多选props
                 selectionMode,
                 selected: selectedItems.has(`category:${category.id}`),
                 onSelect,
-            })
-        ),
-        // 再渲染画师卡片
-        ...artists.map((artist, index) =>
-            h(GalleryCard, {
+            });
+        } else {
+            const artist = item.data;
+            return h(GalleryCard, {
                 key: artist.name,
                 artist,
-                artistIndex: index,
+                artistIndex: index - categories.length,
                 favorites,
                 onFavoriteToggle,
                 onImageClick,
@@ -71,11 +75,24 @@ export function GalleryGrid({
                 onMove: () => onMove && onMove(artist, 'artist'),
                 onCopy: () => onCopy && onCopy(artist, 'artist'),
                 onExport: () => onExport && onExport(artist),
-                // 多选props
                 selectionMode,
                 selected: selectedItems.has(`artist:${artist.categoryId}:${artist.name}`),
                 onSelect,
-            }),
-        ),
-    ]);
+            });
+        }
+    }, [categoryArtistCounts, favorites, onFavoriteToggle, onImageClick, onEdit, onDelete,
+        onCategoryClick, onCategoryEdit, onCategoryDelete, onMove, onCopy, onExport,
+        selectionMode, selectedItems, onSelect, categories.length]);
+
+    if (allItems.length === 0) {
+        return h('div', { class: 'gallery-empty' }, '🔍 没有找到匹配的内容');
+    }
+
+    return h(LazyList, {
+        items: allItems,
+        renderItem,
+        layout: 'grid',
+        className: 'gallery-grid',
+        emptyMessage: h('div', { class: 'gallery-empty' }, '🔍 没有找到匹配的内容'),
+    });
 }

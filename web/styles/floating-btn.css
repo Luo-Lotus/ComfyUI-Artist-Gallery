@@ -1,0 +1,32 @@
+/* 悬浮按钮样式 */
+#artist-gallery-floating-btn {
+    position: fixed;
+    bottom: 100px;
+    right: 30px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+    border: 3px solid #ffb6c1;
+    box-shadow: 0 4px 20px rgba(255, 107, 157, 0.4);
+    cursor: move;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    z-index: 9999;
+    user-select: none;
+    transition:
+        box-shadow 0.2s,
+        transform 0.1s;
+}
+
+#artist-gallery-floating-btn:hover {
+    box-shadow: 0 6px 30px rgba(255, 107, 157, 0.6);
+    transform: scale(1.1);
+}
+
+#artist-gallery-floating-btn.dragging {
+    cursor: grabbing;
+    transition: none;
+}

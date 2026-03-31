@@ -1,0 +1,285 @@
+/* ============ 画师详情模态框样式 ============ */
+.artist-detail-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10001;
+}
+
+.artist-detail-content {
+    width: 90vw;
+    height: 90vh;
+    background: #1a1a1a;
+    border-radius: 20px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.artist-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid #333;
+    background: #1a1a1a;
+}
+
+.artist-detail-header h2 {
+    margin: 0;
+    font-size: 20px;
+    color: #e0e0e0;
+}
+
+.artist-detail-header .close-btn {
+    background: none;
+    border: none;
+    color: #e0e0e0;
+    font-size: 24px;
+    cursor: pointer;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+
+.artist-detail-header .close-btn:hover {
+    background: #333;
+}
+
+.artist-detail-grid {
+    flex: 1;
+    padding: 24px;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-grid-min-width), 1fr));
+    gap: var(--card-grid-gap);
+}
+
+.artist-detail-image-item {
+    aspect-ratio: 1;
+    overflow: hidden;
+    border-radius: var(--card-image-radius);
+    cursor: pointer;
+    transition: transform 0.2s;
+    background: #2a2a2a;
+}
+
+.artist-detail-image-item:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(255, 107, 157, 0.3);
+}
+
+.artist-detail-image-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.artist-detail-empty {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: #888;
+}
+
+/* ============ 画师详情视图（内嵌） ============ */
+.artist-detail-view {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+}
+
+.artist-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-grid-min-width), 1fr));
+    gap: var(--card-grid-gap);
+    padding: 20px;
+}
+
+.artist-detail-image-item {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    background: #2a2a2a;
+    transition: all 0.2s;
+}
+
+.artist-detail-image-item:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.artist-detail-image-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* 图片多选样式 */
+.artist-detail-image-item.selection-mode {
+    cursor: pointer;
+    position: relative;
+}
+
+.artist-detail-image-item.selection-mode::after {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 22px;
+    height: 22px;
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.3);
+    transition: all 0.2s;
+    z-index: 2;
+}
+
+.artist-detail-image-item.selected {
+    outline: 3px solid #ff6b9d;
+    outline-offset: -3px;
+}
+
+.artist-detail-image-item.selected::after {
+    background: #ff6b9d;
+    border-color: #ff6b9d;
+    content: '✓';
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.artist-detail-empty {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: #888;
+    padding: 60px 20px;
+}
+
+/* ============ 封面选择器样式 ============ */
+.cover-selector {
+    margin-top: 16px;
+}
+
+.cover-selector label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #ff6b9d;
+}
+
+.cover-selector-empty {
+    color: #999;
+    font-size: 14px;
+    text-align: center;
+    padding: 20px;
+    background: #f5f5f5;
+    border-radius: 8px;
+}
+
+.cover-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 8px;
+}
+
+.cover-item {
+    aspect-ratio: 1;
+    overflow: hidden;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    position: relative;
+    transition: all 0.2s;
+}
+
+.cover-item:hover {
+    border-color: #ffb6c1;
+    transform: scale(1.05);
+}
+
+.cover-item.selected {
+    border-color: #4a9eff;
+    box-shadow: 0 0 0 4px rgba(74, 158, 255, 0.2);
+}
+
+.cover-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.cover-badge {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    background: #4a9eff;
+    color: white;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+/* ============ Artist Detail 图片操作按钮 ============ */
+.artist-detail-action-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: rgba(255, 75, 125, 0.9);
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.artist-detail-image:hover .artist-detail-action-btn {
+    opacity: 1;
+}
+
+.artist-detail-action-btn.move-btn {
+    right: 48px;
+}
+
+.artist-detail-action-btn:hover {
+    transform: scale(1.1);
+}
+
+.artist-detail-action-btn.delete-btn:hover {
+    background: rgba(255, 68, 68, 1);
+}
+
+.artist-detail-action-btn.move-btn:hover {
+    background: rgba(255, 107, 157, 1);
+}

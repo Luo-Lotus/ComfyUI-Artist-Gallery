@@ -1,0 +1,252 @@
+/* 对话框样式 */
+.gallery-dialog-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #ffb6c1;
+}
+
+.gallery-dialog-tab {
+    flex: 1;
+    text-align: center;
+}
+
+.gallery-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.gallery-form-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.gallery-form-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #ff6b9d;
+}
+
+.gallery-form-input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 2px solid #ffb6c1;
+    border-radius: 12px;
+    background: #fff5f8;
+    color: #4a4a4a;
+    font-size: 13px;
+    box-sizing: border-box;
+    transition: all 0.2s;
+}
+
+.gallery-form-input:focus {
+    outline: none;
+    border-color: #ff6b9d;
+    background: #fff;
+}
+
+.gallery-form-textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 2px solid #ffb6c1;
+    border-radius: 12px;
+    background: #fff5f8;
+    color: #4a4a4a;
+    box-sizing: border-box;
+    resize: vertical;
+    font-family: monospace;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.gallery-form-textarea:focus {
+    outline: none;
+    border-color: #ff6b9d;
+    background: #fff;
+}
+
+.gallery-dialog-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+.gallery-delete-message {
+    margin-bottom: 15px;
+    line-height: 1.6;
+    font-size: 14px;
+    color: #4a4a4a;
+    font-weight: 500;
+}
+
+.gallery-delete-warning {
+    font-size: 13px;
+    color: #ff6b9d;
+    margin-bottom: 20px;
+    font-weight: 600;
+}
+
+/* 对话框内容样式（添加/编辑/删除对话框） */
+.gallery-dialog-content {
+    max-width: 500px;
+    width: 90%;
+    max-height: 500px; /* 固定最大高度，不会随父容器扩展 */
+    margin: auto;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* 对话框内的 body 区域可滚动 */
+.gallery-dialog-content .gallery-modal-body {
+    overflow-y: auto;
+    flex: 1;
+    padding: 16px; /* 添加内边距让内容不贴边 */
+}
+
+/* 对话框的底部操作区需要 padding */
+.gallery-dialog-content .gallery-dialog-actions {
+    padding: 12px 16px 16px 16px; /* 上 右 下 左 */
+    border-top: 1px solid #eee; /* 添加顶部边框分隔 */
+    background: #fafafa; /* 浅灰色背景区分 */
+}
+
+/* ============ 分类对话框样式 ============ */
+.category-dialog-content {
+    padding: 16px;
+}
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #ff6b9d;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 10px 12px;
+    background: #fff5f8;
+    border: 2px solid #ffb6c1;
+    border-radius: 8px;
+    color: #333;
+    font-size: 14px;
+    transition: border-color 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #ff6b9d;
+    background: white;
+}
+
+.form-group input:disabled {
+    background: #f5f5f5;
+    color: #999;
+    cursor: not-allowed;
+}
+
+.dialog-error {
+    background: #ef4444;
+    color: white;
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+
+/* ============ Move Dialog 移动对话框 ============ */
+.move-dialog-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.move-target-info {
+    padding: 14px 18px;
+    background: #fff5f8;
+    border: 2px solid #ffb6c1;
+    border-radius: 8px;
+    font-size: 13px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.target-name {
+    color: #ff6b9d;
+    font-weight: 600;
+}
+
+/* ============ Copy Dialog 复制对话框 ============ */
+.copy-dialog-source {
+    padding: 14px 18px;
+    background: #fff5f8;
+    border: 2px solid #ffb6c1;
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.copy-dialog-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #ff6b9d;
+    margin-bottom: 6px;
+}
+
+.copy-dialog-source-name {
+    font-size: 14px;
+    color: #333;
+    font-weight: 600;
+}
+
+.copy-dialog-target-section {
+    margin-bottom: 16px;
+}
+
+.copy-dialog-selector-wrapper {
+    max-height: 300px;
+    overflow: hidden;
+}
+
+.copy-dialog-name-section {
+    margin-bottom: 16px;
+}
+
+.copy-dialog-selected {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: #e8f5e9;
+    border: 2px solid #4caf50;
+    border-radius: 8px;
+    margin-top: 12px;
+}
+
+.copy-dialog-selected-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #2e7d32;
+}
+
+.copy-dialog-selected-value {
+    font-size: 14px;
+    color: #1b5e20;
+    font-weight: 600;
+}

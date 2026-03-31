@@ -8,8 +8,8 @@ Artist Gallery Node - ComfyUI 节点定义
 
 相关功能已拆分到以下模块：
 - utils.py: 文件名解析和目录扫描工具函数
-- api_routes.py: HTTP API 端点处理
-- storage.py: 数据持久化层
+- routes/: HTTP API 端点处理
+- storage/: 数据持久化层
 """
 import json
 import re
@@ -19,7 +19,7 @@ from .storage import get_storage
 from .utils import decode_filename
 
 # 导入所有 API 路由（注册 HTTP 端点）
-from . import api_routes
+from . import routes
 
 # 全局循环状态存储
 _cycle_states = {}

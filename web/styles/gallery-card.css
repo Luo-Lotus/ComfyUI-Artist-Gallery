@@ -1,0 +1,214 @@
+/* 画师卡片 */
+.gallery-card {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 16px;
+    padding: var(--card-padding);
+    box-shadow: 0 2px 12px rgba(255, 182, 159, 0.15);
+    transition: all 0.2s;
+}
+
+.gallery-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(255, 182, 159, 0.25);
+}
+
+.gallery-card-header {
+    display: flex;
+    align-items: center;
+    gap: var(--card-header-gap);
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.gallery-artist-name {
+    font-size: var(--card-artist-name-font);
+    font-weight: 700;
+    color: #ff6b9d;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gallery-artist-count {
+    color: #ffb6c1;
+    font-size: var(--card-artist-count-font);
+    font-weight: 600;
+    background: #fff5f8;
+    padding: 3px 8px;
+    border-radius: 10px;
+}
+
+.gallery-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.gallery-icon-btn {
+    padding: 4px 8px;
+    border: 2px solid #e8e8e8;
+    border-radius: 10px;
+    background: #fff;
+    color: #999;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.gallery-icon-btn:hover {
+    border-color: #ffb6c1;
+    color: #ff6b9d;
+}
+
+.gallery-icon-btn.fav-active {
+    color: #ffd700;
+    border-color: #ffd700;
+    background: #fffbe6;
+}
+
+.gallery-icon-btn.copied {
+    color: #4caf50;
+    border-color: #4caf50;
+    background: #e8f5e9;
+}
+
+.gallery-fav-btn {
+    padding: 6px 10px;
+    border: 2px solid #ffb6c1;
+    border-radius: 20px;
+    background: #fff;
+    color: #ff6b9d;
+    cursor: pointer;
+    font-size: var(--card-fav-btn-size);
+    transition: all 0.2s;
+}
+
+.gallery-fav-btn:hover {
+    background: #ff6b9d;
+    color: white;
+    transform: scale(1.1);
+}
+
+.gallery-fav-btn.fav-active {
+    background: #ff6b9d;
+    color: white;
+    border-color: #ff6b9d;
+}
+
+.gallery-image-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.gallery-image-main {
+    width: 100%;
+    aspect-ratio: 1/1;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.gallery-image-thumbnails {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+    gap: 6px;
+}
+
+.gallery-image-item {
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    background: #f8f8f8;
+    transition: all 0.2s;
+}
+
+.gallery-image-item:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(255, 107, 157, 0.3);
+}
+
+.gallery-image-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* 空状态 */
+.gallery-empty {
+    grid-column: 1/-1;
+    text-align: center;
+    padding: 60px;
+    color: #ff9cbd;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.gallery-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #ff6b9d;
+    font-size: 16px;
+    font-weight: 600;
+    text-align: center;
+    padding: 40px;
+}
+
+.gallery-error-icon {
+    font-size: 48px;
+    margin-bottom: 20px;
+}
+
+.gallery-error-message {
+    font-size: 14px;
+    color: #ff9cbd;
+    margin-top: 10px;
+}
+
+/* ============ 封面图片样式（修改后的 GalleryCard） ============ */
+.gallery-image-cover {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    border-radius: 12px;
+    cursor: pointer;
+    background: #2a2a2a;
+}
+
+.gallery-image-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s;
+}
+
+.gallery-image-cover:hover img {
+    transform: scale(1.05);
+}
+
+/* ============ GalleryCard 空状态类 ============ */
+.gallery-card-empty {
+    height: var(--card-empty-height);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #2a2a2a;
+    border-radius: 8px;
+}
+
+.gallery-card-empty-icon {
+    font-size: var(--card-empty-icon-size);
+    margin-bottom: 10px;
+}
+
+.gallery-card-empty-text {
+    font-size: var(--card-empty-text-font);
+    color: #888;
+}
