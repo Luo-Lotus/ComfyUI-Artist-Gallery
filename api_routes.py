@@ -426,7 +426,7 @@ async def update_artist_composite(request):
                 update_kwargs = {}
                 if "displayName" in kwargs:
                     update_kwargs["displayName"] = kwargs["displayName"]
-                if "categoryId" in kwargs:
+                if "categoryId" in kwargs and cat_id == category_id:
                     update_kwargs["categoryId"] = kwargs["categoryId"]
                 if "coverImageId" in kwargs:
                     update_kwargs["coverImageId"] = kwargs["coverImageId"]

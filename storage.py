@@ -171,7 +171,7 @@ class ArtistStorage:
             self._write_data(data)
             return success_artists, failed_names
 
-    def update_artist(self, category_id: str, name: str, **kwargs) -> bool:
+    def update_artist(self, category_id: str, old_name: str, **kwargs) -> bool:
         """
         更新画师信息（使用组合键）
         :param category_id: 分类 ID
@@ -187,7 +187,7 @@ class ArtistStorage:
             target_artist = None
             target_index = -1
             for i, artist in enumerate(data["artists"]):
-                if artist.get("categoryId") == category_id and artist.get("name") == name:
+                if artist.get("categoryId") == category_id and artist.get("name") == old_name:
                     target_artist = artist
                     target_index = i
                     break
