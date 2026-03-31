@@ -96,108 +96,10 @@ class ArtistSelector:
         except:
             metadata_dict = {}
 
-        # 新格式路由：version == 1
-        if metadata_dict.get('version') == 1:
-            return self._process_v1_metadata(metadata_dict, metadata)
-
-        # ===== 旧格式兼容 =====
-        # 获取分区配置
-        global_config = metadata_dict.get('globalConfig', {})
-        partition_configs = metadata_dict.get('partitionConfigs', {})
-        artist_partition_map = metadata_dict.get('artistPartitionMap', {})
-        category_partition_map = metadata_dict.get('categoryPartitionMap', {})
-
-        # 动态查找默认分区 ID
-        default_partition_id = None
-        for pid, config in partition_configs.items():
-            if config.get('isDefault', False):
-                default_partition_id = pid
-                break
-
-        if not default_partition_id:
-            default_partition_id = 'partition-default'  # 兼容旧数据
-
-        # 默认配置
-        default_format = global_config.get('format', '{content}')
-
-        # 解析画师列表
-        if not selected_artists:
+        if metadata_dict.get('version') != 1:
             return ("", "{}")
 
-        # 优先从 metadata 中获取画师名列表（避免分隔符问题）
-        metadata_artist_names = metadata_dict.get('artist_names', [])
-        if metadata_artist_names and len(metadata_artist_names) > 0:
-            artists = [a.strip() for a in metadata_artist_names if a.strip()]
-        elif '\n' in selected_artists:
-            artists = [a.strip() for a in selected_artists.split('\n') if a.strip()]
-        elif selected_artists:
-            artists = [a.strip() for a in selected_artists.split(',') if a.strip()]
-        else:
-            artists = []
-
-        if not artists:
-            return ("", "{}")
-
-        # 按分区分组画师
-        partition_groups = {}
-        for artist in artists:
-            # 获取画师所属分区
-            partition_id = artist_partition_map.get(artist, default_partition_id)
-
-            if partition_id not in partition_groups:
-                partition_groups[partition_id] = []
-            partition_groups[partition_id].append(artist)
-
-        # 为每个分区应用配置
-        formatted_results = []
-
-        for partition_id, partition_artists in partition_groups.items():
-            # 获取分区配置
-            if partition_id in partition_configs:
-                config = partition_configs[partition_id]
-            elif partition_id == default_partition_id or partition_id == 'default':
-                config = global_config
-            else:
-                config = global_config
-
-            if not config.get('enabled', False):
-                continue  # 跳过禁用的分区
-
-            # 获取配置项
-            partition_random_mode = config.get('randomMode', False)
-            partition_random_count = config.get('randomCount', 3)
-            partition_cycle_mode = config.get('cycleMode', False)
-            partition_format = config.get('format', default_format)
-
-            # 处理循环模式
-            if partition_cycle_mode:
-                node_id = id(self)
-                cycle_key = f"{node_id}_{partition_id}"
-                cycle_index = _cycle_states.get(cycle_key, 0)
-
-                current_artist = partition_artists[cycle_index % len(partition_artists)]
-                _cycle_states[cycle_key] = (cycle_index + 1) % len(partition_artists)
-
-                formatted = self._apply_format(current_artist, partition_format)
-                formatted_results.append(formatted)
-            else:
-                # 处理随机模式
-                working_artists = partition_artists
-                if partition_random_mode and partition_random_count > 0 and partition_random_count < len(working_artists):
-                    working_artists = random.sample(working_artists, partition_random_count)
-
-                # 应用格式
-                for artist in working_artists:
-                    formatted = self._apply_format(artist, partition_format)
-                    formatted_results.append(formatted)
-
-        result = ','.join(formatted_results)
-        enriched = json.dumps({
-            "artist_names": artists,
-            "selected_artists": [{"categoryId": "", "name": a} for a in artists],
-            "formatted_result": result,
-        })
-        return (result, enriched)
+        return self._process_v1_metadata(metadata_dict, metadata)
 
     def _resolve_category_to_artists(self, category_id, all_artists, all_categories, visited=None):
         """递归解析分类，收集所有画师名"""
@@ -266,7 +168,7 @@ class ArtistSelector:
             save_to_gallery = config.get('saveToGallery', True)
 
             # 收集画师名：直接选择 + 分类递归解析
-            artist_names = []
+            artist_entries = []  # [(cat_id, name), ...]
 
             # 从 artistKeys 提取画师名（格式 "categoryId:artistName"）
             for key in partition.get('artistKeys', []):
@@ -274,25 +176,24 @@ class ArtistSelector:
                 name = parts[-1].strip() if parts else ''
                 cat_id = parts[0] if len(parts) > 1 else ''
                 if name:
-                    artist_names.append(name)
-                    collect_artist(cat_id, name, save_to_gallery)
+                    artist_entries.append((cat_id, name))
 
             # 从 categoryIds 递归解析画师
             for cat_id in partition.get('categoryIds', []):
                 resolved = self._resolve_category_to_artists(cat_id, all_artists, all_categories)
                 for n in resolved:
-                    artist_names.append(n)
-                    collect_artist(cat_id, n, save_to_gallery)
+                    artist_entries.append((cat_id, n))
 
             # 去重保序
             seen = set()
-            unique_names = []
-            for n in artist_names:
-                if n not in seen:
-                    seen.add(n)
-                    unique_names.append(n)
+            unique_entries = []
+            for entry in artist_entries:
+                key = f"{entry[0]}:{entry[1]}"
+                if key not in seen:
+                    seen.add(key)
+                    unique_entries.append(entry)
 
-            if not unique_names:
+            if not unique_entries:
                 continue
 
             # 处理循环模式
@@ -301,15 +202,17 @@ class ArtistSelector:
                 partition_id = partition.get('id', 'default')
                 cycle_key = f"{node_id}_{partition_id}"
                 cycle_index = _cycle_states.get(cycle_key, 0)
-                current = unique_names[cycle_index % len(unique_names)]
-                _cycle_states[cycle_key] = (cycle_index + 1) % len(unique_names)
-                formatted_results.append(self._apply_format(current, partition_format))
+                current_entry = unique_entries[cycle_index % len(unique_entries)]
+                _cycle_states[cycle_key] = (cycle_index + 1) % len(unique_entries)
+                formatted_results.append(self._apply_format(current_entry[1], partition_format))
+                collect_artist(current_entry[0], current_entry[1], save_to_gallery)
             else:
-                working = unique_names
+                working = unique_entries
                 if random_mode and random_count > 0 and random_count < len(working):
                     working = random.sample(working, random_count)
-                for name in working:
+                for cat_id, name in working:
                     formatted_results.append(self._apply_format(name, partition_format))
+                    collect_artist(cat_id, name, save_to_gallery)
 
         result = ','.join(formatted_results)
 

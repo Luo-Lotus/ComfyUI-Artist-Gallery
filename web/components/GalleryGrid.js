@@ -20,6 +20,7 @@ export function GalleryGrid({
     onCategoryDelete,
     onMove,
     onCopy,
+    onExport,
     // 多选相关props
     selectionMode = false,
     selectedItems = new Set(),
@@ -69,6 +70,7 @@ export function GalleryGrid({
                 onDelete,
                 onMove: () => onMove && onMove(artist, 'artist'),
                 onCopy: () => onCopy && onCopy(artist, 'artist'),
+                onExport: () => onExport && onExport(artist),
                 // 多选props
                 selectionMode,
                 selected: selectedItems.has(`artist:${artist.categoryId}:${artist.name}`),

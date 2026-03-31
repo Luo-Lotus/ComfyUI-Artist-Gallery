@@ -279,3 +279,43 @@ export function buildBreadcrumbPath(categoryId, categories) {
 
     return path;
 }
+
+// ============ Export / Import ============
+
+export async function exportArtists(artists) {
+    const response = await fetch('/artist_gallery/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ artists }),
+    });
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: '导出失败' }));
+        throw new Error(err.error || '导出失败');
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="?(.+?)"?(?:;|$)/);
+    const filename = match ? match[1] : `artists_export_${new Date().toISOString().slice(0,10).replace(/-/g,'')}.zip`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+export async function importArtists(file, categoryId) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(
+        `/artist_gallery/import-artists?categoryId=${encodeURIComponent(categoryId)}`,
+        { method: 'POST', body: formData },
+    );
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: '导入失败' }));
+        throw new Error(err.error || '导入失败');
+    }
+    return await response.json();
+}

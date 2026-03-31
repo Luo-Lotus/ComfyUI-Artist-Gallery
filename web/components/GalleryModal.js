@@ -13,6 +13,8 @@ import {
     updateCategory,
     deleteCategory,
     buildImageUrl,
+    exportArtists,
+    importArtists,
 } from '../utils.js';
 import { GalleryGrid } from './GalleryGrid.js';
 import { Lightbox } from './Lightbox.js';
@@ -589,6 +591,57 @@ export function GalleryModal({ isOpen, onClose }) {
         setArtistToDelete(null);
     };
 
+    // ============ 导出导入处理 ============
+
+    const handleExportArtist = async (artist) => {
+        try {
+            await exportArtists([{ categoryId: artist.categoryId, name: artist.name }]);
+            showToast(`已导出画师: ${artist.displayName || artist.name}`, 'success');
+        } catch (error) {
+            showToast('导出失败: ' + error.message, 'error');
+        }
+    };
+
+    const handleBatchExport = async () => {
+        const details = getSelectedDetails();
+        const artistKeys = details.artists.map((a) => ({
+            categoryId: a.categoryId,
+            name: a.name,
+        }));
+        if (artistKeys.length === 0) {
+            showToast('请选择画师后导出', 'warning');
+            return;
+        }
+        try {
+            await exportArtists(artistKeys);
+            showToast(`已导出 ${artistKeys.length} 个画师`, 'success');
+        } catch (error) {
+            showToast('导出失败: ' + error.message, 'error');
+        }
+    };
+
+    const importFileInputRef = { current: null };
+
+    const handleImportArtists = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+            const result = await importArtists(file, currentCategory);
+            if (result.success) {
+                showToast(
+                    `导入成功: ${result.addedArtists} 个画师, ${result.addedImages} 张图片`,
+                    'success',
+                );
+                loadData();
+            } else {
+                showToast(result.error || '导入失败', 'error');
+            }
+        } catch (error) {
+            showToast('导入失败: ' + error.message, 'error');
+        }
+        e.target.value = '';
+    };
+
     // ============ 多选功能处理 ============
 
     const handleToggleSelectionMode = () => {
@@ -831,6 +884,26 @@ export function GalleryModal({ isOpen, onClose }) {
                 },
                 '📥 导入图片',
             ),
+            // 导入画师按钮
+            h(
+                'button',
+                {
+                    class: 'gallery-modal-btn',
+                    onClick: () => {
+                        const input = document.getElementById('artist-import-file-input');
+                        if (input) input.click();
+                    },
+                },
+                '📤 导入画师',
+            ),
+            // 隐藏的文件选择 input
+            h('input', {
+                id: 'artist-import-file-input',
+                type: 'file',
+                accept: '.zip',
+                style: { display: 'none' },
+                onChange: handleImportArtists,
+            }),
             h(
                 'button',
                 {
@@ -993,6 +1066,7 @@ export function GalleryModal({ isOpen, onClose }) {
                 onDeselectAll: handleDeselectAll,
                 onMove: handleBatchMove,
                 onCopy: handleBatchCopy,
+                onExport: handleBatchExport,
                 onDelete: handleBatchDelete,
                 onExit: handleToggleSelectionMode,
             }),
@@ -1091,6 +1165,7 @@ export function GalleryModal({ isOpen, onClose }) {
                 onDeselectAll: handleDeselectAll,
                 onMove: handleBatchMove,
                 onCopy: handleBatchCopy,
+                onExport: handleBatchExport,
                 onDelete: handleBatchDelete,
                 onExit: handleToggleSelectionMode,
             }),
@@ -1108,6 +1183,7 @@ export function GalleryModal({ isOpen, onClose }) {
                 onCategoryDelete: handleDeleteCategory,
                 onMove: openMoveDialog,
                 onCopy: openCopyDialog,
+                onExport: handleExportArtist,
                 // 多选相关props
                 selectionMode,
                 selectedItems,

@@ -1620,3 +1620,160 @@ async def reset_cycle_state(request):
         })
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
+
+
+# ============ 导出导入 API ============
+
+@server.PromptServer.instance.routes.post("/artist_gallery/export")
+async def export_artists(request):
+    """导出画师（含图片）为 ZIP 文件"""
+    import folder_paths
+    import zipfile
+    import io
+    import time
+
+    try:
+        data = await request.json()
+        artists_param = data.get("artists", [])
+
+        artist_storage, mapping_storage, _ = get_storage()
+        output_dir = Path(folder_paths.get_output_directory())
+
+        exported_images = {}
+        manifest_artists = []
+
+        for artist_key in artists_param:
+            category_id = artist_key.get("categoryId")
+            name = artist_key.get("name")
+
+            artist = artist_storage.get_artist(category_id, name)
+            if not artist:
+                continue
+
+            manifest_artists.append({
+                "name": artist.get("name"),
+                "displayName": artist.get("displayName"),
+            })
+
+            mappings = mapping_storage.get_mappings_by_artist(name)
+            for mapping in mappings:
+                image_path = mapping.get("imagePath")
+                if image_path not in exported_images:
+                    filename = Path(image_path).name
+                    zip_path = f"images/{filename}"
+                    exported_images[image_path] = {"path": zip_path, "artistNames": [name]}
+                else:
+                    if name not in exported_images[image_path]["artistNames"]:
+                        exported_images[image_path]["artistNames"].append(name)
+
+        manifest_images = [
+            {"path": info["path"], "artistNames": info["artistNames"]}
+            for info in exported_images.values()
+        ]
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+            manifest = {
+                "version": 1,
+                "exportedAt": int(time.time() * 1000),
+                "artists": manifest_artists,
+                "images": manifest_images,
+            }
+            zf.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+
+            for original_path, info in exported_images.items():
+                full_path = output_dir / original_path
+                if full_path.exists():
+                    zf.write(full_path, info["path"])
+
+        from datetime import datetime
+        date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"artists_export_{date_str}.zip"
+
+        zip_buffer.seek(0)
+        return web.Response(
+            body=zip_buffer.read(),
+            content_type='application/zip',
+            headers={
+                'Content-Disposition': f'attachment; filename="{filename}"'
+            }
+        )
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+@server.PromptServer.instance.routes.post("/artist_gallery/import-artists")
+async def import_artists(request):
+    """导入画师（从 ZIP 文件）"""
+    import folder_paths
+    import zipfile
+    import io
+    import time
+    import random
+
+    try:
+        reader = await request.multipart()
+        field = await reader.next()
+
+        if not field or field.name != 'file':
+            return web.json_response({"error": "未找到上传文件"}, status=400)
+
+        zip_bytes = await field.read(decode=True)
+        target_category_id = request.query.get("categoryId", "root")
+
+        artist_storage, mapping_storage, _ = get_storage()
+        output_dir = Path(folder_paths.get_output_directory()) / "artist_gallery"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        buffer = io.BytesIO(zip_bytes)
+        added_artists = []
+        added_images = 0
+
+        with zipfile.ZipFile(buffer, 'r') as zf:
+            manifest_data = json.loads(zf.read("manifest.json"))
+
+            for artist_info in manifest_data.get("artists", []):
+                name = artist_info.get("name", "").strip()
+                if not name:
+                    continue
+                existing = artist_storage.get_artist(target_category_id, name)
+                if not existing:
+                    try:
+                        artist_storage.add_artist(
+                            name=name,
+                            display_name=artist_info.get("displayName", name),
+                            category_id=target_category_id,
+                        )
+                        added_artists.append(name)
+                    except ValueError:
+                        pass
+
+            for img_info in manifest_data.get("images", []):
+                zip_img_path = img_info.get("path")
+                artist_names = img_info.get("artistNames", [])
+                if not zip_img_path or zip_img_path not in zf.namelist():
+                    continue
+
+                timestamp = int(time.time() * 1000)
+                rand_num = random.randint(0, 99999)
+                new_filename = f"AG_{timestamp}_{rand_num:05d}.png"
+                new_path = output_dir / new_filename
+
+                with open(new_path, 'wb') as f:
+                    f.write(zf.read(zip_img_path))
+
+                relative_path = f"artist_gallery/{new_filename}"
+                mapping_storage.add_mapping(
+                    image_path=relative_path,
+                    artist_names=artist_names,
+                )
+                added_images += 1
+
+        return web.json_response({
+            "success": True,
+            "addedArtists": len(added_artists),
+            "addedImages": added_images,
+            "artists": added_artists,
+        })
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)

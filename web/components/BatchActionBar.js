@@ -11,6 +11,7 @@ export function BatchActionBar({
     onMove,
     onCopy,
     onDelete,
+    onExport,
     onSelectAll,
     onDeselectAll,
     onExit
@@ -73,6 +74,11 @@ export function BatchActionBar({
 
         // 右侧：批量操作按钮
         h('div', { class: 'batch-operations' }, [
+            h('button', {
+                class: 'batch-op-btn export-btn',
+                onClick: () => onExport && onExport(),
+                title: '导出选中画师'
+            }, '📤 导出'),
             h('button', {
                 class: 'batch-op-btn delete-btn',
                 onClick: handleDelete,

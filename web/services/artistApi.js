@@ -146,3 +146,40 @@ export async function resetCycleState(nodeId) {
     });
     return await response.json();
 }
+
+/**
+ * 导出画师（含图片）为 ZIP 文件
+ */
+export async function exportArtists(artists) {
+    const response = await fetch('/artist_gallery/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ artists }),
+    });
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: '导出失败' }));
+        throw new Error(err.error || '导出失败');
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'artists_export.zip';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+/**
+ * 导入画师（从 ZIP 文件）
+ */
+export async function importArtists(file, categoryId) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(
+        `/artist_gallery/import-artists?categoryId=${encodeURIComponent(categoryId)}`,
+        { method: 'POST', body: formData }
+    );
+    return await response.json();
+}

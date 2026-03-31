@@ -19,6 +19,7 @@ export function GalleryCard({
     onSetCover,
     onMove,
     onCopy,
+    onExport,
     // 多选相关props
     selectionMode = false,
     selected = false,
@@ -74,6 +75,11 @@ export function GalleryCard({
                 icon: '📄',
                 label: '复制到',
                 action: () => onCopy && onCopy(artist),
+            },
+            {
+                icon: '📤',
+                label: '导出',
+                action: () => onExport && onExport(artist),
             },
             {
                 icon: '🗑️',
