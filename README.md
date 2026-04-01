@@ -4,6 +4,7 @@
 
 ![demo1](assets/demo1.png)
 ![demo2](assets/demo2.png)
+![demo3](assets/demo3.png)
 
 ## 功能特点
 
@@ -59,7 +60,7 @@ git clone <repository-url> artist_gallery
 
 - **类型**: 输出节点（不产生工作流输出）
 - **输入**:
-  - `action`: 操作选项（打开画廊 / 刷新数据 / 统计信息）
+    - `action`: 操作选项（打开画廊 / 刷新数据 / 统计信息）
 - **使用**: 添加到工作流后，点击页面右下角的 🎨 悬浮按钮打开图库管理界面
 
 ### 🎨 画师选择 (ArtistSelector)
@@ -68,16 +69,16 @@ git clone <repository-url> artist_gallery
 
 - **类型**: 功能节点
 - **输出**:
-  - `artists_string`: 逗号分隔的画师名称字符串
-  - `metadata_json`: 包含分区配置的 JSON 元数据
+    - `artists_string`: 逗号分隔的画师名称字符串
+    - `metadata_json`: 包含分区配置的 JSON 元数据
 - **功能**:
-  - 前端交互式选择画师
-  - 支持分区管理（创建、删除、重命名）
-  - 支持随机模式（每次随机抽取 N 个画师）
-  - 支持循环模式（每次执行输出下一个画师）
-  - 支持组合选择（将多个画师作为一个选择单元）
-  - 支持自定义输出格式
-  - 每个分区独立配置自动创建组合
+    - 前端交互式选择画师
+    - 支持分区管理（创建、删除、重命名）
+    - 支持随机模式（每次随机抽取 N 个画师）
+    - 支持循环模式（每次执行输出下一个画师）
+    - 支持组合选择（将多个画师作为一个选择单元）
+    - 支持自定义输出格式
+    - 每个分区独立配置自动创建组合
 
 ### 🎨 保存到画廊 (SaveToGallery)
 
@@ -85,9 +86,9 @@ git clone <repository-url> artist_gallery
 
 - **类型**: 输出节点
 - **输入**:
-  - `images`: ComfyUI 图片张量
-  - `metadata_json`: 画师元数据 JSON（可连接 ArtistSelector 的输出）
-  - `filename_prefix`: 文件名前缀（默认 `AG`）
+    - `images`: ComfyUI 图片张量
+    - `metadata_json`: 画师元数据 JSON（可连接 ArtistSelector 的输出）
+    - `filename_prefix`: 文件名前缀（默认 `AG`）
 - **输出**: 图片保存到 `output/artist_gallery/` 目录
 
 ## 使用方法
@@ -105,15 +106,15 @@ git clone <repository-url> artist_gallery
 
 1. 在工作流中添加 **画师选择** 节点
 2. 节点上会显示交互式选择界面：
-   - **已选区域**（上方）: 显示分区及已选画师/分类/组合，支持拖拽管理
-   - **浏览区域**（下方）: 搜索、分类浏览、选择画师
+    - **已选区域**（上方）: 显示分区及已选画师/分类/组合，支持拖拽管理
+    - **浏览区域**（下方）: 搜索、分类浏览、选择画师
 3. 在浏览区域点击画师、分类或组合即可添加到当前分区
 4. 鼠标悬停在画师或组合上可预览封面图
 5. 点击分区标题旁的按钮可切换分区配置：
-   - **🎲 随机模式**: 每次执行随机抽取指定数量的画师
-   - **🔄 循环模式**: 每次执行依次输出一个画师
-   - **💾 保存到画廊**: 启用后图片保存时关联画师
-   - **🔗 自动创建组合**: 保存时自动创建包含当前画师的组合
+    - **🎲 随机模式**: 每次执行随机抽取指定数量的画师
+    - **🔄 循环模式**: 每次执行依次输出一个画师
+    - **💾 保存到画廊**: 启用后图片保存时关联画师
+    - **🔗 自动创建组合**: 保存时自动创建包含当前画师的组合
 6. 节点输出可直接连接到提示词节点或其他文本输入
 
 ### 保存到画廊
@@ -128,12 +129,13 @@ git clone <repository-url> artist_gallery
 
 在画师选择节点的分区配置中，可以自定义输出格式：
 
-| 变量 | 说明 | 示例 |
-|------|------|------|
-| `{content}` | 画师名称 | `artist_name` |
-| `{random(min,max,step)}` | 随机数 | `{random(0.5,2.0,0.1)}` → `1.3` |
+| 变量                     | 说明     | 示例                            |
+| ------------------------ | -------- | ------------------------------- |
+| `{content}`              | 画师名称 | `artist_name`                   |
+| `{random(min,max,step)}` | 随机数   | `{random(0.5,2.0,0.1)}` → `1.3` |
 
 格式示例：
+
 - 默认: `{content}` → `artist_name`
 - 加权重: `({content}:{random(0.5,2.0,0.1)})` → `(artist_name:1.3)`
 - 自定义前缀: `by {content}` → `by artist_name`
@@ -148,6 +150,7 @@ git clone <repository-url> artist_gallery
 ```
 
 示例：
+
 - `@mike,_1.png`
 - `@sarah,_2.jpg`
 - `@artist_name,_1.webp`
@@ -245,82 +248,87 @@ artist_gallery/
 
 ### 图库数据
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/artist_gallery/data` | 获取画师和组合数据（支持 `?category=` 过滤） |
-| GET | `/artist_gallery/html` | 图库 HTML 页面 |
+| 方法 | 路径                   | 说明                                         |
+| ---- | ---------------------- | -------------------------------------------- |
+| GET  | `/artist_gallery/data` | 获取画师和组合数据（支持 `?category=` 过滤） |
+| GET  | `/artist_gallery/html` | 图库 HTML 页面                               |
 
 ### 画师管理
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/artist_gallery/artists` | 获取所有画师列表 |
-| POST | `/artist_gallery/artists` | 添加画师 |
-| PUT | `/artist_gallery/artists/{id}` | 更新画师 |
-| DELETE | `/artist_gallery/artists/{id}` | 删除画师 |
-| POST | `/artist_gallery/artists/batch` | 批量添加画师 |
-| GET | `/artist_gallery/artist/{id}/images` | 获取画师图片列表 |
-| GET | `/artist_gallery/artist_images` | 获取画师图片（按名称查询） |
-| PUT | `/artist_gallery/artists/{id}/cover` | 设置画师封面图 |
+| 方法   | 路径                                 | 说明                       |
+| ------ | ------------------------------------ | -------------------------- |
+| GET    | `/artist_gallery/artists`            | 获取所有画师列表           |
+| POST   | `/artist_gallery/artists`            | 添加画师                   |
+| PUT    | `/artist_gallery/artists/{id}`       | 更新画师                   |
+| DELETE | `/artist_gallery/artists/{id}`       | 删除画师                   |
+| POST   | `/artist_gallery/artists/batch`      | 批量添加画师               |
+| GET    | `/artist_gallery/artist/{id}/images` | 获取画师图片列表           |
+| GET    | `/artist_gallery/artist_images`      | 获取画师图片（按名称查询） |
+| PUT    | `/artist_gallery/artists/{id}/cover` | 设置画师封面图             |
 
 ### 分类管理
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/artist_gallery/categories` | 获取分类树 |
-| POST | `/artist_gallery/categories` | 创建分类 |
-| PUT | `/artist_gallery/categories/{id}` | 更新分类 |
-| DELETE | `/artist_gallery/categories/{id}` | 删除分类 |
-| POST | `/artist_gallery/categories/{id}/move` | 移动分类 |
+| 方法   | 路径                                   | 说明       |
+| ------ | -------------------------------------- | ---------- |
+| GET    | `/artist_gallery/categories`           | 获取分类树 |
+| POST   | `/artist_gallery/categories`           | 创建分类   |
+| PUT    | `/artist_gallery/categories/{id}`      | 更新分类   |
+| DELETE | `/artist_gallery/categories/{id}`      | 删除分类   |
+| POST   | `/artist_gallery/categories/{id}/move` | 移动分类   |
 
 ### 组合管理
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/artist_gallery/combinations` | 获取组合列表（支持 `?category=` 过滤） |
-| GET | `/artist_gallery/combinations/all` | 获取所有组合 |
-| GET | `/artist_gallery/combinations/{id}` | 获取单个组合 |
-| POST | `/artist_gallery/combinations` | 创建组合 |
-| PUT | `/artist_gallery/combinations/{id}` | 更新组合 |
-| DELETE | `/artist_gallery/combinations/{id}` | 删除组合 |
-| POST | `/artist_gallery/combinations/{id}/duplicate` | 复制组合 |
-| POST | `/artist_gallery/combinations/{id}/move` | 移动组合 |
-| GET | `/artist_gallery/combinations/{id}/images` | 获取组合图片 |
-| DELETE | `/artist_gallery/combinations/batch` | 批量删除组合 |
+| 方法   | 路径                                          | 说明                                   |
+| ------ | --------------------------------------------- | -------------------------------------- |
+| GET    | `/artist_gallery/combinations`                | 获取组合列表（支持 `?category=` 过滤） |
+| GET    | `/artist_gallery/combinations/all`            | 获取所有组合                           |
+| GET    | `/artist_gallery/combinations/{id}`           | 获取单个组合                           |
+| POST   | `/artist_gallery/combinations`                | 创建组合                               |
+| PUT    | `/artist_gallery/combinations/{id}`           | 更新组合                               |
+| DELETE | `/artist_gallery/combinations/{id}`           | 删除组合                               |
+| POST   | `/artist_gallery/combinations/{id}/duplicate` | 复制组合                               |
+| POST   | `/artist_gallery/combinations/{id}/move`      | 移动组合                               |
+| GET    | `/artist_gallery/combinations/{id}/images`    | 获取组合图片                           |
+| DELETE | `/artist_gallery/combinations/batch`          | 批量删除组合                           |
 
 ### 图片与导入导出
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/artist_gallery/image/{path}` | 获取图片文件 |
-| POST | `/artist_gallery/import` | 导入画师数据 |
-| GET | `/artist_gallery/export` | 导出画师数据 |
-| POST | `/artist_gallery/images/import` | 导入图片 |
-| POST | `/artist_gallery/batch/delete` | 批量删除 |
+| 方法 | 路径                            | 说明         |
+| ---- | ------------------------------- | ------------ |
+| GET  | `/artist_gallery/image/{path}`  | 获取图片文件 |
+| POST | `/artist_gallery/import`        | 导入画师数据 |
+| GET  | `/artist_gallery/export`        | 导出画师数据 |
+| POST | `/artist_gallery/images/import` | 导入图片     |
+| POST | `/artist_gallery/batch/delete`  | 批量删除     |
 
 ## 故障排除
 
 **看不到 🎨 悬浮按钮**
+
 - 确认已重启 ComfyUI
 - 检查页面右下角，按钮可能被拖到了其他位置
 - 按 F12 打开浏览器控制台查看是否有错误
 
 **画师选择器节点不显示交互界面**
+
 - 刷新浏览器页面（Ctrl+Shift+R 强制刷新）
 - 确认节点已正确添加到工作流
 - 检查浏览器控制台是否有 JavaScript 错误
 
 **扫描不到图片**
+
 - 确认图片文件名格式正确（`@画师名,_序号.扩展名`）
 - 确认图片在 ComfyUI 的 output 目录中
 - 在图库界面点击刷新按钮重新加载
 
 **组合自动创建不生效**
+
 - 确认分区已开启「保存到画廊」选项
 - 确认分区已开启「自动创建组合」选项
 - 自动创建只在有画师被选中时生效
 
 **分区拖拽不生效**
+
 - 确保拖拽的是画师标签或分类卡片到目标分区
 - 刷新浏览器页面后重试
 
