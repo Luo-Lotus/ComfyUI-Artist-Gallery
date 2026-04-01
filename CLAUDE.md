@@ -6,8 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Artist Gallery is a ComfyUI custom node plugin that provides:
 - **Floating gallery UI**: Draggable button (🎨) with modal interface for browsing artist reference images
-- **Storage system**: JSON-based persistence for artists and image-artist mappings
+- **Storage system**: JSON-based persistence for artists, categories, combinations, and image-artist mappings
 - **Custom nodes**: ArtistGallery (UI), ArtistSelector (workflow integration), SaveToGallery (saving images)
+- **Combination system**: Group multiple artists into selectable units, auto-create on save
+- **Category system**: Hierarchical artist categorization with tree navigation
 - **Toast notification system**: Modern, non-blocking user feedback
 - **Dialog components**: Reusable modal dialog system
 - **Automatic detection**: Scans ComfyUI output directory for images matching `@artist_name,_number.ext` pattern
@@ -20,33 +22,54 @@ Artist Gallery is a ComfyUI custom node plugin that provides:
 - Registers three node classes via `NODE_CLASS_MAPPINGS` and `NODE_DISPLAY_NAME_MAPPINGS`
 - Sets `WEB_DIRECTORY = "./web"` for frontend assets
 
-**`nodes.py`**: Node classes and HTTP API endpoints
+**`nodes.py`**: Node classes and output processing logic
 - **ArtistGallery**: Output node for UI (no workflow output)
 - **ArtistSelector**: Workflow node that provides artist selection widget
+  - Processes partitions, resolves artists from `artistKeys` and `categoryIds`
+  - Handles random/cycle mode, format templates, auto-create combination
+  - Tracks `partition_used_artists` (actual artists after random/cycle filtering)
+  - Tracks `partition_formats` (per-partition format string)
 - **SaveToGallery**: Saves generated images to the gallery system
-- **HTTP Endpoints**:
-  - `GET /artist_gallery/data`: Scans output directory, returns artist images JSON
-  - `POST /artist_gallery/artists`: CRUD operations for artists (add, update, delete)
-  - `GET /artist_gallery/artists`: List all artists
-  - `DELETE /artist_gallery/artists/{id}`: Delete artist
-  - `PUT /artist_gallery/artists/{id}`: Update artist
-  - `POST /artist_gallery/artists/batch`: Batch add artists
-  - `GET /artist_gallery/artist/{id}/images`: Get artist images
+  - Uses `collect_artist()` to register artist associations for saved images
+- **`_apply_format()`**: Applies format template (e.g., `@{content}`) to artist names
 
-**`storage.py`**: Data persistence layer
-- **ArtistStorage**: Manages artist data in `artists.json`
-  - CRUD operations: `add_artist()`, `get_artist_by_id/name()`, `update_artist()`, `delete_artist()`
-  - Batch operations: `add_artists_batch()`
-  - Thread-safe with locking mechanism
-- **ImageMappingStorage**: Manages image-artist relationships in `image_artists.json`
-  - Links images to multiple artists
-  - Tracks metadata (dimensions, save timestamp)
-  - Cleanup operations when artists are deleted
+**`storage/`**: Data persistence layer (split into modules)
+
+| Module | Class | Storage File | Purpose |
+|--------|-------|-------------|---------|
+| `artist.py` | `ArtistStorage` | `artists.json` | Artist CRUD, batch operations |
+| `category.py` | `CategoryStorage` | `categories.json` | Hierarchical category tree |
+| `combination.py` | `CombinationStorage` | `combinations.json` | Combination CRUD, duplicate, move |
+| `image_mapping.py` | `ImageMappingStorage` | `image_artists.json` | Image-artist relationships, cover image lookup |
+| `migration.py` | — | — | Data migration utilities |
+| `_resolve.py` | — | — | Storage directory resolution |
+
+All storage classes are thread-safe with locking mechanism. Access via `get_storage()` from `storage/__init__.py`.
+
+**`routes/`**: HTTP API endpoints (split into modules)
+
+| Module | Endpoints |
+|--------|-----------|
+| `gallery.py` | `GET /data` — returns artists + combinations with `coverImagePath` (no full `images` array) |
+| `artists.py` | Artist CRUD, batch operations, `GET /artist_images` (lazy-load artist images), `PUT /{id}/cover` |
+| `categories.py` | Category CRUD, move |
+| `combinations.py` | Combination CRUD, duplicate, move, images (intersection of member artists), batch delete |
+| `images.py` | Image file serving, import |
+| `batch.py` | Batch delete operations |
+| `import_export.py` | Artist/category data import/export |
+| `cycle_state.py` | Cycle mode state persistence |
+| `migration.py` | Data migration endpoints |
+
+**Key design decisions**:
+- Gallery list API (`/data`) returns `coverImagePath` only (no `images` array) for performance
+- Artist images are lazy-loaded via `/artist_images?name=` when entering detail view
+- `coverImageId` is the internal storage field; API responses compute and expose only `coverImagePath`
+- Combination images endpoint returns intersection of all member artists' images
 
 ### Frontend (JavaScript/Preact)
 
-**Modern Architecture** (2026 refactor):
-- **Standard ES6 modules**: Uses `import/export` instead of global objects
+**Architecture**:
+- **Standard ES6 modules**: Uses `import/export`
 - **Component-based**: Modular, reusable components
 - **Custom Hooks**: Business logic extracted into hooks
 - **Service Layer**: API calls centralized in services
@@ -57,59 +80,99 @@ Artist Gallery is a ComfyUI custom node plugin that provides:
 
 ```
 web/
-├── artist_gallery.js           # Main entry point
-├── components/                 # Preact components
-│   ├── GalleryModal.js         # Main gallery container
-│   ├── GalleryHeader.js        # Search and sort controls
-│   ├── GalleryGrid.js          # Artist grid layout
-│   ├── GalleryCard.js          # Individual artist card
-│   ├── Lightbox.js             # Full-screen image viewer
-│   ├── AddArtistDialog.js      # Add/Edit artist dialog
-│   ├── DeleteConfirmDialog.js  # Delete confirmation dialog
-│   ├── Toast.js                # Toast notification system
-│   ├── Dialog.js               # Reusable dialog component
-│   └── hooks/                  # Custom hooks
-│       ├── useGalleryData.js    # Data fetching
-│       └── useFilteredArtists.js # Filtering & sorting
-├── nodes/                      # Node-specific components
-│   ├── ArtistSelector.js       # Node extension entry
+├── artist_gallery.js              # Main entry point
+├── utils.js                       # Shared utilities (buildImageUrl, fetchArtistImages, setArtistCover)
+├── Draggable.js                   # Drag-and-drop
+├── lib/                           # Third-party libraries
+│   ├── preact.mjs                 # Preact core
+│   └── feather.mjs                # Icons
+├── components/                    # Preact components
+│   ├── GalleryModal.js            # Main gallery container (lazy-loads artist images, "set as cover" menu)
+│   ├── GalleryGrid.js             # Artist grid layout
+│   ├── GalleryCard.js             # Individual artist card (uses coverImagePath)
+│   ├── CombinationCard.js         # Combination card (uses coverImagePath)
+│   ├── CombinationDialog.js       # Create/edit combination dialog
+│   ├── Lightbox.js                # Full-screen image viewer (shows artistNames tags)
+│   ├── BaseCard.js                # Card base component (selection, context menu)
+│   ├── ContextMenu.js             # Right-click context menu
+│   ├── LazyList.js                # Virtual scroll list
+│   ├── Toast.js                   # Toast notification system
+│   ├── AddArtistDialog.js         # Add/Edit artist dialog
+│   ├── DeleteConfirmDialog.js     # Delete confirmation dialog
+│   ├── CopyDialog.js              # Copy to category dialog
+│   ├── MoveDialog.js              # Move to category dialog
+│   ├── CategoryDialog.js          # Category CRUD dialog
+│   ├── ImportImagesDialog.js      # Image import dialog
+│   └── hooks/
+│       ├── useGalleryData.js      # Data fetching & caching
+│       ├── useFilteredArtists.js  # Filtering & sorting
+│       └── useFormatProcessor.js  # Format template processing
+├── nodes/                         # Node-specific components
+│   ├── ArtistSelector.js          # Node extension entry (beforeRegisterNodeDef)
 │   └── components/
-│       ├── ArtistSelectorWidget.js  # Preact widget
+│       ├── ArtistSelectorWidget.js    # Preact widget (hover preview for artists & combinations)
+│       ├── PartitionList.js           # Partition list with drag-drop
+│       ├── PartitionItem.js           # Individual partition item
+│       ├── PartitionHeader.js         # Partition header (shows 🔗 badge for auto-create)
+│       ├── PartitionConfigPanel.js    # Per-partition config (format, random, cycle, saveToGallery, autoCreateCombination)
 │       └── hooks/
-│           └── useArtistSelector.js  # Widget logic
-├── services/                   # API service layer
-│   └── artistApi.js           # Artist API calls
-├── utils.js                    # Shared utilities
-├── Draggable.js               # Drag-and-drop
-├── lib/                       # Preact library files
-│   ├── preact.mjs             # Preact core
-│   └── hooks.mjs              # Preact hooks
-└── styles/
-    └── gallery.css            # Component styles
+│           ├── useArtistSelector.js   # Core selection logic (loads artists + combinations from /data)
+│           ├── useImagePreview.js     # Cover image hover preview (direct DOM, no fetch)
+│           ├── useNodeSync.js         # Node value synchronization
+│           └── usePartitionState.js   # Partition state management & persistence
+├── services/
+│   └── artistApi.js               # API call functions
+└── styles/                        # Component styles
+    ├── gallery.css                # Gallery modal styles
+    ├── gallery-card.css           # Card styles
+    ├── gallery-grid.css           # Grid layout styles
+    ├── lightbox.css               # Lightbox styles (flex column, artist tags)
+    ├── artist-selector.css        # Selector styles
+    ├── combination.css            # Combination styles
+    ├── toast.css                  # Notification styles
+    ├── dialogs.css                # Dialog styles
+    ├── context-menu.css           # Context menu styles
+    ├── variables.css              # CSS variables
+    └── ...                        # Other style files
 ```
 
 #### Key Components
 
 **Dialog System**:
-- `Dialog.js`: Reusable modal component with props for title, content, footer
-- `DialogButton`: Styled button component (default/primary/danger variants)
-- Used by all dialogs for consistent UI/UX
+- `Dialog.js`: Reusable modal with title, content, footer
+- `DialogButton`: Styled button (default/primary/danger variants)
 
 **Toast Notifications**:
-- Replaces blocking `alert()` calls
-- Four types: success, error, warning, info
+- Replaces `alert()` calls
+- Types: success, error, warning, info
 - Auto-dismiss after 3 seconds
-- Smooth slide-in animations
 
 **Custom Hooks**:
 - `useGalleryData`: Fetches and caches gallery data
-- `useFilteredArtists`: Filters and sorts artist list
-- `useArtistSelector`: Manages artist selection state
+- `useFilteredArtists`: Filters and sorts artist list with `useMemo`
+- `useArtistSelector`: Core selection state, loads data from `/data` endpoint (artists + combinations in one call)
+- `useImagePreview`: Direct DOM preview popup using `coverImagePath` (no API fetch)
+- `usePartitionState`: Partition CRUD, artist/category/combination mapping, persistence
 
-**API Services**:
-- `artistApi.js`: Centralized API calls for artist CRUD operations
-- Returns parsed JSON responses
-- Used by dialog components
+**Cover Image System**:
+- Storage field: `coverImageId` (path stored in JSON)
+- API response field: `coverImagePath` (computed: `coverImageId || first_mapping_image`)
+- Frontend uses only `coverImagePath` — `coverImageId` is not exposed in API responses
+- Set via right-click menu → "设为封面", calls `setArtistCover()` or `updateCombinationApi()`
+
+**Combination System**:
+- `CombinationStorage`: CRUD in `combinations.json`
+- Fields: `id`, `name`, `categoryId`, `artistKeys[]`, `outputContent`, `coverImageId`
+- Auto-create: When partition has `autoCreateCombination` enabled, `SaveToGallery` creates a combination with:
+  - `name` = comma-joined artist names
+  - `outputContent` = formatted content (e.g., `@artist_one,@artist_two` if format is `@{content}`)
+  - `artistKeys` = actually used artists (after random/cycle filtering)
+- Auto-create requires `saveToGallery` enabled on the partition
+
+**Partition System**:
+- Each partition has independent config: `format`, `randomMode`, `randomCount`, `cycleMode`, `saveToGallery`, `autoCreateCombination`
+- `autoCreateCombination` is disabled when `saveToGallery` is off
+- Partition header shows `🔗` badge when auto-create is enabled
 
 ## Development Workflow
 
@@ -160,7 +223,7 @@ export function MyDialog({ isOpen, onClose, onConfirm }) {
 
 ### Adding a New Hook
 
-Create hooks in `components/hooks/`:
+Create hooks in `components/hooks/` or `nodes/components/hooks/`:
 
 ```javascript
 import { useState, useEffect } from '../../lib/hooks.mjs';
@@ -178,15 +241,18 @@ export function useMyHook() {
 
 ### Adding API Endpoints
 
-**Backend** (`nodes.py`):
+**Backend** (`routes/`):
 ```python
 @server.PromptServer.instance.routes.get("/artist_gallery/your-endpoint")
 async def your_handler(request):
+    # For query params:
+    param = request.query.get("param", "")
+    # For body:
     data = await request.json()
     return web.json_response({"status": "success"})
 ```
 
-**Frontend** (`services/`):
+**Frontend** (`utils.js` or `services/`):
 ```javascript
 export async function yourApiCall(data) {
     const response = await fetch('/artist_gallery/your-endpoint', {
@@ -229,16 +295,9 @@ export function MyComponent({ prop1, prop2 }) {
 ```javascript
 import { showToast } from './components/Toast.js';
 
-// Success
 showToast('操作成功', 'success');
-
-// Error
 showToast('操作失败: ' + error.message, 'error');
-
-// Warning
 showToast('请填写必填项', 'warning');
-
-// Info
 showToast('数据已更新', 'info');
 ```
 
@@ -249,17 +308,23 @@ showToast('数据已更新', 'info');
 - **Frontend Loading**: ComfyUI auto-loads ES modules from `WEB_DIRECTORY` path
 - **Preact Integration**: Loads from `./lib/` directory with standard ES6 imports
 - **Node Widgets**: Uses `app.registerExtension()` with `beforeRegisterNodeDef()` hook for custom widgets
+- **collect_artist()**: Registers artist associations for SaveToGallery images, handles combination artist expansion
 
 ## Data Persistence
 
-The plugin maintains two JSON files in the plugin root directory:
+The plugin maintains JSON files in the plugin storage directory:
 
-**`artists.json`**: Artist metadata managed by `ArtistStorage`
-- Contains artist IDs, names, display names, creation timestamps, image counts
+**`artists.json`**: Artist metadata (ArtistStorage)
+- Fields: id, name, displayName, categoryId, coverImageId, createdAt
 
-**`image_artists.json`**: Image-to-artist mappings managed by `ImageMappingStorage`
-- Links image paths to artist IDs
-- Tracks metadata (dimensions, save timestamps)
+**`categories.json`**: Category tree (CategoryStorage)
+- Fields: id, name, parentId, children[]
+
+**`combinations.json`**: Combination data (CombinationStorage)
+- Fields: id, name, categoryId, artistKeys[], outputContent, coverImageId, createdAt
+
+**`image_artists.json`**: Image-to-artist mappings (ImageMappingStorage)
+- Fields: imagePath, artistNames[], dimensions, saveTimestamp
 
 ## Image Filename Pattern
 
@@ -308,10 +373,15 @@ The regex pattern (`ARTIST_REGEX` in `nodes.py`): `r'^@([^,]+?)(?:,+\s*)?(?:_\d+
 
 ### Implemented
 
+- **Gallery list API**: Returns only `coverImagePath` + `imageCount` (no full images array)
+- **Lazy image loading**: Artist images fetched on-demand when entering detail view
+- **Cover image preview**: Hover preview uses `coverImagePath` directly (no API call)
+- **Single data endpoint**: `/artist_gallery/data` returns both artists and combinations in one call
 - **Pre-computed maxTime**: Calculated during data fetch for faster sorting
 - **Memoized filtering**: `useFilteredArtists` with `useMemo`
 - **Image lazy loading**: `loading="lazy"` attribute on images
 - **Event listener cleanup**: Proper cleanup in `useEffect` return functions
+- **Virtual scroll**: `LazyList` component for large lists
 
 ### Best Practices
 
