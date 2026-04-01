@@ -195,6 +195,32 @@ export async function copyArtist(categoryId, name, targetCategoryId, newName) {
     return await response.json();
 }
 
+export async function fetchArtistImages(name) {
+    const response = await fetch(
+        `/artist_gallery/artist_images?name=${encodeURIComponent(name)}`,
+    );
+    if (!response.ok) {
+        throw new Error('获取画师图片失败');
+    }
+    return await response.json();
+}
+
+export async function setArtistCover(categoryId, name, coverImagePath) {
+    const response = await fetch(
+        `/artist_gallery/artists/${encodeURIComponent(categoryId)}/${encodeURIComponent(name)}`,
+        {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ coverImageId: coverImagePath }),
+        },
+    );
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '设置封面失败');
+    }
+    return await response.json();
+}
+
 export async function copyImage(imagePath, toArtistId) {
     const response = await fetch('/artist_gallery/image/copy', {
         method: 'POST',
@@ -278,6 +304,98 @@ export function buildBreadcrumbPath(categoryId, categories) {
     }
 
     return path;
+}
+
+// ============ Combination API ============
+
+export async function fetchCombinations(categoryId = 'root') {
+    const url = categoryId === 'root'
+        ? '/artist_gallery/combinations'
+        : `/artist_gallery/combinations?category=${encodeURIComponent(categoryId)}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error('获取组合列表失败');
+    }
+    return await response.json();
+}
+
+export async function fetchAllCombinations() {
+    const response = await fetch('/artist_gallery/combinations/all');
+    if (!response.ok) {
+        throw new Error('获取组合列表失败');
+    }
+    return await response.json();
+}
+
+export async function createCombination(data) {
+    const response = await fetch('/artist_gallery/combinations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '创建组合失败');
+    }
+    return await response.json();
+}
+
+export async function updateCombination(id, data) {
+    const response = await fetch(`/artist_gallery/combinations/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '更新组合失败');
+    }
+    return await response.json();
+}
+
+export async function deleteCombination(id) {
+    const response = await fetch(`/artist_gallery/combinations/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '删除组合失败');
+    }
+    return await response.json();
+}
+
+export async function duplicateCombination(id) {
+    const response = await fetch(`/artist_gallery/combinations/${encodeURIComponent(id)}/duplicate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '复制组合失败');
+    }
+    return await response.json();
+}
+
+export async function moveCombination(id, targetCategoryId) {
+    const response = await fetch(`/artist_gallery/combinations/${encodeURIComponent(id)}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetCategoryId }),
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '移动组合失败');
+    }
+    return await response.json();
+}
+
+export async function fetchCombinationImages(id) {
+    const response = await fetch(`/artist_gallery/combinations/${encodeURIComponent(id)}/images`);
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '获取组合图片失败');
+    }
+    return await response.json();
 }
 
 // ============ Export / Import ============

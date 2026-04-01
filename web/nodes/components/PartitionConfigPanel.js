@@ -19,20 +19,19 @@ export function PartitionConfigPanel({
     const [saveToGallery, setSaveToGallery] = useState(
         partition.config.saveToGallery !== false,
     );
+    const [autoCreateCombination, setAutoCreateCombination] = useState(
+        partition.config.autoCreateCombination === true,
+    );
 
     // 预览格式效果
     const previewFormat = format.replace('{content}', 'artist_name').replace(/\{random\([^)]+\)\}/g, '1.3');
 
     const handleSave = () => {
+        // 如果 saveToGallery 关闭，autoCreateCombination 也强制关闭
+        const finalAutoCreateCombination = saveToGallery ? autoCreateCombination : false;
         onChange({
             name,
-            config: {
-                format,
-                randomMode,
-                randomCount,
-                cycleMode,
-                saveToGallery,
-            },
+            config: { ...partition.config, format, randomMode, randomCount, cycleMode, saveToGallery, autoCreateCombination: finalAutoCreateCombination },
         });
         onClose();
     };
@@ -165,9 +164,37 @@ export function PartitionConfigPanel({
                             type: 'radio',
                             name: `save-gallery-${partition.id}`,
                             checked: !saveToGallery,
-                            onChange: () => setSaveToGallery(false),
+                            onChange: () => {
+                                setSaveToGallery(false);
+                                setAutoCreateCombination(false);
+                            },
                         }),
                         h('span', null, '禁用（仅用于提示词，不保存关联）'),
+                    ]),
+                ]),
+            ]),
+
+            // 自动创建组合（仅在保存到画廊开启时可用）
+            saveToGallery && h('div', { class: 'node-config-section' }, [
+                h('label', { class: 'node-config-label' }, '自动创建组合'),
+                h('div', { class: 'config-radio-group' }, [
+                    h('label', { class: 'config-radio-item' }, [
+                        h('input', {
+                            type: 'radio',
+                            name: `auto-create-combination-${partition.id}`,
+                            checked: autoCreateCombination,
+                            onChange: () => setAutoCreateCombination(true),
+                        }),
+                        h('span', null, '启用（保存时自动创建组合）'),
+                    ]),
+                    h('label', { class: 'config-radio-item' }, [
+                        h('input', {
+                            type: 'radio',
+                            name: `auto-create-combination-${partition.id}`,
+                            checked: !autoCreateCombination,
+                            onChange: () => setAutoCreateCombination(false),
+                        }),
+                        h('span', null, '禁用'),
                     ]),
                 ]),
             ]),

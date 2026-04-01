@@ -15,6 +15,13 @@ import {
     buildImageUrl,
     exportArtists,
     importArtists,
+    createCombination as createCombinationApi,
+    updateCombination as updateCombinationApi,
+    deleteCombination as deleteCombinationApi,
+    duplicateCombination as duplicateCombinationApi,
+    moveCombination as moveCombinationApi,
+    fetchCombinationImages,
+    setArtistCover,
 } from '../utils.js';
 import { GalleryGrid } from './GalleryGrid.js';
 import { Lightbox } from './Lightbox.js';
@@ -26,6 +33,7 @@ import { Breadcrumb } from './Breadcrumb.js';
 import { MoveDialog } from './MoveDialog.js';
 import { CopyDialog } from './CopyDialog.js';
 import { ImportImagesDialog } from './ImportImagesDialog.js';
+import { CombinationDialog } from './CombinationDialog.js';
 import { BatchActionBar } from './BatchActionBar.js';
 import { BatchConfirmDialog } from './BatchConfirmDialog.js';
 import { useGalleryData } from './hooks/useGalleryData.js';
@@ -88,6 +96,14 @@ export function GalleryModal({ isOpen, onClose }) {
         imageIndex: 0,
     });
 
+    // ============ 组合相关状态 ============
+    const [combinations, setCombinations] = useState([]);
+    const [showCombinationDialog, setShowCombinationDialog] = useState(false);
+    const [combinationDialogMode, setCombinationDialogMode] = useState('add');
+    const [editingCombination, setEditingCombination] = useState(null);
+    const [viewModeCombination, setViewModeCombination] = useState(null);
+    const [combinationImages, setCombinationImages] = useState([]);
+
     // ============ 数据获取和过滤 ============
     const { data, loading, error, loadData } = useGalleryData(currentCategory);
 
@@ -132,9 +148,27 @@ export function GalleryModal({ isOpen, onClose }) {
                 ];
             }
 
+            // 如果在组合详情视图，添加组合名称到面包屑
+            if (viewMode === 'combination' && viewModeCombination) {
+                path = [
+                    ...path,
+                    {
+                        id: viewModeCombination.id,
+                        name: viewModeCombination.name,
+                        type: 'combination',
+                    },
+                ];
+            }
+
             setCategoryPath(path);
         }
-    }, [currentCategory, categories, viewMode, currentArtist]);
+    }, [
+        currentCategory,
+        categories,
+        viewMode,
+        currentArtist,
+        viewModeCombination,
+    ]);
 
     // 过滤和排序
     const filteredArtists = useFilteredArtists(
@@ -146,6 +180,11 @@ export function GalleryModal({ isOpen, onClose }) {
         favorites,
     );
 
+    // 从画廊数据中提取组合列表
+    const currentCombinations = useMemo(() => {
+        return data?.combinations || [];
+    }, [data]);
+
     // ============ 事件处理函数 ============
 
     const handleFavoriteToggle = (artistName) => {
@@ -153,10 +192,29 @@ export function GalleryModal({ isOpen, onClose }) {
         setFavorites(new Set(updated));
     };
 
-    const handleCardClick = (artistIndex) => {
+    const handleCardClick = async (artistIndex) => {
         const artist = filteredArtists[artistIndex];
+        // 设置基础画师信息，立即切换视图
         setCurrentArtist(artist);
         setViewMode('artist');
+        // 如果没有加载过图片（列表接口不再返回 images），异步加载
+        if (!artist.images || artist.images.length === 0) {
+            try {
+                const res = await fetch(
+                    `/artist_gallery/artist_images?name=${encodeURIComponent(artist.name)}`,
+                );
+                const data = await res.json();
+                if (data.success && data.images) {
+                    setCurrentArtist((prev) =>
+                        prev === artist
+                            ? { ...prev, images: data.images }
+                            : prev,
+                    );
+                }
+            } catch (err) {
+                console.error('Failed to load artist images:', err);
+            }
+        }
     };
 
     const handleBackToGallery = () => {
@@ -165,7 +223,8 @@ export function GalleryModal({ isOpen, onClose }) {
     };
 
     const handleImageClick = (artistIndex, imageIndex) => {
-        const artist = filteredArtists[artistIndex];
+        // 优先使用 currentArtist（已加载完整 images），否则 fallback 到 filteredArtists
+        const artist = currentArtist || filteredArtists[artistIndex];
         setLightbox({
             open: true,
             artist,
@@ -285,8 +344,11 @@ export function GalleryModal({ isOpen, onClose }) {
             if (batchOperation === 'copy') {
                 const details = getSelectedDetails();
                 const allItems = [
-                    ...details.artists.map(a => ({ type: 'artist', item: a })),
-                    ...details.images.map(i => ({ type: 'image', item: i })),
+                    ...details.artists.map((a) => ({
+                        type: 'artist',
+                        item: a,
+                    })),
+                    ...details.images.map((i) => ({ type: 'image', item: i })),
                 ];
                 if (allItems.length === 0) return;
 
@@ -299,7 +361,9 @@ export function GalleryModal({ isOpen, onClose }) {
                                 `/artist_gallery/artists/${encodeURIComponent(it.categoryId)}/${encodeURIComponent(it.name)}/copy`,
                                 {
                                     method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
                                     body: JSON.stringify({
                                         targetCategoryId: target.id,
                                         newName: undefined,
@@ -319,7 +383,9 @@ export function GalleryModal({ isOpen, onClose }) {
                         }
                         const data = await res.json();
                         if (!res.ok || !data.success) failCount++;
-                    } catch { failCount++; }
+                    } catch {
+                        failCount++;
+                    }
                 }
 
                 setShowCopyDialog(false);
@@ -336,7 +402,10 @@ export function GalleryModal({ isOpen, onClose }) {
                 setAllArtists(artistsData.artists || []);
 
                 if (failCount > 0) {
-                    showToast(`${allItems.length - failCount}项复制成功，${failCount}项失败`, 'warning');
+                    showToast(
+                        `${allItems.length - failCount}项复制成功，${failCount}项失败`,
+                        'warning',
+                    );
                 } else {
                     showToast(`已复制 ${allItems.length} 项`, 'success');
                 }
@@ -364,6 +433,17 @@ export function GalleryModal({ isOpen, onClose }) {
                         imagePath: item.path,
                         toArtistName: target.name,
                         toCategoryId: target.categoryId || 'root',
+                    }),
+                });
+            } else if (copyItemType === 'combination') {
+                response = await fetch('/artist_gallery/combinations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: newName || `${item.name} (副本)`,
+                        categoryId: target.id,
+                        artistKeys: item.artistKeys || [],
+                        outputContent: item.outputContent || '',
                     }),
                 });
             }
@@ -401,9 +481,15 @@ export function GalleryModal({ isOpen, onClose }) {
             if (batchOperation === 'move') {
                 const details = getSelectedDetails();
                 const allItems = [
-                    ...details.categories.map(c => ({ type: 'category', item: c })),
-                    ...details.artists.map(a => ({ type: 'artist', item: a })),
-                    ...details.images.map(i => ({ type: 'image', item: i })),
+                    ...details.categories.map((c) => ({
+                        type: 'category',
+                        item: c,
+                    })),
+                    ...details.artists.map((a) => ({
+                        type: 'artist',
+                        item: a,
+                    })),
+                    ...details.images.map((i) => ({ type: 'image', item: i })),
                 ];
                 if (allItems.length === 0) return;
 
@@ -416,8 +502,12 @@ export function GalleryModal({ isOpen, onClose }) {
                                 `/artist_gallery/categories/${it.id}/move`,
                                 {
                                     method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ newParentId: target.id }),
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({
+                                        newParentId: target.id,
+                                    }),
                                 },
                             );
                         } else if (type === 'artist') {
@@ -425,8 +515,12 @@ export function GalleryModal({ isOpen, onClose }) {
                                 `/artist_gallery/artists/${encodeURIComponent(it.categoryId)}/${encodeURIComponent(it.name)}`,
                                 {
                                     method: 'PUT',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ categoryId: target.id }),
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({
+                                        categoryId: target.id,
+                                    }),
                                 },
                             );
                         } else if (type === 'image') {
@@ -443,7 +537,9 @@ export function GalleryModal({ isOpen, onClose }) {
                         }
                         const data = await res.json();
                         if (!res.ok || !data.success) failCount++;
-                    } catch { failCount++; }
+                    } catch {
+                        failCount++;
+                    }
                 }
 
                 setShowMoveDialog(false);
@@ -460,15 +556,22 @@ export function GalleryModal({ isOpen, onClose }) {
                 setAllArtists(artistsData.artists || []);
 
                 if (failCount > 0) {
-                    showToast(`${allItems.length - failCount}项移动成功，${failCount}项失败`, 'warning');
+                    showToast(
+                        `${allItems.length - failCount}项移动成功，${failCount}项失败`,
+                        'warning',
+                    );
                 } else {
                     showToast(`已移动 ${allItems.length} 项`, 'success');
                 }
                 if (currentArtist) {
-                    const updatedData = await fetch(`/artist_gallery/data?category=${currentCategory}`);
+                    const updatedData = await fetch(
+                        `/artist_gallery/data?category=${currentCategory}`,
+                    );
                     const result = await updatedData.json();
                     const updatedArtist = result.artists?.find(
-                        a => a.categoryId === currentArtist.categoryId && a.name === currentArtist.name
+                        (a) =>
+                            a.categoryId === currentArtist.categoryId &&
+                            a.name === currentArtist.name,
                     );
                     if (updatedArtist) setCurrentArtist(updatedArtist);
                 }
@@ -507,6 +610,15 @@ export function GalleryModal({ isOpen, onClose }) {
                         toCategoryId: target.categoryId || 'root',
                     }),
                 });
+            } else if (moveItemType === 'combination') {
+                response = await fetch(
+                    `/artist_gallery/combinations/${item.id}/move`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ targetCategoryId: target.id }),
+                    },
+                );
             }
 
             const data = await response.json();
@@ -573,6 +685,77 @@ export function GalleryModal({ isOpen, onClose }) {
         return currentCat?.children || [];
     }, [categories, currentCategory]);
 
+    // ============ 组合相关事件处理 ============
+
+    const handleCombinationClick = async (combination) => {
+        try {
+            const result = await fetchCombinationImages(combination.id);
+            if (result.success) {
+                setViewModeCombination({
+                    ...combination,
+                    images: result.images,
+                });
+                setViewMode('combination');
+            }
+        } catch (err) {
+            showToast('加载组合图片失败: ' + err.message, 'error');
+        }
+    };
+
+    const handleCombinationEdit = (combination) => {
+        setEditingCombination(combination);
+        setCombinationDialogMode('edit');
+        setShowCombinationDialog(true);
+    };
+
+    const handleCombinationDuplicate = (combination) => {
+        setCopyItem(combination);
+        setCopyItemType('combination');
+        setShowCopyDialog(true);
+    };
+
+    const handleCombinationDelete = async (combination) => {
+        if (!confirm(`确定要删除组合"${combination.name}"吗？`)) return;
+        try {
+            await deleteCombinationApi(combination.id);
+            showToast('已删除组合', 'success');
+            await loadData();
+        } catch (err) {
+            showToast('删除组合失败: ' + err.message, 'error');
+        }
+    };
+
+    const handleCombinationDialogSave = async (data) => {
+        try {
+            if (combinationDialogMode === 'add') {
+                await createCombinationApi({
+                    ...data,
+                    categoryId: currentCategory,
+                });
+                showToast('组合创建成功', 'success');
+            } else {
+                await updateCombinationApi(editingCombination.id, data);
+                showToast('组合更新成功', 'success');
+            }
+            setShowCombinationDialog(false);
+            setEditingCombination(null);
+            await loadData();
+        } catch (err) {
+            showToast('操作失败: ' + err.message, 'error');
+        }
+    };
+
+    const handleCombinationMove = async (combination, target) => {
+        try {
+            await moveCombinationApi(combination.id, target.id);
+            setShowMoveDialog(false);
+            await loadData();
+            showToast('已移动组合', 'success');
+        } catch (err) {
+            showToast('移动组合失败: ' + err.message, 'error');
+        }
+    };
+
     // ============ 对话框回调处理 ============
 
     const handleAddDialogClose = () => {
@@ -596,8 +779,13 @@ export function GalleryModal({ isOpen, onClose }) {
 
     const handleExportArtist = async (artist) => {
         try {
-            await exportArtists([{ categoryId: artist.categoryId, name: artist.name }]);
-            showToast(`已导出画师: ${artist.displayName || artist.name}`, 'success');
+            await exportArtists([
+                { categoryId: artist.categoryId, name: artist.name },
+            ]);
+            showToast(
+                `已导出画师: ${artist.displayName || artist.name}`,
+                'success',
+            );
         } catch (error) {
             showToast('导出失败: ' + error.message, 'error');
         }
@@ -646,7 +834,7 @@ export function GalleryModal({ isOpen, onClose }) {
     // ============ 多选功能处理 ============
 
     const handleToggleSelectionMode = () => {
-        setSelectionMode(prev => !prev);
+        setSelectionMode((prev) => !prev);
         if (selectionMode) {
             // 退出多选模式时清空选择
             setSelectedItems(new Set());
@@ -656,7 +844,7 @@ export function GalleryModal({ isOpen, onClose }) {
     const handleSelectItem = (itemOrKey) => {
         // 支持两种格式：字符串键 或 { id, type, data } 对象
         const key = typeof itemOrKey === 'string' ? itemOrKey : itemOrKey.id;
-        setSelectedItems(prev => {
+        setSelectedItems((prev) => {
             const newSet = new Set(prev);
             if (newSet.has(key)) {
                 newSet.delete(key);
@@ -670,10 +858,10 @@ export function GalleryModal({ isOpen, onClose }) {
     const handleSelectAll = () => {
         const newSet = new Set();
         // 添加当前视图的所有分类和画师
-        categories.forEach(cat => {
+        categories.forEach((cat) => {
             newSet.add(`category:${cat.id}`);
         });
-        filteredArtists.forEach(artist => {
+        filteredArtists.forEach((artist) => {
             newSet.add(`artist:${artist.categoryId}:${artist.name}`);
         });
         setSelectedItems(newSet);
@@ -685,9 +873,11 @@ export function GalleryModal({ isOpen, onClose }) {
 
     const getSelectionType = () => {
         const items = Array.from(selectedItems);
-        const types = new Set(items.map(key => key.split(':')[0]));
+        const types = new Set(items.map((key) => key.split(':')[0]));
 
-        const typeCount = ['artist', 'category', 'image'].filter(t => types.has(t)).length;
+        const typeCount = ['artist', 'category', 'image'].filter((t) =>
+            types.has(t),
+        ).length;
         if (typeCount > 1) return 'mixed';
         if (types.has('image')) return 'image';
         if (types.has('artist')) return 'artist';
@@ -703,23 +893,25 @@ export function GalleryModal({ isOpen, onClose }) {
             images: [], // 改为数组，存储选中的图片对象
         };
 
-        items.forEach(key => {
+        items.forEach((key) => {
             const parts = key.split(':');
             const type = parts[0];
             const id = parts.slice(1).join(':'); // 处理artist:categoryId:name的情况
 
             if (type === 'category') {
-                const cat = categories.find(c => c.id === id);
+                const cat = categories.find((c) => c.id === id);
                 if (cat) result.categories.push(cat);
             } else if (type === 'artist') {
-                const artist = filteredArtists.find(a => `${a.categoryId}:${a.name}` === id);
+                const artist = filteredArtists.find(
+                    (a) => `${a.categoryId}:${a.name}` === id,
+                );
                 if (artist) {
                     result.artists.push(artist);
                 }
             } else if (type === 'image') {
                 // id 就是图片路径
                 if (currentArtist && currentArtist.images) {
-                    const img = currentArtist.images.find(i => i.path === id);
+                    const img = currentArtist.images.find((i) => i.path === id);
                     if (img) result.images.push(img);
                 }
             }
@@ -730,7 +922,12 @@ export function GalleryModal({ isOpen, onClose }) {
 
     const handleBatchDelete = () => {
         const details = getSelectedDetails();
-        if (details.categories.length === 0 && details.artists.length === 0 && details.images.length === 0) return;
+        if (
+            details.categories.length === 0 &&
+            details.artists.length === 0 &&
+            details.images.length === 0
+        )
+            return;
 
         setBatchOperation('delete');
         setShowBatchConfirm(true);
@@ -738,7 +935,12 @@ export function GalleryModal({ isOpen, onClose }) {
 
     const handleBatchMove = () => {
         const details = getSelectedDetails();
-        if (details.categories.length === 0 && details.artists.length === 0 && details.images.length === 0) return;
+        if (
+            details.categories.length === 0 &&
+            details.artists.length === 0 &&
+            details.images.length === 0
+        )
+            return;
 
         setBatchOperation('move');
         if (details.images.length > 0) {
@@ -791,17 +993,24 @@ export function GalleryModal({ isOpen, onClose }) {
                             }),
                         });
                     }
-                    showToast(`成功删除 ${details.images.length} 张图片`, 'success');
+                    showToast(
+                        `成功删除 ${details.images.length} 张图片`,
+                        'success',
+                    );
                     setShowBatchConfirm(false);
                     setSelectionMode(false);
                     setSelectedItems(new Set());
                     await loadData();
                     // 更新当前画师数据
                     if (currentArtist) {
-                        const updatedData = await fetch(`/artist_gallery/data?category=${currentCategory}`);
+                        const updatedData = await fetch(
+                            `/artist_gallery/data?category=${currentCategory}`,
+                        );
                         const result = await updatedData.json();
                         const updatedArtist = result.artists?.find(
-                            a => a.categoryId === currentArtist.categoryId && a.name === currentArtist.name
+                            (a) =>
+                                a.categoryId === currentArtist.categoryId &&
+                                a.name === currentArtist.name,
                         );
                         if (updatedArtist) {
                             setCurrentArtist(updatedArtist);
@@ -814,12 +1023,12 @@ export function GalleryModal({ isOpen, onClose }) {
                     method: 'DELETE',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        categories: details.categories.map(c => c.id),
-                        artists: details.artists.map(a => ({
+                        categories: details.categories.map((c) => c.id),
+                        artists: details.artists.map((a) => ({
                             categoryId: a.categoryId,
-                            name: a.name
-                        }))
-                    })
+                            name: a.name,
+                        })),
+                    }),
                 });
             } else if (operation === 'move') {
                 // 批量移动（暂时使用现有的单次移动，循环调用）
@@ -838,7 +1047,10 @@ export function GalleryModal({ isOpen, onClose }) {
             const data = await response.json();
 
             if (data.success) {
-                showToast(`批量${operation === 'delete' ? '删除' : operation}成功`, 'success');
+                showToast(
+                    `批量${operation === 'delete' ? '删除' : operation}成功`,
+                    'success',
+                );
                 setShowBatchConfirm(false);
                 setSelectionMode(false);
                 setSelectedItems(new Set());
@@ -876,6 +1088,19 @@ export function GalleryModal({ isOpen, onClose }) {
                 },
                 '➕ 添加画师',
             ),
+            // 新建组合按钮
+            h(
+                'button',
+                {
+                    class: 'gallery-modal-btn',
+                    onClick: () => {
+                        setEditingCombination(null);
+                        setCombinationDialogMode('add');
+                        setShowCombinationDialog(true);
+                    },
+                },
+                '🔗 新建组合',
+            ),
             // 导入按钮（在分类视图或画师详情视图都显示）
             h(
                 'button',
@@ -891,7 +1116,9 @@ export function GalleryModal({ isOpen, onClose }) {
                 {
                     class: 'gallery-modal-btn',
                     onClick: () => {
-                        const input = document.getElementById('artist-import-file-input');
+                        const input = document.getElementById(
+                            'artist-import-file-input',
+                        );
                         if (input) input.click();
                     },
                 },
@@ -955,6 +1182,177 @@ export function GalleryModal({ isOpen, onClose }) {
     };
 
     /**
+     * 渲染组合详情视图（显示成员画师的图片交集）
+     */
+    const renderCombinationDetail = () => {
+        if (!viewModeCombination) return null;
+
+        const comb = viewModeCombination;
+        const hasImages = comb.images && comb.images.length > 0;
+
+        // 图片右键菜单处理
+        const handleCombImageContextMenu = (e, image) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const menuItems = [
+                {
+                    icon: '🔍',
+                    label: '查看大图',
+                    action: () => {
+                        const imgIndex = comb.images.indexOf(image);
+                        setLightbox({
+                            open: true,
+                            artist: {
+                                ...comb,
+                                name: comb.name,
+                                images: comb.images,
+                            },
+                            imageIndex: imgIndex >= 0 ? imgIndex : 0,
+                        });
+                    },
+                },
+                {
+                    icon: '🖼️',
+                    label: '设为封面',
+                    action: async () => {
+                        try {
+                            await updateCombinationApi(comb.id, {
+                                coverImageId: image.path,
+                            });
+                            showToast('已设为封面', 'success');
+                            setViewModeCombination((prev) => ({
+                                ...prev,
+                                coverImageId: image.path,
+                                coverImagePath: image.path,
+                            }));
+                            await loadData();
+                        } catch (err) {
+                            showToast('设置封面失败: ' + err.message, 'error');
+                        }
+                    },
+                },
+                {
+                    icon: '🗑️',
+                    label: '删除图片',
+                    action: async () => {
+                        if (
+                            !confirm(
+                                '确定要删除这张图片吗？删除将从组合中所有成员画师移除。',
+                            )
+                        )
+                            return;
+                        try {
+                            // 从所有成员画师删除该图片
+                            for (const artistName of comb.artistKeys || []) {
+                                await fetch('/artist_gallery/image', {
+                                    method: 'DELETE',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({
+                                        imagePath: image.path,
+                                    }),
+                                });
+                            }
+                            showToast('图片已删除', 'success');
+                            // 刷新组合图片
+                            const result = await fetchCombinationImages(
+                                comb.id,
+                            );
+                            if (result.success) {
+                                setViewModeCombination({
+                                    ...comb,
+                                    images: result.images,
+                                });
+                            }
+                            await loadData();
+                        } catch (err) {
+                            showToast('删除失败: ' + err.message, 'error');
+                        }
+                    },
+                },
+            ];
+
+            showContextMenu(e, menuItems);
+        };
+
+        return h('div', { class: 'combination-detail-view' }, [
+            // 多选模式下的批量操作工具栏
+            selectionMode &&
+                h(BatchActionBar, {
+                    selectedCount: selectedItems.size,
+                    selectionType: getSelectionType(),
+                    onSelectAll: () => {
+                        const newSet = new Set();
+                        (comb.images || []).forEach((img) => {
+                            newSet.add(`image:${img.path}`);
+                        });
+                        setSelectedItems(newSet);
+                    },
+                    onDeselectAll: handleDeselectAll,
+                    onMove: handleBatchMove,
+                    onCopy: handleBatchCopy,
+                    onExport: handleBatchExport,
+                    onDelete: handleBatchDelete,
+                    onExit: handleToggleSelectionMode,
+                }),
+
+            // 图片网格
+            hasImages
+                ? h(LazyList, {
+                      items: comb.images,
+                      renderItem: (img, index) => {
+                          const imgKey = `image:${img.path}`;
+                          const isSelected = selectedItems.has(imgKey);
+                          return h(
+                              'div',
+                              {
+                                  key: img.path,
+                                  class: `artist-detail-image-item ${selectionMode ? 'selection-mode' : ''} ${isSelected ? 'selected' : ''}`,
+                                  onClick: () => {
+                                      if (selectionMode) {
+                                          setSelectedItems((prev) => {
+                                              const newSet = new Set(prev);
+                                              if (newSet.has(imgKey)) {
+                                                  newSet.delete(imgKey);
+                                              } else {
+                                                  newSet.add(imgKey);
+                                              }
+                                              return newSet;
+                                          });
+                                      } else {
+                                          setLightbox({
+                                              open: true,
+                                              artist: {
+                                                  ...comb,
+                                                  name: comb.name,
+                                                  images: comb.images,
+                                              },
+                                              imageIndex: index,
+                                          });
+                                      }
+                                  },
+                                  onContextMenu: (e) =>
+                                      handleCombImageContextMenu(e, img),
+                              },
+                              [
+                                  h('img', {
+                                      src: buildImageUrl(img.path),
+                                      alt: `${comb.name} - ${index + 1}`,
+                                      loading: 'lazy',
+                                  }),
+                              ],
+                          );
+                      },
+                      layout: 'grid',
+                      className: 'artist-detail-grid',
+                  })
+                : h('div', { class: 'artist-detail-empty' }, '🔗 暂无交集图片'),
+        ]);
+    };
+
+    /**
      * 渲染画师详情视图
      */
     const renderArtistDetail = () => {
@@ -981,6 +1379,27 @@ export function GalleryModal({ isOpen, onClose }) {
                             ),
                             currentArtist.images.indexOf(image),
                         ),
+                },
+                {
+                    icon: '🖼️',
+                    label: '设为封面',
+                    action: async () => {
+                        try {
+                            await setArtistCover(
+                                currentArtist.categoryId,
+                                currentArtist.name,
+                                image.path,
+                            );
+                            showToast('已设为封面', 'success');
+                            // 更新当前画师的封面信息
+                            setCurrentArtist((prev) => ({
+                                ...prev,
+                                coverImagePath: image.path,
+                            }));
+                        } catch (err) {
+                            showToast('设置封面失败: ' + err.message, 'error');
+                        }
+                    },
                 },
                 {
                     icon: '📦',
@@ -1054,74 +1473,76 @@ export function GalleryModal({ isOpen, onClose }) {
 
         return h('div', { class: 'artist-detail-view' }, [
             // 多选模式下的批量操作工具栏
-            selectionMode && h(BatchActionBar, {
-                selectedCount: selectedItems.size,
-                selectionType: getSelectionType(),
-                onSelectAll: () => {
-                    const newSet = new Set();
-                    currentArtist.images.forEach(img => {
-                        newSet.add(`image:${img.path}`);
-                    });
-                    setSelectedItems(newSet);
-                },
-                onDeselectAll: handleDeselectAll,
-                onMove: handleBatchMove,
-                onCopy: handleBatchCopy,
-                onExport: handleBatchExport,
-                onDelete: handleBatchDelete,
-                onExit: handleToggleSelectionMode,
-            }),
+            selectionMode &&
+                h(BatchActionBar, {
+                    selectedCount: selectedItems.size,
+                    selectionType: getSelectionType(),
+                    onSelectAll: () => {
+                        const newSet = new Set();
+                        currentArtist.images.forEach((img) => {
+                            newSet.add(`image:${img.path}`);
+                        });
+                        setSelectedItems(newSet);
+                    },
+                    onDeselectAll: handleDeselectAll,
+                    onMove: handleBatchMove,
+                    onCopy: handleBatchCopy,
+                    onExport: handleBatchExport,
+                    onDelete: handleBatchDelete,
+                    onExit: handleToggleSelectionMode,
+                }),
 
             // 图片网格（使用 LazyList 懒加载）
             hasImages
                 ? h(LazyList, {
-                    items: currentArtist.images,
-                    renderItem: (img, index) => {
-                        const imgKey = `image:${img.path}`;
-                        const isSelected = selectedItems.has(imgKey);
-                        return h(
-                            'div',
-                            {
-                                key: img.path,
-                                class: `artist-detail-image-item ${selectionMode ? 'selection-mode' : ''} ${isSelected ? 'selected' : ''}`,
-                                onClick: () => {
-                                    if (selectionMode) {
-                                        setSelectedItems(prev => {
-                                            const newSet = new Set(prev);
-                                            if (newSet.has(imgKey)) {
-                                                newSet.delete(imgKey);
-                                            } else {
-                                                newSet.add(imgKey);
-                                            }
-                                            return newSet;
-                                        });
-                                    } else {
-                                        handleImageClick(
-                                            filteredArtists.findIndex(
-                                                (a) =>
-                                                    a.categoryId ===
-                                                        currentArtist.categoryId &&
-                                                    a.name === currentArtist.name,
-                                            ),
-                                            index,
-                                        );
-                                    }
-                                },
-                                onContextMenu: (e) =>
-                                    handleImageContextMenu(e, img),
-                            },
-                            [
-                                h('img', {
-                                    src: buildImageUrl(img.path),
-                                    alt: `${currentArtist.name} - ${index + 1}`,
-                                    loading: 'lazy',
-                                }),
-                            ],
-                        );
-                    },
-                    layout: 'grid',
-                    className: 'artist-detail-grid',
-                })
+                      items: currentArtist.images,
+                      renderItem: (img, index) => {
+                          const imgKey = `image:${img.path}`;
+                          const isSelected = selectedItems.has(imgKey);
+                          return h(
+                              'div',
+                              {
+                                  key: img.path,
+                                  class: `artist-detail-image-item ${selectionMode ? 'selection-mode' : ''} ${isSelected ? 'selected' : ''}`,
+                                  onClick: () => {
+                                      if (selectionMode) {
+                                          setSelectedItems((prev) => {
+                                              const newSet = new Set(prev);
+                                              if (newSet.has(imgKey)) {
+                                                  newSet.delete(imgKey);
+                                              } else {
+                                                  newSet.add(imgKey);
+                                              }
+                                              return newSet;
+                                          });
+                                      } else {
+                                          handleImageClick(
+                                              filteredArtists.findIndex(
+                                                  (a) =>
+                                                      a.categoryId ===
+                                                          currentArtist.categoryId &&
+                                                      a.name ===
+                                                          currentArtist.name,
+                                              ),
+                                              index,
+                                          );
+                                      }
+                                  },
+                                  onContextMenu: (e) =>
+                                      handleImageContextMenu(e, img),
+                              },
+                              [
+                                  h('img', {
+                                      src: buildImageUrl(img.path),
+                                      alt: `${currentArtist.name} - ${index + 1}`,
+                                      loading: 'lazy',
+                                  }),
+                              ],
+                          );
+                      },
+                      layout: 'grid',
+                      className: 'artist-detail-grid',
+                  })
                 : h('div', { class: 'artist-detail-empty' }, '🎨 暂无图片'),
         ]);
     };
@@ -1153,26 +1574,37 @@ export function GalleryModal({ isOpen, onClose }) {
             ]);
         }
 
+        // 组合详情视图
+        if (viewMode === 'combination' && viewModeCombination) {
+            return h('div', { class: 'gallery-container' }, [
+                renderMergedHeader(),
+                renderCombinationDetail(),
+            ]);
+        }
+
         // 画廊视图
         return h('div', { class: 'gallery-container' }, [
             renderMergedHeader(),
 
             // 批量操作工具栏（多选模式下显示）
-            selectionMode && h(BatchActionBar, {
-                selectedCount: selectedItems.size,
-                selectionType: getSelectionType(),
-                onSelectAll: handleSelectAll,
-                onDeselectAll: handleDeselectAll,
-                onMove: handleBatchMove,
-                onCopy: handleBatchCopy,
-                onExport: handleBatchExport,
-                onDelete: handleBatchDelete,
-                onExit: handleToggleSelectionMode,
-            }),
+            selectionMode &&
+                h(BatchActionBar, {
+                    selectedCount: selectedItems.size,
+                    selectionType: getSelectionType(),
+                    onSelectAll: handleSelectAll,
+                    onDeselectAll: handleDeselectAll,
+                    onMove: handleBatchMove,
+                    onCopy: handleBatchCopy,
+                    onExport: handleBatchExport,
+                    onDelete: handleBatchDelete,
+                    onExit: handleToggleSelectionMode,
+                }),
 
             h(GalleryGrid, {
                 categories: currentCategoryChildren,
+                combinations: currentCombinations,
                 artists: filteredArtists,
+                allArtists: allArtists,
                 favorites,
                 onFavoriteToggle: handleFavoriteToggle,
                 onImageClick: handleCardClick,
@@ -1184,6 +1616,16 @@ export function GalleryModal({ isOpen, onClose }) {
                 onMove: openMoveDialog,
                 onCopy: openCopyDialog,
                 onExport: handleExportArtist,
+                // 组合相关props
+                onCombinationClick: handleCombinationClick,
+                onCombinationEdit: handleCombinationEdit,
+                onCombinationDuplicate: handleCombinationDuplicate,
+                onCombinationMove: (combination) => {
+                    setMoveItem(combination);
+                    setMoveItemType('combination');
+                    setShowMoveDialog(true);
+                },
+                onCombinationDelete: handleCombinationDelete,
                 // 多选相关props
                 selectionMode,
                 selectedItems,
@@ -1285,10 +1727,14 @@ export function GalleryModal({ isOpen, onClose }) {
         ]);
     };
     const renderModal = () => {
-        return h('div', { class: 'gallery-modal-content', style: cardSizeVars }, [
-            renderHeader(),
-            h('div', { class: 'gallery-modal-body' }, renderBody()),
-        ]);
+        return h(
+            'div',
+            { class: 'gallery-modal-content', style: cardSizeVars },
+            [
+                renderHeader(),
+                h('div', { class: 'gallery-modal-body' }, renderBody()),
+            ],
+        );
     };
 
     /**
@@ -1400,6 +1846,28 @@ export function GalleryModal({ isOpen, onClose }) {
     };
 
     /**
+     * 渲染组合创建/编辑对话框
+     */
+    const renderCombinationDialog = () => {
+        return h(CombinationDialog, {
+            isOpen: showCombinationDialog,
+            mode: combinationDialogMode,
+            combination: editingCombination,
+            currentCategoryId: currentCategory,
+            artists: allArtists,
+            onClose: () => {
+                setShowCombinationDialog(false);
+                setEditingCombination(null);
+            },
+            onSave: async () => {
+                setShowCombinationDialog(false);
+                setEditingCombination(null);
+                await loadData();
+            },
+        });
+    };
+
+    /**
      * 渲染批量操作确认对话框
      */
     const renderBatchConfirmDialog = () => {
@@ -1469,6 +1937,7 @@ export function GalleryModal({ isOpen, onClose }) {
             renderMoveDialog(),
             renderCopyDialog(),
             renderBatchConfirmDialog(),
+            renderCombinationDialog(),
         ],
     );
 }

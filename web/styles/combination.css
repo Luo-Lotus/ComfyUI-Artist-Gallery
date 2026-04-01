@@ -1,0 +1,88 @@
+/* 组合对话框样式 - 使用 Dialog 组件体系 */
+
+/* 画师多选区域 */
+.combination-dialog-artist-select {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.combination-dialog-artist-list {
+    max-height: 240px;
+    overflow-y: auto;
+    border: 1px solid #333;
+    border-radius: 6px;
+    background: #1e1e1e;
+}
+
+.combination-dialog-artist-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.combination-dialog-artist-item:hover {
+    background: #2a2a2a;
+}
+
+.combination-dialog-artist-item.selected {
+    background: rgba(108, 92, 231, 0.15);
+}
+
+.combination-dialog-checkbox {
+    font-size: 14px;
+    color: #888;
+    flex-shrink: 0;
+}
+
+.combination-dialog-checkbox.checked {
+    color: #6c5ce7;
+}
+
+.combination-dialog-artist-name {
+    flex: 1;
+    font-size: 13px;
+    color: #ddd;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.combination-dialog-artist-category {
+    font-size: 11px;
+    color: #666;
+    flex-shrink: 0;
+}
+
+.combination-dialog-artist-count {
+    font-size: 11px;
+    color: #888;
+    flex-shrink: 0;
+}
+
+/* 组合详情视图（复用画师详情样式） */
+.combination-detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+.combination-detail-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #e0e0e0;
+}
+
+.combination-detail-members {
+    font-size: 12px;
+    color: #999;
+}

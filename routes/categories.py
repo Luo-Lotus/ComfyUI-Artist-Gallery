@@ -12,7 +12,7 @@ from ..storage import get_storage
 async def get_categories(request):
     """获取所有分类（树形结构）"""
     try:
-        _, _, category_storage = get_storage()
+        _, _, category_storage, _ = get_storage()
         tree = category_storage.get_category_tree()
         return web.json_response({"categories": tree})
     except Exception as e:
@@ -24,7 +24,7 @@ async def get_category(request):
     """获取单个分类详情"""
     try:
         category_id = request.match_info['category_id']
-        _, _, category_storage = get_storage()
+        _, _, category_storage, _ = get_storage()
         category = category_storage.get_category_by_id(category_id)
 
         if not category:
@@ -46,7 +46,7 @@ async def add_category(request):
         if not name:
             return web.json_response({"error": "分类名称不能为空"}, status=400)
 
-        _, _, category_storage = get_storage()
+        _, _, category_storage, _ = get_storage()
         category = category_storage.add_category(name, parent_id)
 
         return web.json_response({"category": category, "success": True})
@@ -63,7 +63,7 @@ async def update_category(request):
         category_id = request.match_info['category_id']
         data = await request.json()
 
-        _, _, category_storage = get_storage()
+        _, _, category_storage, _ = get_storage()
 
         kwargs = {}
         if "name" in data:
@@ -90,7 +90,7 @@ async def delete_category(request):
     try:
         category_id = request.match_info['category_id']
 
-        _, _, category_storage = get_storage()
+        _, _, category_storage, _ = get_storage()
         success = category_storage.delete_category(category_id)
 
         if success:
@@ -114,7 +114,7 @@ async def move_category(request):
         if new_parent_id == category_id:
             return web.json_response({"error": "不能将分类移动到自己下面"}, status=400)
 
-        _, _, category_storage = get_storage()
+        _, _, category_storage, _ = get_storage()
 
         # 检查是否会形成循环
         def check_cycle(parent_id, target_id):

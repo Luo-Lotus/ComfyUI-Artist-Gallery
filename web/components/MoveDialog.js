@@ -22,10 +22,11 @@ export function MoveDialog({
 
     // 计算需要排除的ID列表
     const excludeIds = useMemo(() => {
-        const ids = [item?.id];
+        const ids = [];
 
         if (itemType === 'category') {
             // 排除当前分类及其所有子分类
+            ids.push(item?.id);
             const collectChildren = (catId) => {
                 const children = categories?.filter(c => c.parentId === catId) || [];
                 children.forEach(child => {
@@ -34,6 +35,9 @@ export function MoveDialog({
                 });
             };
             collectChildren(item?.id);
+        } else if (itemType === 'combination') {
+            // 排除组合当前所在的分类
+            ids.push(item?.categoryId);
         }
 
         return ids;
@@ -60,7 +64,8 @@ export function MoveDialog({
         const titles = {
             category: `移动分类 "${item?.name}"`,
             artist: `移动画师 "${item?.displayName || item?.name}"`,
-            image: '移动图片'
+            image: '移动图片',
+            combination: `移动组合 "${item?.name}"`
         };
         return titles[itemType] || '移动';
     };

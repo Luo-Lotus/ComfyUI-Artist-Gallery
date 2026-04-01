@@ -30,6 +30,13 @@ export function PartitionHeader({ partition, onAction }) {
             }, '🚫'));
         }
 
+        if (partition.config.autoCreateCombination) {
+            indicators.push(h('span', {
+                class: 'partition-rule-badge auto-combination',
+                title: '自动创建组合：保存时自动创建组合',
+            }, '🔗'));
+        }
+
         return indicators;
     };
 

@@ -1353,6 +1353,11 @@
     background: #9c27b0;
 }
 
+/* 组合标签 */
+.artist-selector-tag.combination-tag {
+    background: #6c5ce7;
+}
+
 /* 空状态优化 */
 .artist-selector-empty-artists {
     color: #666;
@@ -1390,4 +1395,37 @@
 .artist-selector-list::-webkit-scrollbar-thumb:hover,
 .partition-list-content::-webkit-scrollbar-thumb:hover {
     background: rgba(100, 100, 100, 0.6);
+}
+
+/* ============ 组合项样式 ============ */
+
+.artist-selector-item.combination-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: background 0.15s;
+    border-radius: 4px;
+}
+
+.artist-selector-item.combination-item:hover {
+    background: rgba(108, 92, 231, 0.1);
+}
+
+.artist-selector-item.combination-item.selected {
+    background: rgba(108, 92, 231, 0.2);
+    border-left: 3px solid #6c5ce7;
+}
+
+.artist-selector-item.combination-item .artist-selector-item-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.artist-selector-combination-count {
+    font-size: 11px;
+    color: #999;
+    margin-left: auto;
+    flex-shrink: 0;
 }

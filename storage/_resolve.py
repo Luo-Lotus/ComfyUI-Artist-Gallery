@@ -5,6 +5,7 @@ from typing import Tuple
 from .artist import ArtistStorage
 from .image_mapping import ImageMappingStorage
 from .category import CategoryStorage
+from .combination import CombinationStorage
 from .migration import migrate_artist_data
 
 
@@ -44,6 +45,7 @@ def _resolve_storage_dir() -> Path:
         plugin_dir / "artists.json",
         plugin_dir / "image_artists.json",
         plugin_dir / "categories.json",
+        plugin_dir / "combinations.json",
     ]
     old_has_data = any(f.exists() for f in old_files)
 
@@ -65,13 +67,14 @@ def _resolve_storage_dir() -> Path:
     return new_storage_dir
 
 
-def get_storage() -> Tuple[ArtistStorage, ImageMappingStorage, CategoryStorage]:
+def get_storage() -> Tuple[ArtistStorage, ImageMappingStorage, CategoryStorage, CombinationStorage]:
     """获取存储实例"""
     storage_dir = _resolve_storage_dir()
 
     artist_storage = ArtistStorage(storage_dir)
     mapping_storage = ImageMappingStorage(storage_dir)
     category_storage = CategoryStorage(storage_dir)
+    combination_storage = CombinationStorage(storage_dir)
 
     # 自动迁移现有画师数据（旧版本兼容）
     try:
@@ -79,4 +82,4 @@ def get_storage() -> Tuple[ArtistStorage, ImageMappingStorage, CategoryStorage]:
     except Exception as e:
         print(f"Warning: Failed to migrate artist data: {e}")
 
-    return artist_storage, mapping_storage, category_storage
+    return artist_storage, mapping_storage, category_storage, combination_storage

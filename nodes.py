@@ -50,7 +50,7 @@ class ArtistGallery:
             print("[ArtistGallery] 数据已刷新 - 请在画廊中查看")
         elif action == "统计信息":
             try:
-                artist_storage, _ = get_storage()
+                artist_storage, _, _, _ = get_storage()
                 artists = artist_storage.get_all_artists()
                 total_artists = len(artists)
                 total_images = sum(a.get("imageCount", 0) for a in artists)
@@ -129,8 +129,10 @@ class ArtistSelector:
 
     def _process_v1_metadata(self, metadata_dict, raw_metadata):
         """处理新版 v1 格式的 metadata，返回 (格式化结果, 富化后的 metadata JSON)"""
+        print(f"[ArtistSelector] Raw metadata: {raw_metadata[:500] if raw_metadata else 'None'}")
+        print(f"[ArtistSelector] globalConfig from metadata: {metadata_dict.get('globalConfig', {})}")
         try:
-            artist_storage, _, category_storage = get_storage()
+            artist_storage, _, category_storage, combination_storage = get_storage()
             all_artists = artist_storage.get_all_artists()
             all_categories = category_storage.get_all_categories()
         except Exception as e:
@@ -145,6 +147,9 @@ class ArtistSelector:
         # 跨分区收集全部已解析画师（用于 SaveToGallery）
         all_resolved = []      # [{categoryId, name, saveToGallery}, ...]
         seen_keys = set()
+        # 记录每个分区实际使用的画师名（考虑随机/循环后）
+        partition_used_artists = {}  # {partition_id: [name, ...]}
+        partition_formats = {}  # {partition_id: format_string}
 
         def collect_artist(cat_id, name, save_to_gallery=True):
             key = f"{cat_id}:{name}"
@@ -163,6 +168,9 @@ class ArtistSelector:
             config = partition.get('config', {})
             partition_format = config.get('format', '{content}')
             random_mode = config.get('randomMode', False)
+            # 记录该分区的格式（用于自动创建组合）
+            pid = partition.get('id', 'default')
+            partition_formats[pid] = partition_format
             random_count = config.get('randomCount', 1)
             cycle_mode = config.get('cycleMode', False)
             save_to_gallery = config.get('saveToGallery', True)
@@ -184,6 +192,21 @@ class ArtistSelector:
                 for n in resolved:
                     artist_entries.append((cat_id, n))
 
+            # 从 combinationKeys 提取组合（格式 "combination:{uuid}"）
+            combination_entries = []  # [(output_content, artist_keys), ...]
+            for comb_key in partition.get('combinationKeys', []):
+                if comb_key.startswith('combination:'):
+                    comb_id = comb_key[len('combination:'):]
+                    try:
+                        combination = combination_storage.get_combination_by_id(comb_id)
+                        if combination:
+                            combination_entries.append((
+                                combination.get('outputContent', ''),
+                                combination.get('artistKeys', []),
+                            ))
+                    except Exception as e:
+                        print(f"[ArtistSelector] Failed to lookup combination {comb_id}: {e}")
+
             # 去重保序
             seen = set()
             unique_entries = []
@@ -193,8 +216,16 @@ class ArtistSelector:
                     seen.add(key)
                     unique_entries.append(entry)
 
-            if not unique_entries:
+            if not unique_entries and not combination_entries:
                 continue
+
+            # 将画师条目和组合条目合并为统一的工作列表
+            # 每个条目是 ('artist', cat_id, name) 或 ('combination', output_content, artist_keys)
+            working_items = []
+            for cat_id, name in unique_entries:
+                working_items.append(('artist', cat_id, name))
+            for content, artist_keys in combination_entries:
+                working_items.append(('combination', content, artist_keys))
 
             # 处理循环模式
             if cycle_mode:
@@ -202,19 +233,94 @@ class ArtistSelector:
                 partition_id = partition.get('id', 'default')
                 cycle_key = f"{node_id}_{partition_id}"
                 cycle_index = _cycle_states.get(cycle_key, 0)
-                current_entry = unique_entries[cycle_index % len(unique_entries)]
-                _cycle_states[cycle_key] = (cycle_index + 1) % len(unique_entries)
-                formatted_results.append(self._apply_format(current_entry[1], partition_format))
-                collect_artist(current_entry[0], current_entry[1], save_to_gallery)
+                current_item = working_items[cycle_index % len(working_items)]
+                _cycle_states[cycle_key] = (cycle_index + 1) % len(working_items)
+                if current_item[0] == 'combination':
+                    formatted_results.append(current_item[1])
+                    # 组合的画师也要关联到保存的图片
+                    for artist_name in (current_item[2] or []):
+                        collect_artist('', artist_name, save_to_gallery)
+                        if save_to_gallery:
+                            pid = partition.get('id', 'default')
+                            if pid not in partition_used_artists:
+                                partition_used_artists[pid] = []
+                            partition_used_artists[pid].append(artist_name)
+                else:
+                    formatted_results.append(self._apply_format(current_item[2], partition_format))
+                    collect_artist(current_item[1], current_item[2], save_to_gallery)
+                    # 记录实际输出的画师名（用于自动创建组合）
+                    if save_to_gallery and current_item[0] == 'artist':
+                        pid = partition.get('id', 'default')
+                        if pid not in partition_used_artists:
+                            partition_used_artists[pid] = []
+                        partition_used_artists[pid].append(current_item[2])
             else:
-                working = unique_entries
+                working = working_items
                 if random_mode and random_count > 0 and random_count < len(working):
                     working = random.sample(working, random_count)
-                for cat_id, name in working:
-                    formatted_results.append(self._apply_format(name, partition_format))
-                    collect_artist(cat_id, name, save_to_gallery)
+                for item in working:
+                    if item[0] == 'combination':
+                        formatted_results.append(item[1])
+                        # 组合的画师也要关联到保存的图片
+                        for artist_name in (item[2] or []):
+                            collect_artist('', artist_name, save_to_gallery)
+                            if save_to_gallery:
+                                pid = partition.get('id', 'default')
+                                if pid not in partition_used_artists:
+                                    partition_used_artists[pid] = []
+                                partition_used_artists[pid].append(artist_name)
+                    else:
+                        formatted_results.append(self._apply_format(item[2], partition_format))
+                        collect_artist(item[1], item[2], save_to_gallery)
+                        # 记录实际输出的画师名（用于自动创建组合）
+                        if save_to_gallery and item[0] == 'artist':
+                            pid = partition.get('id', 'default')
+                            if pid not in partition_used_artists:
+                                partition_used_artists[pid] = []
+                            partition_used_artists[pid].append(item[2])
 
         result = ','.join(formatted_results)
+
+        # 自动创建组合（使用输出时实际选中的画师，而非全量）
+        try:
+            for partition in partitions:
+                partition_name = partition.get('name', '默认')
+                partition_config = partition.get('config', {})
+                enabled = partition.get('enabled', True)
+                auto_create = partition_config.get('autoCreateCombination', False)
+                print(f"[ArtistSelector] Partition '{partition_name}': enabled={enabled}, autoCreateCombination={auto_create}")
+                if not enabled or not auto_create:
+                    continue
+
+                # 使用输出循环中实际选中的画师（已考虑随机/循环）
+                pid = partition.get('id', 'default')
+                artist_names = partition_used_artists.get(pid, [])
+                if not artist_names:
+                    print(f"[ArtistSelector] Partition '{partition_name}': no artists used in output, skipping")
+                    continue
+
+                p_format = partition_formats.get(pid, '{content}')
+                formatted_parts = [self._apply_format(name, p_format) for name in artist_names]
+                output_content = ','.join(formatted_parts)
+                comb_name = ','.join(artist_names)
+                print(f"[ArtistSelector] Partition '{partition_name}': output_content='{output_content}', formatted_parts={formatted_parts}")
+
+                # 查重
+                existing = combination_storage.find_by_content(output_content)
+                if existing:
+                    print(f"[ArtistSelector] Partition '{partition_name}': combination already exists (id={existing.get('id')}), skipping")
+                else:
+                    new_comb = combination_storage.add_combination(
+                        name=comb_name,
+                        category_id="root",
+                        artist_keys=artist_names,
+                        output_content=output_content,
+                    )
+                    print(f"[ArtistSelector] Partition '{partition_name}': created combination id={new_comb.get('id')}")
+        except Exception as e:
+            print(f"[ArtistSelector] Auto-create combination error: {e}")
+            import traceback
+            traceback.print_exc()
 
         # 构建富化 metadata：包含解析结果，供 SaveToGallery 直接使用
         enriched_metadata = json.dumps({

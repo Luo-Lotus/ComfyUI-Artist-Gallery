@@ -28,7 +28,7 @@ async def batch_delete(request):
         category_ids = data.get("categories", [])
         artists = data.get("artists", [])
 
-        artist_storage, mapping_storage, category_storage = get_storage()
+        artist_storage, mapping_storage, category_storage, _ = get_storage()
         import folder_paths
         output_dir = Path(folder_paths.get_output_directory())
 
@@ -142,7 +142,7 @@ async def batch_move(request):
         categories = data.get("categories", [])
         artists = data.get("artists", [])
 
-        artist_storage, _, category_storage = get_storage()
+        artist_storage, _, category_storage, _ = get_storage()
 
         moved_categories = []
         moved_artists = []
@@ -234,7 +234,7 @@ async def batch_copy(request):
         data = await request.json()
         artists = data.get("artists", [])
 
-        artist_storage, _, category_storage = get_storage()
+        artist_storage, _, category_storage, _ = get_storage()
 
         copied_artists = []
         errors = []

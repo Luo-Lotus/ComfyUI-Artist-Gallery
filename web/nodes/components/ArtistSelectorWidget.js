@@ -18,8 +18,10 @@ export function ArtistSelectorWidget({
     const {
         artists,
         categories,
+        combinations,
         selectedKeys,
         selectedCategories,
+        selectedCombinationKeys,
         loading,
         searchQuery,
         sortBy,
@@ -33,11 +35,13 @@ export function ArtistSelectorWidget({
         partitionData,
         getArtistsByPartition,
         getCategoriesByPartition,
+        getCombinationsByPartition,
         addPartition,
         deletePartition,
         updatePartition,
         moveArtistToPartition,
         moveCategoryToPartition,
+        moveCombinationToPartition,
         togglePartition,
         setAsDefaultPartition,
         setSearchQuery,
@@ -45,6 +49,7 @@ export function ArtistSelectorWidget({
         setSortOrder,
         toggleSelection,
         toggleCategorySelection,
+        toggleCombinationSelection,
         handleCategoryChange,
         handleRefresh,
         makeArtistKey,
@@ -114,6 +119,7 @@ export function ArtistSelectorWidget({
             partitions: partitionData.partitions,
             artistsByPartition: getArtistsByPartition,
             categoriesByPartition: getCategoriesByPartition,
+            combinationsByPartition: getCombinationsByPartition,
             selectedCategories: selectedCategoriesList,
             categories: categories,
             onPartitionAction: (action, data) => {
@@ -142,6 +148,14 @@ export function ArtistSelectorWidget({
             },
             onCategoryRemove: (categoryId) => {
                 toggleCategorySelection(categoryId);
+            },
+            onCombinationMove: (combinationKey, partitionId) => {
+                moveCombinationToPartition(combinationKey, partitionId);
+            },
+            onCombinationRemove: (combinationKey) => {
+                // 从 key 提取 combination id
+                const combId = combinationKey.replace('combination:', '');
+                toggleCombinationSelection(combId);
             },
         });
     };
@@ -256,6 +270,37 @@ export function ArtistSelectorWidget({
     };
 
     /**
+     * 渲染组合项
+     */
+    const renderCombinationItem = (combination) => {
+        const key = `combination:${combination.id}`;
+        const isSelected = selectedCombinationKeys.has(key);
+        return h(
+            'div',
+            {
+                key: key,
+                class: `artist-selector-item combination-item ${isSelected ? 'selected' : ''}`,
+                onClick: () => toggleCombinationSelection(combination.id),
+                onMouseEnter: (e) => handleMouseEnter(combination, e),
+                onMouseLeave: () => handleMouseLeave(),
+            },
+            [
+                h('span', { class: 'artist-selector-item-icon' }, '🔗'),
+                h(
+                    'span',
+                    { class: 'artist-selector-item-name' },
+                    combination.name,
+                ),
+                h(
+                    'span',
+                    { class: 'artist-selector-combination-count' },
+                    `${(combination.artistKeys || []).length}人`,
+                ),
+            ],
+        );
+    };
+
+    /**
      * 渲染画师列表（包含分类和画师）- 使用 LazyList 懒加载
      */
     const renderArtistList = () => {
@@ -274,11 +319,13 @@ export function ArtistSelectorWidget({
         // 合并为扁平数组
         const listItems = [
             ...childrenCategories.map(cat => ({ type: 'category', data: cat })),
+            ...(combinations || []).map(comb => ({ type: 'combination', data: comb })),
             ...filteredArtists.map(artist => ({ type: 'artist', data: artist })),
         ];
 
         const renderListItem = (item, index) => {
             if (item.type === 'category') return renderCategoryCard(item.data);
+            if (item.type === 'combination') return renderCombinationItem(item.data);
             return renderArtistItem(item.data);
         };
 

@@ -18,9 +18,9 @@ export function useGalleryData(categoryId = 'root') {
             result.artists = result.artists.map((artist) => ({
                 ...artist,
                 maxTime:
-                    artist.images.length > 0
+                    artist.images && artist.images.length > 0
                         ? Math.max(...artist.images.map((img) => img.mtime))
-                        : 0,
+                        : artist.createdAt || 0,
             }));
             setData(result);
         } catch (err) {

@@ -15,8 +15,9 @@ export function useNodeSync({
     const updateNodeValue = useCallback(() => {
         const artistMap = partitionData.artistPartitionMap || {};
         const categoryMap = partitionData.categoryPartitionMap || {};
+        const combinationMap = partitionData.combinationPartitionMap || {};
 
-        // 构建 v1 格式的 partitions（每个分区自带其 artistKeys 和 categoryIds）
+        // 构建 v1 格式的 partitions（每个分区自带其 artistKeys 和 categoryIds 和 combinationKeys）
         const partitions = partitionData.partitions.map((p) => ({
             id: p.id,
             name: p.name,
@@ -28,6 +29,9 @@ export function useNodeSync({
             ),
             categoryIds: Object.keys(categoryMap).filter(
                 (catId) => categoryMap[catId] === p.id,
+            ),
+            combinationKeys: Object.keys(combinationMap).filter(
+                (key) => combinationMap[key] === p.id,
             ),
         }));
 

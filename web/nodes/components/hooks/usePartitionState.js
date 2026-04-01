@@ -11,6 +11,7 @@ const DEFAULT_CONFIG = {
     randomCount: 3,
     cycleMode: false,
     saveToGallery: true,
+    autoCreateCombination: false,
 };
 
 const DEFAULT_PARTITION = {
@@ -27,6 +28,7 @@ const DEFAULT_PARTITION_DATA = {
     partitions: [DEFAULT_PARTITION],
     artistPartitionMap: {},
     categoryPartitionMap: {},
+    combinationPartitionMap: {},
     globalConfig: { ...DEFAULT_CONFIG },
 };
 
@@ -41,6 +43,7 @@ function validatePartitionData(data) {
     }
     if (!data.artistPartitionMap) data.artistPartitionMap = {};
     if (!data.categoryPartitionMap) data.categoryPartitionMap = {};
+    if (!data.combinationPartitionMap) data.combinationPartitionMap = {};
     if (!data.globalConfig) data.globalConfig = { ...DEFAULT_CONFIG };
     return data;
 }
@@ -58,12 +61,16 @@ function parseWidgetMetadata(widgetValue) {
         }
         const artistPartitionMap = {};
         const categoryPartitionMap = {};
+        const combinationPartitionMap = {};
         const partitions = data.partitions.map((p, i) => {
             for (const key of (p.artistKeys || [])) {
                 artistPartitionMap[key] = p.id;
             }
             for (const catId of (p.categoryIds || [])) {
                 categoryPartitionMap[catId] = p.id;
+            }
+            for (const combKey of (p.combinationKeys || [])) {
+                combinationPartitionMap[combKey] = p.id;
             }
             return {
                 id: p.id,
@@ -79,6 +86,7 @@ function parseWidgetMetadata(widgetValue) {
             partitions,
             artistPartitionMap,
             categoryPartitionMap,
+            combinationPartitionMap,
             globalConfig: data.globalConfig || { ...DEFAULT_CONFIG },
         });
     } catch {
@@ -86,7 +94,7 @@ function parseWidgetMetadata(widgetValue) {
     }
 }
 
-export function usePartitionState({ selectedArtistsCache, categories, metadataInput }) {
+export function usePartitionState({ selectedArtistsCache, categories, combinations, metadataInput }) {
     const [partitionData, setPartitionData] = useState(() => {
         // 从 nodeInstance widget 恢复（ComfyUI 在 onNodeCreated 前已恢复 widget 值）
         if (metadataInput?.value) {
@@ -119,6 +127,22 @@ export function usePartitionState({ selectedArtistsCache, categories, metadataIn
         });
         return result;
     }, [partitionData, categories]);
+
+    // 获取每个分区的组合列表
+    const getCombinationsByPartition = useMemo(() => {
+        const result = {};
+        partitionData.partitions.forEach((partition) => {
+            result[partition.id] = Object.keys(partitionData.combinationPartitionMap)
+                .filter((combKey) => partitionData.combinationPartitionMap[combKey] === partition.id)
+                .map((combKey) => {
+                    // combKey format: combination:{id}
+                    const combId = combKey.replace('combination:', '');
+                    return (combinations || []).find((c) => c.id === combId);
+                })
+                .filter(Boolean);
+        });
+        return result;
+    }, [partitionData, combinations]);
 
     // 添加新分区
     const addPartition = useCallback((name) => {
@@ -159,10 +183,17 @@ export function usePartitionState({ selectedArtistsCache, categories, metadataIn
                     newArtistPartitionMap[key] = defaultPartition.id;
                 }
             });
+            const newCombinationPartitionMap = { ...prev.combinationPartitionMap };
+            Object.keys(newCombinationPartitionMap).forEach((key) => {
+                if (newCombinationPartitionMap[key] === partitionId) {
+                    newCombinationPartitionMap[key] = defaultPartition.id;
+                }
+            });
             return {
                 ...prev,
                 partitions: prev.partitions.filter((p) => p.id !== partitionId),
                 artistPartitionMap: newArtistPartitionMap,
+                combinationPartitionMap: newCombinationPartitionMap,
             };
         });
     }, []);
@@ -246,16 +277,31 @@ export function usePartitionState({ selectedArtistsCache, categories, metadataIn
         });
     }, []);
 
+    // 移动组合到指定分区（partitionId 为 null 时移除）
+    const moveCombinationToPartition = useCallback((combinationKey, partitionId) => {
+        setPartitionData((prev) => {
+            const newMap = { ...prev.combinationPartitionMap };
+            if (partitionId == null) {
+                delete newMap[combinationKey];
+            } else {
+                newMap[combinationKey] = partitionId;
+            }
+            return { ...prev, combinationPartitionMap: newMap };
+        });
+    }, []);
+
     return {
         partitionData,
         setPartitionData,
         getArtistsByPartition,
         getCategoriesByPartition,
+        getCombinationsByPartition,
         addPartition,
         deletePartition,
         updatePartition,
         moveArtistToPartition,
         moveCategoryToPartition,
+        moveCombinationToPartition,
         togglePartition,
         setAsDefaultPartition,
     };

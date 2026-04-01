@@ -20,7 +20,7 @@ async def get_gallery_data(request):
         # 获取分类参数
         category_id = request.query.get("category", "root")
 
-        artist_storage, mapping_storage, category_storage = get_storage()
+        artist_storage, mapping_storage, category_storage, combination_storage = get_storage()
 
         # 验证分类存在
         category = category_storage.get_category_by_id(category_id)
@@ -33,43 +33,35 @@ async def get_gallery_data(request):
             if a.get("categoryId") == category_id
         ]
 
-        # 构建结果列表
+        # 构建结果列表（只返回封面信息，不返回完整图片列表）
         result_artists = []
 
         for artist in artists_data:
             artist_name = artist.get("name")
 
-            # 从映射关系中获取该画师的图片（使用画师名称）
+            # 获取该画师的图片映射数量（只计数，不返回完整列表）
             mappings = mapping_storage.get_mappings_by_artist(artist_name)
-
-            images = []
+            image_count = 0
             for mapping in mappings:
                 image_path = mapping.get("imagePath")
-
-                # 获取文件信息
                 full_path = Path(output_dir) / image_path
                 if full_path.exists():
-                    try:
-                        stat = full_path.stat()
-                        images.append({
-                            "path": image_path,
-                            "size": stat.st_size,
-                            "mtime": stat.st_mtime * 1000
-                        })
-                    except Exception as e:
-                        print(f"Error reading file {image_path}: {e}")
+                    image_count += 1
 
-            # 排序图片
-            images.sort(key=lambda x: decode_filename(x["path"]))
+            # 获取封面图片路径：优先用设置的封面，否则取第一张
+            cover_path = artist.get("coverImageId")
+            if not cover_path:
+                first_mapping = mapping_storage.get_first_mapping_by_artist(artist_name)
+                if first_mapping:
+                    cover_path = first_mapping.get("imagePath")
 
-            # 构建画师对象（不再包含 id 字段）
+            # 构建画师对象（不包含 images 数组）
             result_artist = {
                 "name": artist.get("name"),
                 "displayName": artist.get("displayName"),
                 "categoryId": artist.get("categoryId", "root"),
-                "coverImageId": artist.get("coverImageId"),
-                "imageCount": len(images),
-                "images": images,
+                "coverImagePath": cover_path,
+                "imageCount": image_count,
                 "createdAt": artist.get("createdAt", 0)
             }
 
@@ -78,8 +70,30 @@ async def get_gallery_data(request):
         # 排序画师
         result_artists.sort(key=lambda x: x["name"].lower())
 
+        # 获取当前分类下的组合，并添加封面图片路径
+        raw_combinations = combination_storage.get_combinations_by_category(category_id)
+        result_combinations = []
+        for comb in raw_combinations:
+            comb_data = dict(comb)
+            # 优先使用设置的封面，否则取第一个成员画师的第一张图
+            cover_path = comb.get("coverImageId")
+            if not cover_path:
+                for artist_name in comb.get("artistKeys", []):
+                    mappings = mapping_storage.get_mappings_by_artist(artist_name)
+                    for m in mappings:
+                        image_path = m.get("imagePath")
+                        full_path = Path(output_dir) / image_path
+                        if full_path.exists():
+                            cover_path = image_path
+                            break
+                    if cover_path:
+                        break
+            comb_data["coverImagePath"] = cover_path
+            result_combinations.append(comb_data)
+
         return web.json_response({
             "artists": result_artists,
+            "combinations": result_combinations,
             "totalCount": len(result_artists),
             "categoryId": category_id,
             "generatedAt": int(__import__('time').time() * 1000)

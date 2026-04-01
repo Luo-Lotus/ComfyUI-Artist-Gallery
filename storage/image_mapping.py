@@ -80,6 +80,15 @@ class ImageMappingStorage:
             if artist_name in m.get("artistNames", [])
         ]
 
+    def get_first_mapping_by_artist(self, artist_name: str) -> Optional[dict]:
+        """获取画师的第一张图片映射（用于封面图）"""
+        with self._lock:
+            data = self._read_data()
+            for m in data.get("mappings", []):
+                if artist_name in m.get("artistNames", []):
+                    return m
+            return None
+
     def get_mappings_by_artist_id(self, artist_id: str) -> List[dict]:
         """
         获取指定画师的所有图片映射（使用 ID，兼容旧版本）

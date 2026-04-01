@@ -18,13 +18,13 @@ async def get_image_artists(request):
         # 构建完整的图片路径
         image_path = f"artist_gallery/{filename}"
 
-        _, mapping_storage, _ = get_storage()
+        _, mapping_storage, _, _ = get_storage()
         mapping = mapping_storage.get_mappings_by_image(image_path)
 
         if not mapping:
             return web.json_response({"artists": [], "totalCount": 0})
 
-        artist_storage, _, _ = get_storage()
+        artist_storage, _, _, _ = get_storage()
         artist_ids = mapping.get("artistIds", [])
 
         artists = []
@@ -59,11 +59,11 @@ async def save_to_gallery(request):
         image_path = f"artist_gallery/{image_filename}"
 
         # 创建映射关系
-        _, mapping_storage, _ = get_storage()
+        _, mapping_storage, _, _ = get_storage()
         mapping = mapping_storage.add_mapping(image_path, artist_ids, metadata)
 
         # 更新画师的图片计数
-        artist_storage, _, _ = get_storage()
+        artist_storage, _, _, _ = get_storage()
         for artist_id in artist_ids:
             artist_storage.update_image_count(artist_id, 1)
 
@@ -113,7 +113,7 @@ async def restore_from_metadata(request):
                         if artist_ids:
                             # 创建映射关系
                             image_rel_path = f"artist_gallery/{filename}"
-                            _, mapping_storage, _ = get_storage()
+                            _, mapping_storage, _, _ = get_storage()
                             mapping_storage.add_mapping(
                                 image_rel_path,
                                 artist_ids,
@@ -121,7 +121,7 @@ async def restore_from_metadata(request):
                             )
 
                             # 更新画师的图片计数
-                            artist_storage, _, _ = get_storage()
+                            artist_storage, _, _, _ = get_storage()
                             for artist_id in artist_ids:
                                 artist_storage.update_image_count(artist_id, 1)
 
@@ -168,7 +168,7 @@ async def delete_image(request):
         if not image_path:
             return web.json_response({"error": "缺少imagePath参数"}, status=400)
 
-        artist_storage, mapping_storage, _ = get_storage()
+        artist_storage, mapping_storage, _, _ = get_storage()
 
         # 获取图片映射
         mapping = mapping_storage.get_mappings_by_image(image_path)
@@ -233,7 +233,7 @@ async def move_image(request):
         if from_artist_name == to_artist_name:
             return web.json_response({"error": "不能移动到同一个画师"}, status=400)
 
-        artist_storage, mapping_storage, _ = get_storage()
+        artist_storage, mapping_storage, _, _ = get_storage()
 
         # 验证目标画师存在
         to_category_id = to_category_id or "root"
@@ -295,7 +295,7 @@ async def copy_image(request):
         if not image_path or not to_artist_name:
             return web.json_response({"error": "缺少必要参数"}, status=400)
 
-        artist_storage, mapping_storage, _ = get_storage()
+        artist_storage, mapping_storage, _, _ = get_storage()
 
         # 验证目标画师存在
         to_category_id = to_category_id or "root"

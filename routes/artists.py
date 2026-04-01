@@ -13,7 +13,7 @@ from ..storage import get_storage
 async def get_artists(request):
     """获取所有画师列表"""
     try:
-        artist_storage, _, _ = get_storage()
+        artist_storage, _, _, _ = get_storage()
         artists = artist_storage.get_all_artists()
         return web.json_response({"artists": artists, "totalCount": len(artists)})
     except Exception as e:
@@ -32,7 +32,7 @@ async def add_artist(request):
         if not name:
             return web.json_response({"error": "画师名称不能为空"}, status=400)
 
-        artist_storage, _, category_storage = get_storage()
+        artist_storage, _, category_storage, _ = get_storage()
 
         # 验证分类存在
         category = category_storage.get_category_by_id(category_id)
@@ -59,7 +59,7 @@ async def add_artists_batch(request):
         if not artists_data:
             return web.json_response({"error": "画师列表不能为空"}, status=400)
 
-        artist_storage, _, _ = get_storage()
+        artist_storage, _, _, _ = get_storage()
         success_artists, failed_names = artist_storage.add_artists_batch(artists_data, category_id)
 
         return web.json_response({
@@ -79,7 +79,7 @@ async def delete_artist(request):
     try:
         artist_id = request.match_info['artist_id']
 
-        artist_storage, mapping_storage, _ = get_storage()
+        artist_storage, mapping_storage, _, _ = get_storage()
 
         # 获取画师信息
         artist = artist_storage.get_artist_by_id(artist_id)
@@ -124,7 +124,7 @@ async def get_artist_composite(request):
         category_id = request.match_info['category_id']
         name = request.match_info['name']
 
-        artist_storage, _, _ = get_storage()
+        artist_storage, _, _, _ = get_storage()
         artist = artist_storage.get_artist(category_id, name)
 
         if not artist:
@@ -143,7 +143,7 @@ async def update_artist_composite(request):
         old_name = request.match_info['name']
         data = await request.json()
 
-        artist_storage, mapping_storage, category_storage = get_storage()
+        artist_storage, mapping_storage, category_storage, _ = get_storage()
 
         # 检查是否要修改名称
         new_name = data.get("name", old_name)
@@ -251,7 +251,7 @@ async def delete_artist_composite(request):
         category_id = request.match_info['category_id']
         name = request.match_info['name']
 
-        artist_storage, mapping_storage, _ = get_storage()
+        artist_storage, mapping_storage, _, _ = get_storage()
 
         # 获取画师信息
         artist = artist_storage.get_artist(category_id, name)
@@ -285,6 +285,10 @@ async def delete_artist_composite(request):
         # 删除画师记录
         artist_storage.delete_artist(category_id, name)
 
+        # 从所有组合中移除该画师引用
+        _, _, _, combination_storage = get_storage()
+        combination_storage.remove_artist_from_all(name)
+
         return web.json_response({
             "success": True,
             "deletedFiles": deleted_files,
@@ -302,7 +306,7 @@ async def update_artist(request):
         artist_id = request.match_info['artist_id']
         data = await request.json()
 
-        artist_storage, _, category_storage = get_storage()
+        artist_storage, _, category_storage, _ = get_storage()
 
         kwargs = {}
         if "name" in data:
@@ -339,7 +343,7 @@ async def move_artist(request):
         data = await request.json()
         new_category_id = data.get("newCategoryId", "root")
 
-        artist_storage, _, category_storage = get_storage()
+        artist_storage, _, category_storage, _ = get_storage()
 
         # 验证新分类存在
         category = category_storage.get_category_by_id(new_category_id)
@@ -366,7 +370,7 @@ async def get_artist_images(request):
     try:
         artist_id = request.match_info['artist_id']
 
-        _, mapping_storage, _ = get_storage()
+        _, mapping_storage, _, _ = get_storage()
         mappings = mapping_storage.get_mappings_by_artist(artist_id)
 
         # 构建图片信息
@@ -402,7 +406,7 @@ async def copy_artist(request):
         if not target_category_id:
             return web.json_response({"error": "缺少目标分类ID"}, status=400)
 
-        artist_storage, _, category_storage = get_storage()
+        artist_storage, _, category_storage, _ = get_storage()
 
         # 验证源画师存在
         source_artist = artist_storage.get_artist(category_id, name)
@@ -433,3 +437,47 @@ async def copy_artist(request):
         })
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
+
+
+# ============ Artist Images API (detail view) ============
+
+@server.PromptServer.instance.routes.get("/artist_gallery/artist_images")
+async def get_artist_images_by_composite(request):
+    """获取画师的全部图片（详情视图用，使用 query 参数避免路由冲突）"""
+    try:
+        import folder_paths
+
+        output_dir = folder_paths.get_output_directory()
+        name = request.query.get("name", "")
+
+        if not name:
+            return web.json_response({"error": "缺少画师名称"}, status=400)
+
+        _, mapping_storage, _, _ = get_storage()
+        mappings = mapping_storage.get_mappings_by_artist(name)
+
+        images = []
+        for mapping in mappings:
+            image_path = mapping.get("imagePath")
+            full_path = Path(output_dir) / image_path
+            if full_path.exists():
+                try:
+                    stat = full_path.stat()
+                    images.append({
+                        "path": image_path,
+                        "size": stat.st_size,
+                        "mtime": stat.st_mtime * 1000,
+                        "artistNames": mapping.get("artistNames", []),
+                    })
+                except Exception:
+                    pass
+
+        images.sort(key=lambda x: x["path"].lower())
+
+        return web.json_response({
+            "success": True,
+            "images": images,
+            "totalCount": len(images),
+        })
+    except Exception as e:
+        return web.json_response({"success": False, "error": str(e)}, status=500)

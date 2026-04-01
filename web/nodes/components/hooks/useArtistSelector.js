@@ -62,22 +62,27 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
     const [sortOrder, setSortOrder] = useState('asc');
     const [currentCategory, setCurrentCategory] = useState('root');
     const [refreshing, setRefreshing] = useState(false);
+    const [combinations, setCombinations] = useState([]); // 当前分类的组合
+    const [allCombinations, setAllCombinations] = useState([]); // 所有组合（需要在 usePartitionState 之前定义）
 
     // 分区系统状态（由 usePartitionState hook 管理）
     const {
         partitionData,
         getArtistsByPartition,
         getCategoriesByPartition,
+        getCombinationsByPartition,
         addPartition,
         deletePartition,
         updatePartition,
         moveArtistToPartition,
         moveCategoryToPartition,
+        moveCombinationToPartition,
         togglePartition,
         setAsDefaultPartition,
     } = usePartitionState({
         selectedArtistsCache,
         categories,
+        combinations: allCombinations,
         metadataInput,
     });
 
@@ -88,6 +93,11 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
     const [selectedCategories, setSelectedCategories] = useState(
         () => new Set(Object.keys(partitionData.categoryPartitionMap || {})),
     );
+
+    // 组合系统状态
+    const selectedCombinationKeys = useMemo(() => {
+        return new Set(Object.keys(partitionData.combinationPartitionMap || {}));
+    }, [partitionData.combinationPartitionMap]);
 
     // 计算面包屑路径
     const breadcrumbPath = useMemo(() => {
@@ -136,21 +146,27 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
         loadCategories();
     }, []);
 
-    // 加载所有画师（用于分类选择）
+    // 加载所有画师和组合（用于分区系统）
     useEffect(() => {
-        const loadAllArtists = async () => {
+        const loadAllData = async () => {
             try {
-                const response = await fetch('/artist_gallery/artists');
-                const data = await response.json();
-                setAllArtists(data.artists || []);
+                // 加载所有画师
+                const artistResponse = await fetch('/artist_gallery/artists');
+                const artistData = await artistResponse.json();
+                setAllArtists(artistData.artists || []);
+
+                // 加载所有组合
+                const combResponse = await fetch('/artist_gallery/combinations/all');
+                const combData = await combResponse.json();
+                setAllCombinations(combData.combinations || []);
             } catch (error) {
                 console.error(
-                    '[ArtistSelector] Failed to load all artists:',
+                    '[ArtistSelector] Failed to load all data:',
                     error,
                 );
             }
         };
-        loadAllArtists();
+        loadAllData();
     }, []);
 
     // 当 allArtists 加载完成后，补全缓存中缺失的画师信息
@@ -191,10 +207,9 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
                 // 从响应中提取画师数据
                 const artistsList = data.artists || [];
                 setArtists(artistsList);
-                // 注意：选择状态（selectedKeys / selectedCategories）不再在此处恢复。
-                // 它们由分区映射驱动：artistPartitionMap 的 key 集合 = selectedKeys,
-                // categoryPartitionMap 的 key 集合 = selectedCategories。
-                // 缓存补全由 allArtists useEffect 处理。
+
+                // 直接使用 data 接口返回的组合数据（不再单独请求）
+                setCombinations(data.combinations || []);
             } catch (error) {
                 console.error(
                     '[ArtistSelector] Failed to load artists:',
@@ -311,6 +326,27 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
         [selectedCategories, partitionData, moveCategoryToPartition],
     );
 
+    // 切换组合选择状态
+    const toggleCombinationSelection = useCallback(
+        (combinationId) => {
+            const combinationKey = `combination:${combinationId}`;
+            const isAdding = !selectedCombinationKeys.has(combinationKey);
+
+            // 分区映射更新委托给 usePartitionState（自动持久化）
+            if (isAdding) {
+                const defaultPartition = partitionData.partitions.find(
+                    (p) => p.isDefault,
+                );
+                if (defaultPartition) {
+                    moveCombinationToPartition(combinationKey, defaultPartition.id);
+                }
+            } else {
+                moveCombinationToPartition(combinationKey, null);
+            }
+        },
+        [selectedCombinationKeys, partitionData, moveCombinationToPartition],
+    );
+
     // 节点同步：通过 useNodeSync hook 处理
     const { updateNodeValue } = useNodeSync({
         nodeInstance,
@@ -373,15 +409,22 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
         refreshing,
         breadcrumbPath,
 
+        // 组合系统
+        combinations,
+        selectedCombinationKeys,
+        toggleCombinationSelection,
+
         // 分区系统状态和操作
         partitionData,
         getArtistsByPartition,
         getCategoriesByPartition,
+        getCombinationsByPartition,
         addPartition,
         deletePartition,
         updatePartition,
         moveArtistToPartition,
         moveCategoryToPartition,
+        moveCombinationToPartition,
         togglePartition,
         setAsDefaultPartition,
 

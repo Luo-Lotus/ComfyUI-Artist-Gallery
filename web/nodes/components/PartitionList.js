@@ -11,11 +11,14 @@ export function PartitionList({
     partitions,
     artistsByPartition,
     categoriesByPartition,
+    combinationsByPartition,
     onPartitionAction,
     onArtistMove,
     onArtistRemove,
     onCategoryMove,
     onCategoryRemove,
+    onCombinationMove,
+    onCombinationRemove,
 }) {
     const [showAddPartition, setShowAddPartition] = useState(false);
 
@@ -48,12 +51,13 @@ export function PartitionList({
     };
 
     // 计算总画师数
-    const totalArtists = Object.values(artistsByPartition).reduce((sum, artists) => sum + artists.length, 0);
+    const totalArtists = Object.values(artistsByPartition || {}).reduce((sum, artists) => sum + artists.length, 0);
+    const totalCombinations = Object.values(combinationsByPartition || {}).reduce((sum, combs) => sum + combs.length, 0);
 
     return h('div', { class: 'partition-list' }, [
         // 头部
         h('div', { class: 'partition-list-header' }, [
-            h('span', { class: 'partition-list-title' }, `已选择 (${totalArtists})`),
+            h('span', { class: 'partition-list-title' }, `已选择 (${totalArtists + totalCombinations})`),
             renderAddButton(),
         ]),
 
@@ -65,19 +69,23 @@ export function PartitionList({
             partitions
                 .sort((a, b) => a.order - b.order)
                 .map((partition) => {
-                    const artists = artistsByPartition[partition.id] || [];
-                    const partitionCategories = categoriesByPartition ? categoriesByPartition[partition.id] || [] : [];
+                    const artists = (artistsByPartition || {})[partition.id] || [];
+                    const partitionCategories = (categoriesByPartition || {})[partition.id] || [];
+                    const partitionCombinations = (combinationsByPartition || {})[partition.id] || [];
 
                     return h(PartitionItem, {
                         key: partition.id,
                         partition,
                         artists,
                         partitionCategories,
+                        partitionCombinations,
                         onPartitionAction,
                         onArtistMove,
                         onCategoryMove,
                         onArtistRemove,
                         onCategoryRemove,
+                        onCombinationMove,
+                        onCombinationRemove,
                     });
                 })
         ),

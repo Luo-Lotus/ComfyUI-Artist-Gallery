@@ -24,11 +24,14 @@
     position: relative;
     max-width: 90vw;
     max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .gallery-lightbox-img {
     max-width: 90vw;
-    max-height: 85vh;
+    max-height: calc(85vh - 40px);
     object-fit: contain;
     border-radius: 12px;
 }
@@ -89,4 +92,23 @@
     color: rgba(255, 255, 255, 0.8);
     font-size: 12px;
     font-weight: 600;
+}
+
+/* 灯箱关联画师标签 */
+.gallery-lightbox-artists {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    margin-bottom: 8px;
+}
+
+.gallery-lightbox-artist-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    background: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.85);
+    border-radius: 12px;
+    font-size: 12px;
+    cursor: default;
 }

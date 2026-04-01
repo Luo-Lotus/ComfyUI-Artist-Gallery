@@ -25,6 +25,9 @@ export function Lightbox({ isOpen, artist, imageIndex, onClose, onNavigate }) {
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, [imageIndex]);
 
+    // 获取当前图片关联的画师名列表
+    const relatedArtists = img?.artistNames || [];
+
     return h(
         'div',
         {
@@ -41,6 +44,12 @@ export function Lightbox({ isOpen, artist, imageIndex, onClose, onNavigate }) {
                     onClick: onClose,
                 },
                 '×',
+            ),
+            // 关联画师名展示（图片上方）
+            relatedArtists.length > 0 && h('div', { class: 'gallery-lightbox-artists' },
+                relatedArtists.map((name) =>
+                    h('span', { class: 'gallery-lightbox-artist-tag', key: name }, name)
+                ),
             ),
             h('img', {
                 class: 'gallery-lightbox-img',
@@ -66,7 +75,7 @@ export function Lightbox({ isOpen, artist, imageIndex, onClose, onNavigate }) {
             h(
                 'div',
                 { class: 'gallery-lightbox-info' },
-                `${artist.displayName} · ${imageIndex + 1} / ${artist.images.length}`,
+                `${artist.displayName || artist.name} · ${imageIndex + 1} / ${artist.images.length}`,
             ),
         ),
     );

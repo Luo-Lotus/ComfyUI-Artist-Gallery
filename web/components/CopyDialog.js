@@ -47,6 +47,7 @@ export function CopyDialog({
         if (itemType === 'category') return 'category';
         if (itemType === 'artist') return 'category';
         if (itemType === 'image') return 'artist';
+        if (itemType === 'combination') return 'category';
         return 'category';
     }, [itemType]);
 
@@ -67,8 +68,11 @@ export function CopyDialog({
     const handleTargetSelect = (target) => {
         setSelectedTarget(target);
 
-        // 如果是复制画师，可以修改名称
+        // 如果是复制画师或组合，可以修改名称
         if (itemType === 'artist') {
+            setShowNameInput(true);
+            setNewName(item.name);
+        } else if (itemType === 'combination') {
             setShowNameInput(true);
             setNewName(item.name);
         } else {
@@ -82,6 +86,7 @@ export function CopyDialog({
         if (itemType === 'category') return '复制分类';
         if (itemType === 'artist') return '复制画师';
         if (itemType === 'image') return '复制图片';
+        if (itemType === 'combination') return '复制组合';
         return '复制';
     };
 
@@ -89,6 +94,7 @@ export function CopyDialog({
         if (itemType === 'category') return '📋';
         if (itemType === 'artist') return '👤';
         if (itemType === 'image') return '🖼️';
+        if (itemType === 'combination') return '🔗';
         return '📋';
     };
 
@@ -97,6 +103,7 @@ export function CopyDialog({
         if (itemType === 'category') return item.name;
         if (itemType === 'artist') return item.displayName || item.name;
         if (itemType === 'image') return '图片';
+        if (itemType === 'combination') return item.name;
         return '';
     };
 

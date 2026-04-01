@@ -27,19 +27,15 @@ export function GalleryCard({
 }) {
     const [copied, setCopied] = useState(false);
     const isFav = favorites.has(artist.name);
-    const hasImages = artist.images && artist.images.length > 0;
+    const hasImages = artist.imageCount > 0;
     const { showContextMenu } = useContextMenu();
 
     // 生成选择键（用于多选）
     const selectionKey = `artist:${artist.categoryId}:${artist.name}`;
 
-    // 获取封面图片路径
-    const coverImagePath =
-        artist.coverImageId || (hasImages ? artist.images[0].path : null);
-    const coverImage = hasImages
-        ? artist.images.find((img) => img.path === coverImagePath) ||
-          artist.images[0]
-        : null;
+    // 封面图路径
+    const coverPath = artist.coverImagePath;
+    const coverImage = coverPath ? { path: coverPath } : null;
 
     // ============ 事件处理 ============
 

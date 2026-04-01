@@ -45,7 +45,7 @@ async def import_images_batch(request):
             return web.json_response({"error": "没有提供图片"}, status=400)
 
         # 获取存储实例
-        artist_storage, mapping_storage, category_storage = get_storage()
+        artist_storage, mapping_storage, category_storage, _ = get_storage()
 
         # 准备输出目录
         output_dir = Path(folder_paths.get_output_directory())
@@ -218,12 +218,12 @@ async def import_preview(request):
             category_id = config.get("defaultCategoryId", "root")
 
             # 获取分类名称
-            _, _, category_storage = get_storage()
+            _, _, category_storage, _ = get_storage()
             category = category_storage.get_category_by_id(category_id)
             category_name = category.get("name", "unknown") if category else "unknown"
 
             # 检查画师是否存在
-            artist_storage, _, _ = get_storage()
+            artist_storage, _, _, _ = get_storage()
             artist_exists = artist_storage.get_artist(category_id, artist_name) is not None if artist_name else False
 
             preview.append({
@@ -267,7 +267,7 @@ async def export_artists(request):
         data = await request.json()
         artists_param = data.get("artists", [])
 
-        artist_storage, mapping_storage, _ = get_storage()
+        artist_storage, mapping_storage, _, _ = get_storage()
         output_dir = Path(folder_paths.get_output_directory())
 
         exported_images = {}
@@ -352,7 +352,7 @@ async def import_artists(request):
         zip_bytes = await field.read(decode=True)
         target_category_id = request.query.get("categoryId", "root")
 
-        artist_storage, mapping_storage, _ = get_storage()
+        artist_storage, mapping_storage, _, _ = get_storage()
         output_dir = Path(folder_paths.get_output_directory()) / "artist_gallery"
         output_dir.mkdir(parents=True, exist_ok=True)
 
