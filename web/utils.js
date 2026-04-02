@@ -221,6 +221,14 @@ export async function setArtistCover(categoryId, name, coverImagePath) {
     return await response.json();
 }
 
+export async function fetchInitData() {
+    const response = await fetch('/artist_gallery/init');
+    if (!response.ok) {
+        throw new Error('初始化数据加载失败');
+    }
+    return await response.json();
+}
+
 export async function copyImage(imagePath, toArtistId) {
     const response = await fetch('/artist_gallery/image/copy', {
         method: 'POST',

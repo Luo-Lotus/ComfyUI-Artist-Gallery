@@ -91,9 +91,13 @@ async def get_gallery_data(request):
             comb_data["coverImagePath"] = cover_path
             result_combinations.append(comb_data)
 
+        # 获取当前分类的直接子分类
+        child_categories = category_storage.get_children(category_id)
+
         return web.json_response({
             "artists": result_artists,
             "combinations": result_combinations,
+            "childCategories": [{"id": c.get("id"), "name": c.get("name"), "parentId": c.get("parentId")} for c in child_categories],
             "totalCount": len(result_artists),
             "categoryId": category_id,
             "generatedAt": int(__import__('time').time() * 1000)

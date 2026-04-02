@@ -85,20 +85,6 @@ class FilenameParser:
             name = Path(filename).stem
             print(f"  不含扩展名: {name}")
 
-            # 移除常见的数字后缀模式
-            # 匹配: _1, -1, _001, -001, _00001, -12345 等
-            name = re.sub(r'[-_]\d+$', '', name)
-            print(f"  移除数字后缀: {name}")
-
-            # 清理特殊字符（保留字母、数字、下划线、连字符、中文字符）
-            # 但移除@符号（因为我们会自动添加）
-            name = name.lstrip('@')
-            print(f"  移除@符号: {name}")
-
-            # 移除其他特殊字符
-            name = re.sub(r'[^\w\s\u4e00-\u9fff-]', '', name).strip()
-            print(f"  清理特殊字符: {name}")
-
             if not name:
                 print(f"  结果为空")
                 return None

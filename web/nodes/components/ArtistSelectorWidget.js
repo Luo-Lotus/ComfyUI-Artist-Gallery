@@ -312,9 +312,10 @@ export function ArtistSelectorWidget({
             );
         }
 
-        // 获取当前分类的子分类
-        const currentCatObj = categories.find((c) => c.id === currentCategory);
-        const childrenCategories = currentCatObj?.children || [];
+        // 获取当前分类的子分类（从扁平列表中按 parentId 过滤）
+        const childrenCategories = categories.filter(
+            (c) => c.parentId === currentCategory,
+        );
 
         // 合并为扁平数组
         const listItems = [

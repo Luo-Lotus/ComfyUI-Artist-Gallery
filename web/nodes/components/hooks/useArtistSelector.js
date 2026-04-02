@@ -12,19 +12,6 @@ import { useImagePreview } from './useImagePreview.js';
 import { useNodeSync } from './useNodeSync.js';
 import { usePartitionState } from './usePartitionState.js';
 
-// 辅助函数：扁平化分类树
-function flattenCategories(tree) {
-    const result = [];
-    function traverse(node) {
-        result.push(node);
-        if (node.children) {
-            node.children.forEach(traverse);
-        }
-    }
-    tree.forEach(traverse);
-    return result;
-}
-
 // 辅助函数：构建面包屑路径
 function buildBreadcrumbPath(categoryId, categories) {
     const path = [];
@@ -129,44 +116,23 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
         return { categoryId, name };
     };
 
-    // 加载分类列表
+    // 一次性加载分类树、所有画师和所有组合
     useEffect(() => {
-        const loadCategories = async () => {
+        const loadInitData = async () => {
             try {
-                const response = await fetch('/artist_gallery/categories');
+                const response = await fetch('/artist_gallery/init');
                 const data = await response.json();
-                setCategories(flattenCategories(data.categories || []));
+                setCategories(data.categories || []);
+                setAllArtists(data.artists || []);
+                setAllCombinations(data.combinations || []);
             } catch (error) {
                 console.error(
-                    '[ArtistSelector] Failed to load categories:',
+                    '[ArtistSelector] Failed to load init data:',
                     error,
                 );
             }
         };
-        loadCategories();
-    }, []);
-
-    // 加载所有画师和组合（用于分区系统）
-    useEffect(() => {
-        const loadAllData = async () => {
-            try {
-                // 加载所有画师
-                const artistResponse = await fetch('/artist_gallery/artists');
-                const artistData = await artistResponse.json();
-                setAllArtists(artistData.artists || []);
-
-                // 加载所有组合
-                const combResponse = await fetch('/artist_gallery/combinations/all');
-                const combData = await combResponse.json();
-                setAllCombinations(combData.combinations || []);
-            } catch (error) {
-                console.error(
-                    '[ArtistSelector] Failed to load all data:',
-                    error,
-                );
-            }
-        };
-        loadAllData();
+        loadInitData();
     }, []);
 
     // 当 allArtists 加载完成后，补全缓存中缺失的画师信息
@@ -368,20 +334,22 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
     const handleRefresh = async () => {
         setRefreshing(true);
         try {
-            // 刷新当前分类的画师
+            // 刷新初始化数据（分类、所有画师、所有组合）
+            const initResponse = await fetch('/artist_gallery/init');
+            const initData = await initResponse.json();
+            setCategories(initData.categories || []);
+            setAllArtists(initData.artists || []);
+            setAllCombinations(initData.combinations || []);
+
+            // 同时刷新当前分类的画师
             const url =
                 currentCategory === 'root'
                     ? '/artist_gallery/data?category=root'
                     : `/artist_gallery/data?category=${currentCategory}`;
             const response = await fetch(url);
             const data = await response.json();
-            const artistsList = data.artists || [];
-            setArtists(artistsList);
-
-            // 同时刷新所有画师
-            const allResponse = await fetch('/artist_gallery/artists');
-            const allData = await allResponse.json();
-            setAllArtists(allData.artists || []);
+            setArtists(data.artists || []);
+            setCombinations(data.combinations || []);
         } catch (error) {
             console.error('[ArtistSelector] Failed to refresh:', error);
         } finally {
