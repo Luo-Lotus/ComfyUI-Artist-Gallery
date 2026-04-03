@@ -157,3 +157,21 @@
     background: #f0f0f0;
     border-radius: 10px;
 }
+
+.flat-selector-check {
+    font-size: 14px;
+    color: #aaa;
+    flex-shrink: 0;
+}
+
+.flat-selector-check.checked {
+    color: #6c5ce7;
+}
+
+.flat-selector-footer {
+    padding: 6px 12px;
+    font-size: 12px;
+    color: #888;
+    text-align: center;
+    border-top: 1px solid #ffeef2;
+}

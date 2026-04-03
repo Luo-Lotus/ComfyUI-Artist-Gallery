@@ -10,6 +10,7 @@ import {
     DialogFormGroup,
     DialogFormItem,
 } from './Dialog.js';
+import { FlatSelector } from './FlatSelector.js';
 import { showToast } from './Toast.js';
 import { createCombination, updateCombination } from '../utils.js';
 
@@ -26,7 +27,6 @@ export function CombinationDialog({
     const [selectedArtistNames, setSelectedArtistNames] = useState(new Set());
     const [outputContent, setOutputContent] = useState('');
     const [saving, setSaving] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
 
     // 编辑模式时填充数据
     useEffect(() => {
@@ -39,7 +39,6 @@ export function CombinationDialog({
             setSelectedArtistNames(new Set());
             setOutputContent('');
         }
-        setSearchQuery('');
     }, [isOpen, mode, combination]);
 
     // 自动生成的输出内容预览
@@ -47,18 +46,7 @@ export function CombinationDialog({
         return Array.from(selectedArtistNames).join(',');
     }, [selectedArtistNames]);
 
-    // 搜索过滤画师列表
-    const filteredArtists = useMemo(() => {
-        if (!searchQuery) return artists;
-        const q = searchQuery.toLowerCase();
-        return artists.filter(
-            (a) =>
-                a.name.toLowerCase().includes(q) ||
-                (a.displayName && a.displayName.toLowerCase().includes(q)),
-        );
-    }, [artists, searchQuery]);
-
-    const toggleArtist = (artist) => {
+    const toggleArtist = (key, artist) => {
         const artistName = artist.name;
         setSelectedArtistNames((prev) => {
             const next = new Set(prev);
@@ -147,61 +135,18 @@ export function CombinationDialog({
                 }),
             ),
 
-            // 选择画师（多选列表 + 搜索）
+            // 选择画师（使用 FlatSelector 多选模式）
             h(
                 DialogFormItem,
-                { label: `选择画师 (已选 ${selectedArtistNames.size})` },
-                h('div', { class: 'combination-dialog-artist-select' }, [
-                    h('input', {
-                        type: 'text',
-                        class: 'gallery-form-input',
-                        value: searchQuery,
-                        onInput: (e) => setSearchQuery(e.target.value),
-                        placeholder: '搜索画师...',
-                        style: { marginBottom: '6px' },
-                    }),
-                    h('div', { class: 'combination-dialog-artist-list' },
-                        filteredArtists.map((artist) => {
-                            const isSelected = selectedArtistNames.has(
-                                artist.name,
-                            );
-                            return h(
-                                'div',
-                                {
-                                    key: `${artist.categoryId}:${artist.name}`,
-                                    class: `combination-dialog-artist-item ${isSelected ? 'selected' : ''}`,
-                                    onClick: () => toggleArtist(artist),
-                                },
-                                [
-                                    h(
-                                        'span',
-                                        {
-                                            class: `combination-dialog-checkbox ${isSelected ? 'checked' : ''}`,
-                                        },
-                                        isSelected ? '☑' : '☐',
-                                    ),
-                                    h(
-                                        'span',
-                                        { class: 'combination-dialog-artist-name' },
-                                        artist.displayName || artist.name,
-                                    ),
-                                    h(
-                                        'span',
-                                        { class: 'combination-dialog-artist-category' },
-                                        artist.categoryId === 'root'
-                                            ? ''
-                                            : `(${artist.categoryId})`,
-                                    ),
-                                    h(
-                                        'span',
-                                        { class: 'combination-dialog-artist-count' },
-                                        `${artist.imageCount || 0}张`,
-                                    ),
-                                ],
-                            );
-                        }),
-                    ),
-                ]),
+                { label: `选择画师 (${selectedArtistNames.size})` },
+                h(FlatSelector, {
+                    type: 'artist',
+                    artists: artists,
+                    multiSelect: true,
+                    selectedIds: selectedArtistNames,
+                    onToggleItem: toggleArtist,
+                    placeholder: '搜索画师...',
+                }),
             ),
 
             // 输出内容

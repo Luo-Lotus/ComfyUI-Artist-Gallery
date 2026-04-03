@@ -42,6 +42,7 @@ import { useContextMenu } from './ContextMenu.js';
 import { showToast } from './Toast.js';
 import { computeSizeVars } from './SizePresets.js';
 import { LazyList } from './LazyList.js';
+import { ImageInfoDialog } from './ImageInfoDialog.js';
 
 export function GalleryModal({ isOpen, onClose }) {
     // 获取右键菜单 hook
@@ -82,12 +83,17 @@ export function GalleryModal({ isOpen, onClose }) {
     const [copyItem, setCopyItem] = useState(null);
     const [copyItemType, setCopyItemType] = useState(null);
     const [showImportDialog, setShowImportDialog] = useState(false);
+    const [showImageInfoDialog, setShowImageInfoDialog] = useState(false);
+    const [imageInfoImage, setImageInfoImage] = useState(null);
 
     // ============ 多选状态 ============
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedItems, setSelectedItems] = useState(new Set());
     const [showBatchConfirm, setShowBatchConfirm] = useState(false);
     const [batchOperation, setBatchOperation] = useState(null); // 'delete' | 'move' | 'copy'
+
+    // ============ 图片搜索状态 ============
+    const [imageSearchQuery, setImageSearchQuery] = useState('');
 
     // ============ 灯箱状态 ============
     const [lightbox, setLightbox] = useState({
@@ -185,6 +191,28 @@ export function GalleryModal({ isOpen, onClose }) {
         return data?.combinations || [];
     }, [data]);
 
+    // 过滤画师详情图片（按文件名搜索）
+    const filteredArtistImages = useMemo(() => {
+        const images = currentArtist?.images || [];
+        if (!imageSearchQuery) return images;
+        const q = imageSearchQuery.toLowerCase();
+        return images.filter((img) => {
+            const filename = (img.path || '').split(/[/\\]/).pop().toLowerCase();
+            return filename.includes(q);
+        });
+    }, [currentArtist?.images, imageSearchQuery]);
+
+    // 过滤组合详情图片（按文件名搜索）
+    const filteredCombinationImages = useMemo(() => {
+        const images = viewModeCombination?.images || [];
+        if (!imageSearchQuery) return images;
+        const q = imageSearchQuery.toLowerCase();
+        return images.filter((img) => {
+            const filename = (img.path || '').split(/[/\\]/).pop().toLowerCase();
+            return filename.includes(q);
+        });
+    }, [viewModeCombination?.images, imageSearchQuery]);
+
     // ============ 事件处理函数 ============
 
     const handleFavoriteToggle = (artistName) => {
@@ -220,6 +248,7 @@ export function GalleryModal({ isOpen, onClose }) {
     const handleBackToGallery = () => {
         setViewMode('gallery');
         setCurrentArtist(null);
+        setImageSearchQuery('');
     };
 
     const handleImageClick = (artistIndex, imageIndex) => {
@@ -276,6 +305,7 @@ export function GalleryModal({ isOpen, onClose }) {
         setCurrentCategory(item.id);
         setViewMode('gallery');
         setCurrentArtist(null);
+        setImageSearchQuery('');
     };
 
     const handleAddCategory = () => {
@@ -1070,61 +1100,63 @@ export function GalleryModal({ isOpen, onClose }) {
      * 渲染模态框头部
      */
     const renderHeader = () => {
-        return h('div', { class: 'gallery-modal-header' }, [
-            h('div', { class: 'gallery-modal-title' }, '🎨 画师图库'),
-            h(
-                'button',
-                {
-                    class: 'gallery-modal-btn',
-                    onClick: handleAddCategory,
-                },
-                '📁 新建分类',
-            ),
-            h(
-                'button',
-                {
-                    class: 'gallery-modal-btn',
-                    onClick: openAddDialog,
-                },
-                '➕ 添加画师',
-            ),
-            // 新建组合按钮
-            h(
-                'button',
-                {
+        const isGallery = viewMode === 'gallery';
+        const isArtist = viewMode === 'artist';
+        const isCombination = viewMode === 'combination';
+
+        const buttons = [];
+
+        // 标题
+        buttons.push(h('div', { class: 'gallery-modal-title' }, '🎨 画师图库'));
+
+        // 画廊视图才显示的管理按钮
+        if (isGallery) {
+            buttons.push(
+                h('button', { class: 'gallery-modal-btn', onClick: handleAddCategory }, '📁 新建分类'),
+                h('button', { class: 'gallery-modal-btn', onClick: openAddDialog }, '➕ 添加画师'),
+                h('button', {
                     class: 'gallery-modal-btn',
                     onClick: () => {
                         setEditingCombination(null);
                         setCombinationDialogMode('add');
                         setShowCombinationDialog(true);
                     },
-                },
-                '🔗 新建组合',
-            ),
-            // 导入按钮（在分类视图或画师详情视图都显示）
-            h(
-                'button',
-                {
-                    class: 'gallery-modal-btn',
-                    onClick: () => setShowImportDialog(true),
-                },
-                '📥 导入图片',
-            ),
-            // 导入画师按钮
-            h(
-                'button',
-                {
+                }, '🔗 新建组合'),
+                h('button', { class: 'gallery-modal-btn', onClick: () => setShowImportDialog(true) }, '📥 导入图片'),
+                h('button', {
                     class: 'gallery-modal-btn',
                     onClick: () => {
-                        const input = document.getElementById(
-                            'artist-import-file-input',
-                        );
+                        const input = document.getElementById('artist-import-file-input');
                         if (input) input.click();
                     },
-                },
-                '📤 导入画师',
-            ),
-            // 隐藏的文件选择 input
+                }, '📤 导入画师'),
+            );
+        }
+
+        // 画师详情视图：只显示导入图片
+        if (isArtist) {
+            buttons.push(
+                h('button', { class: 'gallery-modal-btn', onClick: () => setShowImportDialog(true) }, '📥 导入图片'),
+            );
+        }
+
+        // 通用按钮：刷新、批量操作（仅画廊）、关闭
+        buttons.push(
+            h('button', { class: 'gallery-modal-btn', onClick: loadData }, '🔄 刷新'),
+        );
+
+        if (isGallery || isArtist || isCombination) {
+            buttons.push(
+                h('button', {
+                    class: 'gallery-modal-btn',
+                    onClick: handleToggleSelectionMode,
+                    title: selectionMode ? '退出多选模式' : '批量操作',
+                }, selectionMode ? '📋 已选' : '📋 批量操作'),
+            );
+        }
+
+        // 隐藏的文件选择 input
+        buttons.push(
             h('input', {
                 id: 'artist-import-file-input',
                 type: 'file',
@@ -1132,32 +1164,13 @@ export function GalleryModal({ isOpen, onClose }) {
                 style: { display: 'none' },
                 onChange: handleImportArtists,
             }),
-            h(
-                'button',
-                {
-                    class: 'gallery-modal-btn',
-                    onClick: loadData,
-                },
-                '🔄 刷新',
-            ),
-            h(
-                'button',
-                {
-                    class: 'gallery-modal-btn',
-                    onClick: handleToggleSelectionMode,
-                    title: selectionMode ? '退出多选模式' : '批量操作',
-                },
-                selectionMode ? '📋 已选' : '📋 批量操作',
-            ),
-            h(
-                'button',
-                {
-                    class: 'gallery-modal-btn primary',
-                    onClick: onClose,
-                },
-                '✕ 关闭',
-            ),
-        ]);
+        );
+
+        buttons.push(
+            h('button', { class: 'gallery-modal-btn primary', onClick: onClose }, '✕ 关闭'),
+        );
+
+        return h('div', { class: 'gallery-modal-header' }, buttons);
     };
 
     /**
@@ -1188,7 +1201,8 @@ export function GalleryModal({ isOpen, onClose }) {
         if (!viewModeCombination) return null;
 
         const comb = viewModeCombination;
-        const hasImages = comb.images && comb.images.length > 0;
+        // 使用过滤后的图片列表
+        const combImages = filteredCombinationImages;
 
         // 图片右键菜单处理
         const handleCombImageContextMenu = (e, image) => {
@@ -1200,13 +1214,13 @@ export function GalleryModal({ isOpen, onClose }) {
                     icon: '🔍',
                     label: '查看大图',
                     action: () => {
-                        const imgIndex = comb.images.indexOf(image);
+                        const imgIndex = combImages.indexOf(image);
                         setLightbox({
                             open: true,
                             artist: {
                                 ...comb,
                                 name: comb.name,
-                                images: comb.images,
+                                images: combImages,
                             },
                             imageIndex: imgIndex >= 0 ? imgIndex : 0,
                         });
@@ -1272,6 +1286,14 @@ export function GalleryModal({ isOpen, onClose }) {
                         }
                     },
                 },
+                {
+                    icon: 'ℹ️',
+                    label: '图片信息',
+                    action: () => {
+                        setImageInfoImage(image);
+                        setShowImageInfoDialog(true);
+                    },
+                },
             ];
 
             showContextMenu(e, menuItems);
@@ -1285,7 +1307,7 @@ export function GalleryModal({ isOpen, onClose }) {
                     selectionType: getSelectionType(),
                     onSelectAll: () => {
                         const newSet = new Set();
-                        (comb.images || []).forEach((img) => {
+                        combImages.forEach((img) => {
                             newSet.add(`image:${img.path}`);
                         });
                         setSelectedItems(newSet);
@@ -1298,10 +1320,10 @@ export function GalleryModal({ isOpen, onClose }) {
                     onExit: handleToggleSelectionMode,
                 }),
 
-            // 图片网格
-            hasImages
+            // 图片网格（支持搜索过滤）
+            combImages.length > 0
                 ? h(LazyList, {
-                      items: comb.images,
+                      items: combImages,
                       renderItem: (img, index) => {
                           const imgKey = `image:${img.path}`;
                           const isSelected = selectedItems.has(imgKey);
@@ -1327,7 +1349,7 @@ export function GalleryModal({ isOpen, onClose }) {
                                               artist: {
                                                   ...comb,
                                                   name: comb.name,
-                                                  images: comb.images,
+                                                  images: combImages,
                                               },
                                               imageIndex: index,
                                           });
@@ -1348,7 +1370,8 @@ export function GalleryModal({ isOpen, onClose }) {
                       layout: 'grid',
                       className: 'artist-detail-grid',
                   })
-                : h('div', { class: 'artist-detail-empty' }, '🔗 暂无交集图片'),
+                : h('div', { class: 'artist-detail-empty' },
+                    imageSearchQuery ? '🔍 未找到匹配图片' : '🔗 暂无交集图片'),
         ]);
     };
 
@@ -1358,8 +1381,8 @@ export function GalleryModal({ isOpen, onClose }) {
     const renderArtistDetail = () => {
         if (!currentArtist) return null;
 
-        const hasImages =
-            currentArtist.images && currentArtist.images.length > 0;
+        // 使用过滤后的图片列表
+        const images = filteredArtistImages;
 
         // 图片右键菜单处理
         const handleImageContextMenu = (e, image) => {
@@ -1377,7 +1400,7 @@ export function GalleryModal({ isOpen, onClose }) {
                                     a.categoryId === currentArtist.categoryId &&
                                     a.name === currentArtist.name,
                             ),
-                            currentArtist.images.indexOf(image),
+                            images.indexOf(image),
                         ),
                 },
                 {
@@ -1414,9 +1437,9 @@ export function GalleryModal({ isOpen, onClose }) {
                     icon: '📄',
                     label: '复制图片',
                     action: () => {
-                        setMoveItem(image);
-                        setMoveItemType('image');
-                        setShowMoveDialog(true);
+                        setCopyItem(image);
+                        setCopyItemType('image');
+                        setShowCopyDialog(true);
                     },
                 },
                 {
@@ -1466,6 +1489,14 @@ export function GalleryModal({ isOpen, onClose }) {
                         }
                     },
                 },
+                {
+                    icon: 'ℹ️',
+                    label: '图片信息',
+                    action: () => {
+                        setImageInfoImage(image);
+                        setShowImageInfoDialog(true);
+                    },
+                },
             ];
 
             showContextMenu(e, menuItems);
@@ -1479,7 +1510,7 @@ export function GalleryModal({ isOpen, onClose }) {
                     selectionType: getSelectionType(),
                     onSelectAll: () => {
                         const newSet = new Set();
-                        currentArtist.images.forEach((img) => {
+                        images.forEach((img) => {
                             newSet.add(`image:${img.path}`);
                         });
                         setSelectedItems(newSet);
@@ -1492,10 +1523,10 @@ export function GalleryModal({ isOpen, onClose }) {
                     onExit: handleToggleSelectionMode,
                 }),
 
-            // 图片网格（使用 LazyList 懒加载）
-            hasImages
+            // 图片网格（使用 LazyList 懒加载，支持搜索过滤）
+            images.length > 0
                 ? h(LazyList, {
-                      items: currentArtist.images,
+                      items: images,
                       renderItem: (img, index) => {
                           const imgKey = `image:${img.path}`;
                           const isSelected = selectedItems.has(imgKey);
@@ -1524,7 +1555,7 @@ export function GalleryModal({ isOpen, onClose }) {
                                                       a.name ===
                                                           currentArtist.name,
                                               ),
-                                              index,
+                                              images.indexOf(img),
                                           );
                                       }
                                   },
@@ -1543,7 +1574,8 @@ export function GalleryModal({ isOpen, onClose }) {
                       layout: 'grid',
                       className: 'artist-detail-grid',
                   })
-                : h('div', { class: 'artist-detail-empty' }, '🎨 暂无图片'),
+                : h('div', { class: 'artist-detail-empty' },
+                    imageSearchQuery ? '🔍 未找到匹配图片' : '🎨 暂无图片'),
         ]);
     };
 
@@ -1638,6 +1670,10 @@ export function GalleryModal({ isOpen, onClose }) {
      * 渲染合并的面包屑和筛选栏
      */
     const renderMergedHeader = () => {
+        const isGallery = viewMode === 'gallery';
+        const isArtist = viewMode === 'artist';
+        const isCombination = viewMode === 'combination';
+
         return h('div', { class: 'gallery-merged-header' }, [
             // 左侧：面包屑导航
             h('div', { class: 'gallery-breadcrumb-section' }, [
@@ -1647,8 +1683,8 @@ export function GalleryModal({ isOpen, onClose }) {
                 }),
             ]),
 
-            // 右侧：筛选和排序控件
-            h('div', { class: 'gallery-filter-section' }, [
+            // 右侧：筛选和排序控件（仅画廊视图显示）
+            isGallery && h('div', { class: 'gallery-filter-section' }, [
                 // 搜索框
                 h('input', {
                     class: 'gallery-search-input',
@@ -1723,6 +1759,22 @@ export function GalleryModal({ isOpen, onClose }) {
                     }),
                     h('span', { class: 'gallery-size-label' }, '◠'),
                 ]),
+            ]),
+
+            // 画师/组合详情视图：图片搜索
+            (isArtist || isCombination) && h('div', { class: 'gallery-filter-section' }, [
+                h('input', {
+                    class: 'gallery-search-input',
+                    type: 'text',
+                    placeholder: '搜索图片...',
+                    value: imageSearchQuery,
+                    onInput: (e) => setImageSearchQuery(e.target.value),
+                }),
+                h(
+                    'span',
+                    { class: 'gallery-count-badge' },
+                    `${(isArtist ? filteredArtistImages : filteredCombinationImages).length}/${(isArtist ? currentArtist?.images : viewModeCombination?.images)?.length || 0}`,
+                ),
             ]),
         ]);
     };
@@ -1867,6 +1919,17 @@ export function GalleryModal({ isOpen, onClose }) {
         });
     };
 
+    const renderImageInfoDialog = () => {
+        return h(ImageInfoDialog, {
+            isOpen: showImageInfoDialog,
+            image: imageInfoImage,
+            onClose: () => {
+                setShowImageInfoDialog(false);
+                setImageInfoImage(null);
+            },
+        });
+    };
+
     /**
      * 渲染批量操作确认对话框
      */
@@ -1938,6 +2001,7 @@ export function GalleryModal({ isOpen, onClose }) {
             renderCopyDialog(),
             renderBatchConfirmDialog(),
             renderCombinationDialog(),
+            renderImageInfoDialog(),
         ],
     );
 }

@@ -40,6 +40,56 @@ async def get_image_artists(request):
 
 # ============ Save to Gallery API ============
 
+@server.PromptServer.instance.routes.get("/artist_gallery/image/info")
+async def get_image_info(request):
+    """获取图片详细信息（画师、prompt、工作流、文件信息）"""
+    try:
+        image_path = request.query.get("path", "")
+        if not image_path:
+            return web.json_response({"error": "缺少path参数"}, status=400)
+
+        import folder_paths
+        output_dir = Path(folder_paths.get_output_directory())
+        full_path = output_dir / image_path
+
+        if not full_path.exists():
+            return web.json_response({"error": "图片文件不存在"}, status=404)
+
+        result = {"mapping": None, "pnginfo": {}, "fileInfo": {}}
+
+        # 1. 从映射存储获取画师关联
+        artist_storage, mapping_storage, _, _ = get_storage()
+        mapping = mapping_storage.get_mappings_by_image(image_path)
+        if mapping:
+            result["mapping"] = {
+                "artistNames": mapping.get("artistNames", []),
+                "savedAt": mapping.get("savedAt"),
+                "metadata": mapping.get("metadata", {}),
+            }
+
+        # 2. 读取 PNG 元数据
+        try:
+            from PIL import Image
+            with Image.open(full_path) as img:
+                if hasattr(img, "text"):
+                    result["pnginfo"] = dict(img.text)
+                result["fileInfo"]["width"] = img.width
+                result["fileInfo"]["height"] = img.height
+        except Exception:
+            pass
+
+        # 3. 文件基本信息
+        try:
+            stat = full_path.stat()
+            result["fileInfo"]["size"] = stat.st_size
+            result["fileInfo"]["sizeFormatted"] = f"{stat.st_size / 1024:.1f} KB"
+        except Exception:
+            pass
+
+        return web.json_response({"success": True, "info": result})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
 @server.PromptServer.instance.routes.post("/artist_gallery/save")
 async def save_to_gallery(request):
     """保存图片到画廊并创建映射关系"""

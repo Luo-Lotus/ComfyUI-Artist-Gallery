@@ -23,7 +23,9 @@ async def get_init_data(request):
         # 2. 所有画师（轻量，无图片列表）
         artists = artist_storage.get_all_artists()
 
-        # 3. 所有组合（计算 coverImagePath）
+        # 3. 所有组合（计算 coverImagePath，复用索引消除 N+1）
+        artist_mapping_index = mapping_storage.build_artist_index()
+
         raw_combinations = combination_storage.get_all_combinations()
         combinations = []
         for comb in raw_combinations:
@@ -31,8 +33,7 @@ async def get_init_data(request):
             cover_path = comb.get("coverImageId")
             if not cover_path:
                 for artist_name in comb.get("artistKeys", []):
-                    mappings = mapping_storage.get_mappings_by_artist(artist_name)
-                    for m in mappings:
+                    for m in artist_mapping_index.get(artist_name, []):
                         image_path = m.get("imagePath")
                         full_path = Path(output_dir) / image_path
                         if full_path.exists():

@@ -12,8 +12,8 @@ export function Dialog({
     children,
     footer,
     maxWidth = '500px',
-    showCloseButton = true,
-    closeOnOverlayClick = true,
+    maxHeight = '500px',
+    showCloseButton = true,    closeOnOverlayClick = true,
     className = '',
 }) {
     // ============ 渲染函数 ============
@@ -73,7 +73,7 @@ export function Dialog({
             'div',
             {
                 class: 'gallery-modal-content gallery-dialog-content',
-                style: { maxWidth },
+                style: { maxWidth, maxHeight },
                 onClick: (e) => e.stopPropagation(),
             },
             [renderHeader(), renderBody(), renderFooter()],

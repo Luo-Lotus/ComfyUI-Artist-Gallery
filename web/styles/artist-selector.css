@@ -150,8 +150,8 @@
 }
 
 .artist-selector-hover-preview img {
-    max-width: 40vw;
-    max-height: 40vh;
+    max-width: 400px;
+    max-height: 400px;
     display: block;
     border-radius: 4px;
 }
@@ -485,7 +485,7 @@
 
 .config-input:focus {
     outline: none;
-    border-color: #4CAF50;
+    border-color: #4caf50;
 }
 
 .config-input:disabled {
@@ -496,7 +496,7 @@
 .config-preview {
     background: #1a1a1a;
     border: 1px solid #3a3a3a;
-    border-left: 3px solid #4CAF50;
+    border-left: 3px solid #4caf50;
     color: #888;
     padding: 8px;
     border-radius: 4px;
@@ -544,7 +544,7 @@
     color: #fff;
 }
 
-.config-radio-item input[type="radio"]:disabled + .config-radio-label {
+.config-radio-item input[type='radio']:disabled + .config-radio-label {
     opacity: 0.5;
     cursor: not-allowed;
 }
@@ -563,7 +563,7 @@
 
 .config-number-input:focus {
     outline: none;
-    border-color: #4CAF50;
+    border-color: #4caf50;
 }
 
 .config-number-input:disabled {
@@ -590,7 +590,7 @@
     color: #fff;
 }
 
-.config-checkbox-item input[type="checkbox"] {
+.config-checkbox-item input[type='checkbox'] {
     cursor: pointer;
 }
 
@@ -721,7 +721,7 @@
     border-radius: 3px;
     font-family: 'Consolas', 'Monaco', monospace;
     font-size: 11px;
-    color: #4CAF50;
+    color: #4caf50;
 }
 
 .node-config-radio-group {
@@ -739,7 +739,7 @@
     cursor: pointer;
 }
 
-.node-config-radio input[type="radio"] {
+.node-config-radio input[type='radio'] {
     cursor: pointer;
 }
 
@@ -757,7 +757,7 @@
     user-select: none;
 }
 
-.node-config-checkbox input[type="checkbox"] {
+.node-config-checkbox input[type='checkbox'] {
     cursor: pointer;
 }
 
@@ -893,8 +893,8 @@
 }
 
 .add-partition-confirm:hover {
-    background: #4CAF50;
-    border-color: #4CAF50;
+    background: #4caf50;
+    border-color: #4caf50;
 }
 
 .add-partition-cancel:hover {
@@ -930,7 +930,7 @@
 }
 
 .partition-item.drag-over {
-    border-color: #4CAF50;
+    border-color: #4caf50;
     background: rgba(76, 175, 80, 0.1);
 }
 
@@ -1037,6 +1037,13 @@
     font-size: 11px;
 }
 
+.artist-selector-tag.orphaned {
+    background: rgba(255, 152, 0, 0.2);
+    border: 1px dashed rgba(255, 152, 0, 0.5);
+    opacity: 0.75;
+    cursor: default;
+}
+
 .artist-remove-btn {
     background: transparent;
     border: none;
@@ -1112,7 +1119,11 @@
 /* 区域标题 */
 .artist-selector-section-header {
     padding: 6px 10px;
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(156, 89, 182, 0.1) 100%);
+    background: linear-gradient(
+        135deg,
+        rgba(59, 130, 246, 0.1) 0%,
+        rgba(156, 89, 182, 0.1) 100%
+    );
     border-radius: 6px;
     border-left: 3px solid #3b82f6;
 }
@@ -1180,7 +1191,7 @@
 }
 
 .partition-item.drag-over {
-    border-color: #4CAF50;
+    border-color: #4caf50;
     background: rgba(76, 175, 80, 0.1);
 }
 

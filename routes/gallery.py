@@ -33,14 +33,17 @@ async def get_gallery_data(request):
             if a.get("categoryId") == category_id
         ]
 
+        # 一次性构建 artist_name → [mapping, ...] 索引，消除 N+1 查询
+        artist_mapping_index = mapping_storage.build_artist_index()
+
         # 构建结果列表（只返回封面信息，不返回完整图片列表）
         result_artists = []
 
         for artist in artists_data:
             artist_name = artist.get("name")
+            mappings = artist_mapping_index.get(artist_name, [])
 
-            # 获取该画师的图片映射数量（只计数，不返回完整列表）
-            mappings = mapping_storage.get_mappings_by_artist(artist_name)
+            # 计数（只统计文件存在的映射）
             image_count = 0
             for mapping in mappings:
                 image_path = mapping.get("imagePath")
@@ -48,12 +51,15 @@ async def get_gallery_data(request):
                 if full_path.exists():
                     image_count += 1
 
-            # 获取封面图片路径：优先用设置的封面，否则取第一张
+            # 获取封面图片路径：优先用设置的封面，否则取第一张存在的映射
             cover_path = artist.get("coverImageId")
             if not cover_path:
-                first_mapping = mapping_storage.get_first_mapping_by_artist(artist_name)
-                if first_mapping:
-                    cover_path = first_mapping.get("imagePath")
+                for m in mappings:
+                    image_path = m.get("imagePath")
+                    full_path = Path(output_dir) / image_path
+                    if full_path.exists():
+                        cover_path = image_path
+                        break
 
             # 构建画师对象（不包含 images 数组）
             result_artist = {
@@ -70,7 +76,7 @@ async def get_gallery_data(request):
         # 排序画师
         result_artists.sort(key=lambda x: x["name"].lower())
 
-        # 获取当前分类下的组合，并添加封面图片路径
+        # 获取当前分类下的组合，并添加封面图片路径（复用同一个索引）
         raw_combinations = combination_storage.get_combinations_by_category(category_id)
         result_combinations = []
         for comb in raw_combinations:
@@ -79,8 +85,7 @@ async def get_gallery_data(request):
             cover_path = comb.get("coverImageId")
             if not cover_path:
                 for artist_name in comb.get("artistKeys", []):
-                    mappings = mapping_storage.get_mappings_by_artist(artist_name)
-                    for m in mappings:
+                    for m in artist_mapping_index.get(artist_name, []):
                         image_path = m.get("imagePath")
                         full_path = Path(output_dir) / image_path
                         if full_path.exists():

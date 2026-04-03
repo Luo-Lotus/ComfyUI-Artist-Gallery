@@ -132,14 +132,14 @@ export function PartitionItem({
                 ]);
             }),
 
-            // 渲染该分区的画师
+            // 渲染该分区的画师（含孤立项）
             ...artists.map((artist) => {
-                const key = `${artist.categoryId}:${artist.name}`;
+                const key = artist._orphaned ? artist._orphanedKey : `${artist.categoryId}:${artist.name}`;
                 return h('span', {
                     key: key,
-                    class: 'artist-selector-tag',
-                    draggable: true,
-                    onDragStart: (e) => {
+                    class: `artist-selector-tag ${artist._orphaned ? 'orphaned' : ''}`,
+                    draggable: !artist._orphaned,
+                    onDragStart: artist._orphaned ? undefined : (e) => {
                         e.dataTransfer.setData('text/plain', JSON.stringify({
                             type: 'artist',
                             key: key,
@@ -147,7 +147,8 @@ export function PartitionItem({
                         e.dataTransfer.effectAllowed = 'move';
                     },
                 }, [
-                    h('span', { class: 'artist-name' }, artist.displayName || artist.name),
+                    artist._orphaned && h('span', { class: 'artist-selector-tag-icon' }, '⚠️'),
+                    h('span', { class: 'artist-name' }, (artist.displayName || artist.name) + (artist._orphaned ? ' (未找到)' : '')),
                     h('button', {
                         class: 'artist-remove-btn',
                         onClick: (e) => {

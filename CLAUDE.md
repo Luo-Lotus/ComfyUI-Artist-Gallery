@@ -189,6 +189,14 @@ web/
 - Use render functions within components for complex JSX
 - Use Toast instead of `alert()` for user feedback
 
+### Styling
+- **Style Guide**: See [`STYLE_GUIDE.md`](STYLE_GUIDE.md) for the complete design system (colors, typography, spacing, component patterns)
+- **Gallery UI**: Uses pink/light theme (`#ff6b9d` / `#ffb6c1` / `#fff5f8`)
+- **Node Widgets**: Uses dark theme (`#1e1e1e` / `#6c5ce7`) matching ComfyUI editor
+- **Always check `STYLE_GUIDE.md` before writing new CSS or creating new components**
+- Each component has its own CSS file under `web/styles/`, imported via `gallery.css`
+- CSS class naming: `gallery-` prefix for gallery UI, `artist-selector-` for node widgets
+
 ### Debugging
 - **Backend errors**: Check ComfyUI console/terminal output
 - **Frontend errors**: Open browser DevTools (F12) → Console tab

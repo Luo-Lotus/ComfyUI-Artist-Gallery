@@ -104,14 +104,25 @@ export function usePartitionState({ selectedArtistsCache, categories, combinatio
         return { ...DEFAULT_PARTITION_DATA };
     });
 
-    // 获取每个分区的画师列表
+    // 获取每个分区的画师列表（含孤立项标记）
     const getArtistsByPartition = useMemo(() => {
         const result = {};
         partitionData.partitions.forEach((partition) => {
             result[partition.id] = Object.keys(partitionData.artistPartitionMap)
                 .filter((key) => partitionData.artistPartitionMap[key] === partition.id)
-                .map((key) => selectedArtistsCache[key])
-                .filter(Boolean);
+                .map((key) => {
+                    const cached = selectedArtistsCache[key];
+                    if (cached) return cached;
+                    // 孤立项：生成合成对象，UI 可展示警告
+                    const colonIdx = key.indexOf(':');
+                    return {
+                        categoryId: key.substring(0, colonIdx),
+                        name: key.substring(colonIdx + 1),
+                        displayName: key.substring(colonIdx + 1),
+                        _orphaned: true,
+                        _orphanedKey: key,
+                    };
+                });
         });
         return result;
     }, [partitionData, selectedArtistsCache]);

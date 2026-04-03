@@ -12,6 +12,7 @@ class ArtistStorage:
         self.storage_dir = storage_dir
         self.artists_file = storage_dir / "artists.json"
         self._lock = threading.Lock()
+        self._cache = None
         self._ensure_storage_dir()
 
     def _ensure_storage_dir(self):
@@ -23,20 +24,26 @@ class ArtistStorage:
             self._write_data({"artists": []})
 
     def _read_data(self) -> dict:
-        """读取数据文件"""
+        """读取数据文件（带缓存）"""
+        if self._cache is not None:
+            return self._cache
         try:
             with open(self.artists_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                self._cache = json.load(f)
+            return self._cache
         except Exception as e:
             print(f"Error reading artists file: {e}")
-            return {"artists": []}
+            self._cache = {"artists": []}
+            return self._cache
 
     def _write_data(self, data: dict):
-        """写入数据文件"""
+        """写入数据文件（同时更新缓存）"""
         try:
             with open(self.artists_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
+            self._cache = data
         except Exception as e:
+            self._cache = None  # 写入失败，清除缓存
             print(f"Error writing artists file: {e}")
             raise
 

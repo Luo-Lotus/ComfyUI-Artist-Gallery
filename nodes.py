@@ -392,6 +392,7 @@ class SaveToGallery:
             },
             "optional": {
                 "filename_prefix": ("STRING", {"default": "AG"}),
+                "prompt_string": ("STRING", {"default": ""}),
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -399,7 +400,7 @@ class SaveToGallery:
             }
         }
 
-    def save_image(self, images, metadata_json, filename_prefix="AG", prompt=None, extra_pnginfo=None):
+    def save_image(self, images, metadata_json, filename_prefix="AG", prompt_string="", prompt=None, extra_pnginfo=None):
         """
         保存图片到 output/artist_gallery/ 并创建映射关系
         :param metadata_json: 由 ArtistSelector 输出的 JSON，包含:
@@ -448,6 +449,7 @@ class SaveToGallery:
             pnginfo.add_text("artist_gallery", json.dumps({
                 "artist_names": saveable_names,
                 "selected_artists": saveable_artists,
+                "prompt_string": prompt_string or "",
             }))
 
             if extra_pnginfo is not None:
@@ -464,7 +466,7 @@ class SaveToGallery:
                 mapping_storage.add_mapping(
                     image_path,
                     saveable_names,
-                    {"width": img.width, "height": img.height}
+                    {"width": img.width, "height": img.height, "prompt_string": prompt_string or ""}
                 )
 
                 # 更新画师图片计数（仅 saveToGallery=true 的画师）

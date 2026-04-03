@@ -11,6 +11,7 @@ class ImageMappingStorage:
         self.storage_dir = storage_dir
         self.mappings_file = storage_dir / "image_artists.json"
         self._lock = threading.Lock()
+        self._cache = None
         self._ensure_storage_dir()
 
     def _ensure_storage_dir(self):
@@ -22,20 +23,26 @@ class ImageMappingStorage:
             self._write_data({"mappings": []})
 
     def _read_data(self) -> dict:
-        """读取数据文件"""
+        """读取数据文件（带缓存）"""
+        if self._cache is not None:
+            return self._cache
         try:
             with open(self.mappings_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                self._cache = json.load(f)
+            return self._cache
         except Exception as e:
             print(f"Error reading mappings file: {e}")
-            return {"mappings": []}
+            self._cache = {"mappings": []}
+            return self._cache
 
     def _write_data(self, data: dict):
-        """写入数据文件"""
+        """写入数据文件（同时更新缓存）"""
         try:
             with open(self.mappings_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
+            self._cache = data
         except Exception as e:
+            self._cache = None
             print(f"Error writing mappings file: {e}")
             raise
 
@@ -215,3 +222,16 @@ class ImageMappingStorage:
             for m in mappings
             if artist_name in m.get("artistNames", [])
         ]
+
+    def build_artist_index(self) -> Dict[str, List[dict]]:
+        """
+        一次性构建 artist_name → [mapping, ...] 索引。
+        用于批量查询场景，消除 N+1 问题。
+        """
+        with self._lock:
+            data = self._read_data()
+            index: Dict[str, List[dict]] = {}
+            for m in data.get("mappings", []):
+                for name in m.get("artistNames", []):
+                    index.setdefault(name, []).append(m)
+            return index
