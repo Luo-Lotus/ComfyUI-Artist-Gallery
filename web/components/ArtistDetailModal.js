@@ -8,6 +8,7 @@ import { buildImageUrl } from '../utils.js';
 import { Lightbox } from './Lightbox.js';
 import { MoveDialog } from './MoveDialog.js';
 import { useContextMenu } from './ContextMenu.js';
+import { Icon } from '../lib/icons.mjs';
 
 export function ArtistDetailModal({ isOpen, artist, onClose, onImageDelete, categories, allArtists }) {
     const [lightbox, setLightbox] = useState({
@@ -54,9 +55,9 @@ export function ArtistDetailModal({ isOpen, artist, onClose, onImageDelete, cate
 
     const handleImageContextMenu = (e, image) => {
         const menuItems = [
-            { icon: '🔍', label: '查看大图', action: () => handleImageClick(artist.images.indexOf(image)) },
-            { icon: '📦', label: '移动图片', action: () => handleMoveImage(image) },
-            { icon: '🗑️', label: '删除图片', action: () => handleDeleteImage(image.path, artist.images.indexOf(image)) }
+            { icon: 'search', label: '查看大图', action: () => handleImageClick(artist.images.indexOf(image)) },
+            { icon: 'move', label: '移动图片', action: () => handleMoveImage(image) },
+            { icon: 'trash-2', label: '删除图片', action: () => handleDeleteImage(image.path, artist.images.indexOf(image)) }
         ];
 
         showContextMenu(e, menuItems);
@@ -125,7 +126,7 @@ export function ArtistDetailModal({ isOpen, artist, onClose, onImageDelete, cate
                     class: 'close-btn',
                     onClick: onClose,
                     title: '关闭'
-                }, '✕')
+                }, h(Icon, { name: 'x', size: 16 }))
             ]),
 
             // 图片网格
@@ -144,7 +145,7 @@ export function ArtistDetailModal({ isOpen, artist, onClose, onImageDelete, cate
                         })
                     ])
                 )
-            ) : h('div', { class: 'artist-detail-empty' }, '🎨 暂无图片')
+            ) : h('div', { class: 'artist-detail-empty' }, '暂无图片')
         ]),
 
         // Lightbox

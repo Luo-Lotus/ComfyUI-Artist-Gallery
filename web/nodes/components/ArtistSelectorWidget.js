@@ -4,6 +4,7 @@
  */
 import { h } from '../../lib/preact.mjs';
 import { useState, useMemo, useCallback } from '../../lib/hooks.mjs';
+import { Icon } from '../../lib/icons.mjs';
 import { useArtistSelector } from './hooks/useArtistSelector.js';
 import { useImagePreview } from './hooks/useImagePreview.js';
 import { PartitionList } from './PartitionList.js';
@@ -177,7 +178,7 @@ export function ArtistSelectorWidget({
                 title: '点击选择分类，点击 > 进入分类',
             },
             [
-                h('span', { class: 'artist-selector-category-icon' }, '📁'),
+                h('span', { class: 'artist-selector-category-icon' }, h(Icon, { name: 'folder', size: 16 })),
                 h('span', { class: 'artist-selector-category-name' }, cat.name),
                 h(
                     'span',
@@ -189,7 +190,7 @@ export function ArtistSelectorWidget({
                         },
                         title: '进入分类',
                     },
-                    '>',
+                    h(Icon, { name: 'chevron-right', size: 14 }),
                 ),
             ],
         );
@@ -228,7 +229,7 @@ export function ArtistSelectorWidget({
                         onClick: () =>
                             setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'),
                     },
-                    sortOrder === 'asc' ? '↑ 升序' : '↓ 降序',
+                    sortOrder === 'asc' ? [h(Icon, { name: 'arrow-up', size: 12 }), ' 升序'] : [h(Icon, { name: 'arrow-down', size: 12 }), ' 降序'],
                 ),
                 h(
                     'button',
@@ -238,7 +239,7 @@ export function ArtistSelectorWidget({
                         disabled: refreshing,
                         title: '刷新',
                     },
-                    refreshing ? '⟳' : '🔄',
+                    refreshing ? h(Icon, { name: 'loader', size: 14, class: 'spin' }) : h(Icon, { name: 'refresh-cw', size: 14 }),
                 ),
             ]),
         ]);
@@ -285,7 +286,7 @@ export function ArtistSelectorWidget({
                 onMouseLeave: () => handleMouseLeave(),
             },
             [
-                h('span', { class: 'artist-selector-item-icon' }, '🔗'),
+                h('span', { class: 'artist-selector-item-icon' }, h(Icon, { name: 'link', size: 14 })),
                 h(
                     'span',
                     { class: 'artist-selector-item-name' },

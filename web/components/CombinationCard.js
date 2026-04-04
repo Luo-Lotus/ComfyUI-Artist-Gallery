@@ -3,6 +3,7 @@
  * 显示组合信息，复用 BaseCard 包装
  */
 import { h } from '../lib/preact.mjs';
+import { Icon } from '../lib/icons.mjs';
 import { useState } from '../lib/hooks.mjs';
 import { buildImageUrl } from '../utils.js';
 import { BaseCard } from './BaseCard.js';
@@ -45,27 +46,27 @@ export function CombinationCard({
 
         const menuItems = [
             {
-                icon: '📋',
+                icon: 'clipboard-list',
                 label: copied ? '已复制' : '复制文本',
                 action: handleCopyText,
             },
             {
-                icon: '✏️',
+                icon: 'edit',
                 label: '编辑',
                 action: () => onEdit && onEdit(combination),
             },
             {
-                icon: '📄',
+                icon: 'copy',
                 label: '复制',
                 action: () => onDuplicate && onDuplicate(combination),
             },
             {
-                icon: '📦',
+                icon: 'move',
                 label: '移动',
                 action: () => onMove && onMove(combination, 'combination'),
             },
             {
-                icon: '🗑️',
+                icon: 'trash-2',
                 label: '删除',
                 action: () => onDelete && onDelete(combination),
             },
@@ -84,7 +85,7 @@ export function CombinationCard({
                     class: 'gallery-artist-name',
                     title: combination.name,
                 },
-                `🔗 ${combination.name}`,
+                `${combination.name}`,
             ),
             h(
                 'span',
@@ -122,7 +123,7 @@ export function CombinationCard({
                 }
             },
         }, [
-            h('div', { class: 'gallery-card-empty-icon' }, '🔗'),
+            h('div', { class: 'gallery-card-empty-icon' }, h(Icon, { name: 'link', size: 32 })),
             h('div', { class: 'gallery-card-empty-text' }, `${memberCount} 个画师`),
         ]);
     };

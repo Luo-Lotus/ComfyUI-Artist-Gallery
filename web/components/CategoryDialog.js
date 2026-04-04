@@ -4,6 +4,7 @@
 import { h } from '../lib/preact.mjs';
 import { useState, useEffect } from '../lib/hooks.mjs';
 import { Dialog, DialogButton } from './Dialog.js';
+import { Icon } from '../lib/icons.mjs';
 
 export function CategoryDialog({ isOpen, mode, category, categories, currentCategoryId, onClose, onSave }) {
     const [name, setName] = useState('');
@@ -44,7 +45,7 @@ export function CategoryDialog({ isOpen, mode, category, categories, currentCate
         isOpen,
         onClose,
         title: mode === 'add' ? '添加分类' : '编辑分类',
-        titleIcon: '📁',
+        titleIcon: h(Icon, { name: 'folder-plus', size: 18 }),
         maxWidth: '400px',
         footer: [
             h(DialogButton, { onClick: onClose }, '取消'),

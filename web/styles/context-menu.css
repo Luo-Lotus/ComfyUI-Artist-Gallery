@@ -52,9 +52,16 @@
 }
 
 .context-menu-icon {
-    font-size: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 20px;
-    text-align: center;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+.context-menu-icon svg {
+    vertical-align: middle;
 }
 
 .context-menu-label {

@@ -5,6 +5,7 @@ import { h } from '../lib/preact.mjs';
 import { showToast } from './Toast.js';
 import { deleteArtistByKey } from '../services/artistApi.js';
 import { Dialog, DialogButton } from './Dialog.js';
+import { Icon } from '../lib/icons.mjs';
 
 export function DeleteConfirmDialog({ isOpen, artist, onConfirm, onCancel }) {
     /**
@@ -64,7 +65,7 @@ export function DeleteConfirmDialog({ isOpen, artist, onConfirm, onCancel }) {
         isOpen,
         onClose: onCancel,
         title: '确认删除',
-        titleIcon: '⚠️',
+        titleIcon: h(Icon, { name: 'alert-triangle', size: 18 }),
         maxWidth: '400px',
         footer: renderFooter(),
     }, renderContent());

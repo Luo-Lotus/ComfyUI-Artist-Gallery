@@ -4,6 +4,7 @@
  */
 import { h } from '../../lib/preact.mjs';
 import { useState } from '../../lib/hooks.mjs';
+import { Icon } from '../../lib/icons.mjs';
 import { PartitionHeader } from './PartitionHeader.js';
 
 export function PartitionItem({
@@ -76,7 +77,7 @@ export function PartitionItem({
                     e.dataTransfer.effectAllowed = 'move';
                 },
             }, [
-                h('span', { class: 'artist-selector-tag-icon' }, '🔗'),
+                h('span', { class: 'artist-selector-tag-icon' }, h(Icon, { name: 'link', size: 12 })),
                 combination.name,
                 h('button', {
                     class: 'artist-remove-btn',
@@ -84,7 +85,7 @@ export function PartitionItem({
                         e.stopPropagation();
                         onCombinationRemove && onCombinationRemove(combKey);
                     },
-                }, '×'),
+                }, h(Icon, { name: 'x', size: 12 })),
             ]);
         });
     };
@@ -120,7 +121,7 @@ export function PartitionItem({
                         e.dataTransfer.effectAllowed = 'move';
                     },
                 }, [
-                    h('span', { class: 'artist-selector-tag-icon' }, '📁'),
+                    h('span', { class: 'artist-selector-tag-icon' }, h(Icon, { name: 'folder', size: 12 })),
                     category.name,
                     h('button', {
                         class: 'artist-remove-btn',
@@ -128,7 +129,7 @@ export function PartitionItem({
                             e.stopPropagation();
                             onCategoryRemove && onCategoryRemove(category.id);
                         },
-                    }, '×'),
+                    }, h(Icon, { name: 'x', size: 12 })),
                 ]);
             }),
 
@@ -147,7 +148,7 @@ export function PartitionItem({
                         e.dataTransfer.effectAllowed = 'move';
                     },
                 }, [
-                    artist._orphaned && h('span', { class: 'artist-selector-tag-icon' }, '⚠️'),
+                    artist._orphaned && h('span', { class: 'artist-selector-tag-icon' }, h(Icon, { name: 'alert-triangle', size: 12 })),
                     h('span', { class: 'artist-name' }, (artist.displayName || artist.name) + (artist._orphaned ? ' (未找到)' : '')),
                     h('button', {
                         class: 'artist-remove-btn',
@@ -155,7 +156,7 @@ export function PartitionItem({
                             e.stopPropagation();
                             onArtistRemove && onArtistRemove(key);
                         },
-                    }, '×'),
+                    }, h(Icon, { name: 'x', size: 12 })),
                 ]);
             }),
 

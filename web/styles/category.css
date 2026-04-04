@@ -20,8 +20,16 @@
 }
 
 .category-icon {
-    font-size: var(--card-category-icon-size);
     flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.category-icon svg {
+    display: block;
+    color: #ffb347;
 }
 
 .category-info {

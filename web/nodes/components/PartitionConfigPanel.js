@@ -4,6 +4,7 @@
  */
 import { h } from '../../lib/preact.mjs';
 import { useState } from '../../lib/hooks.mjs';
+import { Icon } from '../../lib/icons.mjs';
 
 export function PartitionConfigPanel({
     partition,
@@ -39,7 +40,7 @@ export function PartitionConfigPanel({
     // 渲染格式提示
     const renderFormatHint = () => {
         return h('div', { class: 'config-hint' }, [
-            h('div', null, '💡 提示：'),
+            h('div', { class: 'config-hint-title' }, [h(Icon, { name: 'lightbulb', size: 14 }), ' 提示：']),
             h('ul', {}, [
                 h('li', null, '{content} - 画师名称'),
                 h('li', null, '{random(min,max,step)} - 随机数'),
@@ -51,11 +52,11 @@ export function PartitionConfigPanel({
     return h('div', { class: 'node-config-panel' }, [
         // 头部
         h('div', { class: 'node-config-header' }, [
-            h('span', null, `⚙️ ${partition.isDefault ? '默认分区' : partition.name} - 配置`),
+            h('span', { class: 'node-config-header-title' }, [h(Icon, { name: 'settings', size: 14 }), ` ${partition.isDefault ? '默认分区' : partition.name} - 配置`]),
             h('button', {
                 class: 'node-config-close',
                 onClick: onClose,
-            }, '✕'),
+            }, h(Icon, { name: 'x', size: 14 })),
         ]),
 
         // 内容

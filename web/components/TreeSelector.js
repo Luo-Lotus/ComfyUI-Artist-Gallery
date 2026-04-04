@@ -4,6 +4,7 @@
  */
 import { h } from '../lib/preact.mjs';
 import { useState, useMemo } from '../lib/hooks.mjs';
+import { Icon } from '../lib/icons.mjs';
 
 export function TreeSelector({
     type, // 'category' | 'artist'
@@ -89,7 +90,7 @@ export function TreeSelector({
         }, [
             // 图标
             h('span', { class: 'tree-item-icon' },
-                isCategory ? '📁' : '👤'
+                h(Icon, { name: isCategory ? 'folder' : 'user', size: 14 })
             ),
 
             // 名称

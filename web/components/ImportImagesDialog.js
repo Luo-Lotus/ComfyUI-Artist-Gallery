@@ -11,6 +11,7 @@ import { Dialog, DialogButton } from './Dialog.js';
 import { FileUploader } from './FileUploader.js';
 import { ImportPreview } from './ImportPreview.js';
 import { showToast } from './Toast.js';
+import { Icon } from '../lib/icons.mjs';
 
 export function ImportImagesDialog({
     isOpen,
@@ -268,7 +269,7 @@ export function ImportImagesDialog({
             isOpen,
             onClose: handleClose,
             title: getDialogTitle(),
-            titleIcon: '📥',
+            titleIcon: h(Icon, { name: 'download', size: 18 }),
             maxWidth: '700px',
             footer: renderFooter(),
         },

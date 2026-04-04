@@ -3,6 +3,7 @@
  * 显示单个画师的信息和图片
  */
 import { h } from '../lib/preact.mjs';
+import { Icon } from '../lib/icons.mjs';
 import { useState } from '../lib/hooks.mjs';
 import { buildImageUrl } from '../utils.js';
 import { BaseCard } from './BaseCard.js';
@@ -51,34 +52,34 @@ export function GalleryCard({
         if (selectionMode) return;
 
         const menuItems = [
-            { icon: '📋', label: '复制名称', action: handleCopy },
+            { icon: 'clipboard-list', label: '复制名称', action: handleCopy },
             {
-                icon: '☆',
+                icon: 'star',
                 label: '收藏',
                 action: () => onFavoriteToggle(artist.name),
             },
             {
-                icon: '✏️',
+                icon: 'edit',
                 label: '编辑',
                 action: () => onEdit && onEdit(artist),
             },
             {
-                icon: '📦',
+                icon: 'move',
                 label: '移动',
                 action: () => onMove && onMove(artist),
             },
             {
-                icon: '📄',
+                icon: 'copy',
                 label: '复制到',
                 action: () => onCopy && onCopy(artist),
             },
             {
-                icon: '📤',
+                icon: 'upload',
                 label: '导出',
                 action: () => onExport && onExport(artist),
             },
             {
-                icon: '🗑️',
+                icon: 'trash-2',
                 label: '删除',
                 action: () => onDelete && onDelete(artist),
             },
@@ -154,7 +155,7 @@ export function GalleryCard({
      */
     const renderEmptyState = () => {
         return h('div', { class: 'gallery-card-empty' }, [
-            h('div', { class: 'gallery-card-empty-icon' }, '🎨'),
+            h('div', { class: 'gallery-card-empty-icon' }, h(Icon, { name: 'palette', size: 32 })),
             h('div', { class: 'gallery-card-empty-text' }, '暂无图片'),
         ]);
     };

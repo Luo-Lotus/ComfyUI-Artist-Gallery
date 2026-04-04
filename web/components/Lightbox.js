@@ -4,6 +4,7 @@
  */
 import { h } from '../lib/preact.mjs';
 import { useState, useEffect } from '../lib/hooks.mjs';
+import { Icon } from '../lib/icons.mjs';
 import { buildImageUrl } from '../utils.js';
 
 export function Lightbox({ isOpen, artist, imageIndex, onClose, onNavigate }) {
@@ -43,7 +44,7 @@ export function Lightbox({ isOpen, artist, imageIndex, onClose, onNavigate }) {
                     class: 'gallery-lightbox-close',
                     onClick: onClose,
                 },
-                '×',
+                h(Icon, { name: 'x', size: 20 }),
             ),
             // 关联画师名展示（图片上方）
             relatedArtists.length > 0 && h('div', { class: 'gallery-lightbox-artists' },
@@ -62,7 +63,7 @@ export function Lightbox({ isOpen, artist, imageIndex, onClose, onNavigate }) {
                     class: 'gallery-lightbox-nav gallery-lightbox-prev',
                     onClick: handlePrev,
                 },
-                '‹',
+                h(Icon, { name: 'chevron-left', size: 24 }),
             ),
             h(
                 'button',
@@ -70,7 +71,7 @@ export function Lightbox({ isOpen, artist, imageIndex, onClose, onNavigate }) {
                     class: 'gallery-lightbox-nav gallery-lightbox-next',
                     onClick: handleNext,
                 },
-                '›',
+                h(Icon, { name: 'chevron-right', size: 24 }),
             ),
             h(
                 'div',

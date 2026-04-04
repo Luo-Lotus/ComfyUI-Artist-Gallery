@@ -7,6 +7,7 @@ import { useState, useMemo } from '../lib/hooks.mjs';
 import { Dialog, DialogButton } from './Dialog.js';
 import { FlatSelector } from './FlatSelector.js';
 import { showToast } from './Toast.js';
+import { Icon } from '../lib/icons.mjs';
 
 export function CopyDialog({
     isOpen,
@@ -91,11 +92,11 @@ export function CopyDialog({
     };
 
     const getTitleIcon = () => {
-        if (itemType === 'category') return '📋';
-        if (itemType === 'artist') return '👤';
-        if (itemType === 'image') return '🖼️';
-        if (itemType === 'combination') return '🔗';
-        return '📋';
+        if (itemType === 'category') return h(Icon, { name: 'folder-plus', size: 18 });
+        if (itemType === 'artist') return h(Icon, { name: 'plus', size: 18 });
+        if (itemType === 'image') return h(Icon, { name: 'image', size: 18 });
+        if (itemType === 'combination') return h(Icon, { name: 'link', size: 18 });
+        return h(Icon, { name: 'copy', size: 18 });
     };
 
     const getItemName = () => {
@@ -176,8 +177,8 @@ export function CopyDialog({
                         'span',
                         { class: 'copy-dialog-selected-value' },
                         selectedTarget.type === 'category'
-                            ? `📁 ${selectedTarget.name}`
-                            : `👤 ${selectedTarget.displayName || selectedTarget.name}`
+                            ? [h(Icon, { name: 'folder', size: 14 }), ' ', selectedTarget.name]
+                            : [h(Icon, { name: 'user', size: 14 }), ' ', selectedTarget.displayName || selectedTarget.name]
                     ),
                 ]),
         ]

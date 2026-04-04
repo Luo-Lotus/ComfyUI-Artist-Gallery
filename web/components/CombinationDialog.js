@@ -13,6 +13,7 @@ import {
 import { FlatSelector } from './FlatSelector.js';
 import { showToast } from './Toast.js';
 import { createCombination, updateCombination } from '../utils.js';
+import { Icon } from '../lib/icons.mjs';
 
 export function CombinationDialog({
     isOpen,
@@ -106,7 +107,7 @@ export function CombinationDialog({
             isOpen,
             onClose,
             title: mode === 'add' ? '新建组合' : '编辑组合',
-            titleIcon: '🔗',
+            titleIcon: h(Icon, { name: 'link', size: 18 }),
             maxWidth: '500px',
             footer: [
                 h(DialogButton, { onClick: onClose }, '取消'),

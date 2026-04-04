@@ -3,6 +3,7 @@
  * 显示分区中的画师和分类标签
  */
 import { h } from '../../lib/preact.mjs';
+import { Icon } from '../../lib/icons.mjs';
 
 export function PartitionContent({
     artists,
@@ -30,7 +31,7 @@ export function PartitionContent({
                 e.dataTransfer.effectAllowed = 'move';
             },
         }, [
-            h('span', { class: 'artist-selector-tag-icon' }, '📁'),
+            h('span', { class: 'artist-selector-tag-icon' }, h(Icon, { name: 'folder', size: 12 })),
             category.name,
             h('button', {
                 class: 'artist-remove-btn',
@@ -38,7 +39,7 @@ export function PartitionContent({
                     e.stopPropagation();
                     onCategoryRemove(category.id);
                 },
-            }, '×'),
+            }, h(Icon, { name: 'x', size: 12 })),
         ]);
     };
 
@@ -65,7 +66,7 @@ export function PartitionContent({
                     e.stopPropagation();
                     onArtistRemove(key);
                 },
-            }, '×'),
+            }, h(Icon, { name: 'x', size: 12 })),
         ]);
     };
 

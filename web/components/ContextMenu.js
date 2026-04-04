@@ -4,6 +4,7 @@
  */
 import { h } from '../lib/preact.mjs';
 import { useEffect, useRef, useState } from '../lib/hooks.mjs';
+import { iconToSvg } from '../lib/icons.mjs';
 
 let globalMenuState = {
     items: null,
@@ -59,10 +60,10 @@ function renderGlobalMenu() {
 
         // 添加图标
         if (item.icon) {
-            const icon = document.createElement('span');
-            icon.className = 'context-menu-icon';
-            icon.textContent = item.icon;
-            menuItem.appendChild(icon);
+            const iconEl = document.createElement('span');
+            iconEl.className = 'context-menu-icon';
+            iconEl.innerHTML = iconToSvg(item.icon, 16);
+            menuItem.appendChild(iconEl);
         }
 
         // 添加标签

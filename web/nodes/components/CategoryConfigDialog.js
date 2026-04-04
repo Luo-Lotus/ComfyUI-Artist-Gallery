@@ -5,6 +5,7 @@
 import { h } from '../../lib/preact.mjs';
 import { useState, useEffect } from '../../lib/hooks.mjs';
 import { Dialog, DialogButton } from '../../components/Dialog.js';
+import { Icon } from '../../lib/icons.mjs';
 import { useFormatProcessor } from './hooks/useFormatProcessor.js';
 import { showToast } from '../../components/Toast.js';
 
@@ -99,7 +100,7 @@ export function CategoryConfigDialog({
                     h('span', { style: { color: '#4CAF50', fontWeight: '600' } }, preview || '-'),
                 ]),
                 h('div', { class: 'config-hint' }, [
-                    h('div', null, '💡 提示：'),
+                    h('div', { class: 'config-hint-title' }, [h(Icon, { name: 'lightbulb', size: 14 }), ' 提示：']),
                     h('ul', { style: { margin: '4px 0', paddingLeft: '20px' } }, [
                         h('li', null, '{content} - 画师名称'),
                         h('li', null, '{random(min,max,step)} - 随机数'),
@@ -168,7 +169,8 @@ export function CategoryConfigDialog({
     return h(Dialog, {
         isOpen,
         onClose,
-        title: `⚙️ ${categoryName} - 分类配置`,
+        titleIcon: h(Icon, { name: 'settings', size: 18 }),
+        title: `${categoryName} - 分类配置`,
         maxWidth: '600px',
         footer: [
             h(DialogButton, {

@@ -85,7 +85,8 @@ web/
 ├── Draggable.js                   # Drag-and-drop
 ├── lib/                           # Third-party libraries
 │   ├── preact.mjs                 # Preact core
-│   └── feather.mjs                # Icons
+│   ├── hooks.mjs                  # Preact hooks
+│   └── icons.mjs                  # SVG icon system (Icon component + iconToSvg helper)
 ├── components/                    # Preact components
 │   ├── GalleryModal.js            # Main gallery container (lazy-loads artist images, "set as cover" menu)
 │   ├── GalleryGrid.js             # Artist grid layout
@@ -172,7 +173,7 @@ web/
 **Partition System**:
 - Each partition has independent config: `format`, `randomMode`, `randomCount`, `cycleMode`, `saveToGallery`, `autoCreateCombination`
 - `autoCreateCombination` is disabled when `saveToGallery` is off
-- Partition header shows `🔗` badge when auto-create is enabled
+- Partition header shows link icon badge when auto-create is enabled
 
 ## Development Workflow
 
@@ -280,6 +281,7 @@ export async function yourApiCall(data) {
 ```javascript
 import { h } from '../lib/preact.mjs';
 import { useState, useEffect } from '../lib/hooks.mjs';
+import { Icon } from '../lib/icons.mjs';  // For SVG icons — see Icon System section
 ```
 
 3. Use render functions for complex JSX:
@@ -346,6 +348,117 @@ Examples: `@mike,_1.png`, `@sarah,_2.jpg`, `@artist_name,_1.webp`
 Supported formats: `.png`, `.jpg`, `.jpeg`, `.webp`
 
 The regex pattern (`ARTIST_REGEX` in `nodes.py`): `r'^@([^,]+?)(?:,+\s*)?(?:_\d+)?\.(png|jpg|jpeg|webp)$'`
+
+## Icon System
+
+All UI icons use SVG via the self-built icon library at `web/lib/icons.mjs`. **Never use emoji or Unicode symbols as icons.**
+
+### Architecture
+
+- **`Icon` Preact component** — For use in Preact JSX (`h(Icon, { name: 'search', size: 16 })`)
+- **`iconToSvg(name, size)` function** — Returns SVG HTML string for non-Preact contexts (e.g., native DOM in `ContextMenu.js`)
+
+### Usage
+
+```javascript
+// Preact component context
+import { Icon } from '../lib/icons.mjs';
+h(Icon, { name: 'search', size: 16 })              // basic usage
+h(Icon, { name: 'trash-2', size: 14, color: '#f44' })  // with color
+h(Icon, { name: 'loader', size: 14, class: 'spin' })   // with CSS class (spinning animation)
+
+// Native DOM context (ContextMenu, vanilla JS)
+import { iconToSvg } from '../lib/icons.mjs';
+element.innerHTML = iconToSvg('trash-2', 16);
+```
+
+### Available Icons
+
+| Icon Name | Use Case |
+|-----------|----------|
+| `search` | Search input |
+| `x` | Close / dismiss buttons |
+| `plus` | Add actions |
+| `minus` | Remove actions |
+| `star` | Favorites |
+| `image` | Image-related actions |
+| `trash-2` | Delete actions |
+| `copy` | Copy / duplicate actions |
+| `edit` | Edit actions |
+| `move` | Move actions |
+| `link` | Combinations / link-related |
+| `folder` | Category / folder display |
+| `folder-plus` | Create new category |
+| `settings` | Configuration / settings |
+| `power` | Enable / disable toggle |
+| `ban` | Disabled / prohibited state |
+| `repeat` | Cycle mode indicator |
+| `shuffle` | Random mode indicator |
+| `download` | Import / download actions |
+| `upload` | Export / upload actions |
+| `refresh-cw` | Refresh / reload |
+| `loader` | Loading spinner (use with `class: 'spin'`) |
+| `check-circle` | Success state |
+| `x-circle` | Error state |
+| `alert-triangle` | Warning / orphaned items |
+| `info-circle` | Info / help |
+| `lightbulb` | Hints / tips |
+| `package` | Move / batch operations |
+| `clipboard-list` | Batch / selection mode |
+| `palette` | Empty gallery placeholder |
+| `arrow-left` | Back / navigation |
+| `arrow-up` / `arrow-down` | Sort order |
+| `chevron-left` / `chevron-right` | Navigation arrows |
+| `minus` | Collapse / reduce |
+
+### Adding New Icons
+
+1. Find the Lucide icon SVG path data (MIT license): https://lucide.dev/icons/
+2. Add to the `ICONS` object in `web/lib/icons.mjs`:
+   - Single path: `'icon-name': ['M...path data...']`
+   - Multiple paths: `'icon-name': ['M...path1...', 'M...path2...']`
+3. Use immediately via `h(Icon, { name: 'icon-name' })` or `iconToSvg('icon-name')`
+
+### CSS Alignment for SVG Icons
+
+Buttons and containers with SVG icons must use flex alignment:
+
+```css
+/* Buttons with icons */
+.my-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    line-height: 1;
+}
+.my-btn svg {
+    display: block;
+    flex-shrink: 0;
+}
+
+/* Inline icon badges */
+.my-badge {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+}
+.my-badge svg {
+    display: block;
+}
+
+/* Spinning animation for loading */
+@keyframes icon-spin {
+    to { transform: rotate(360deg); }
+}
+svg.spin {
+    animation: icon-spin 1s linear infinite;
+}
+```
+
+### Exceptions (Emoji Allowed)
+
+- **Floating button label**: `'🎨'` in `artist_gallery.js` entry point
+- **Modal title**: `'🎨 画师图库'` in `GalleryModal.js` header
 
 ## Component Guidelines
 
@@ -416,7 +529,7 @@ Dialog({
   isOpen: boolean,
   onClose: function,
   title: string,
-  titleIcon: string,
+  titleIcon: vnode,  // Preact vnode from h(Icon, { name: 'settings', size: 18 })
   children: node,
   footer: node,
   maxWidth: string,

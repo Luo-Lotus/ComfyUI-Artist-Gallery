@@ -6,6 +6,7 @@
 import { h } from '../lib/preact.mjs';
 import { useState, useMemo } from '../lib/hooks.mjs';
 import { LazyList } from './LazyList.js';
+import { Icon } from '../lib/icons.mjs';
 
 export function FlatSelector({
     type, // 'category' | 'artist'
@@ -103,7 +104,7 @@ export function FlatSelector({
             }, selected ? '☑' : '☐'));
         }
         children.push(h('span', { class: 'flat-selector-icon' },
-            type === 'category' ? '📁' : '👤'));
+            h(Icon, { name: type === 'category' ? 'folder' : 'user', size: 14 })));
         children.push(h('span', { class: 'flat-selector-name' },
             type === 'category' ? item.name : (item.displayName || item.name)));
 

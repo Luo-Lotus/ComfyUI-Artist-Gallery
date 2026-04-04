@@ -4,6 +4,7 @@
  */
 import { h } from '../../lib/preact.mjs';
 import { useState } from '../../lib/hooks.mjs';
+import { Icon } from '../../lib/icons.mjs';
 
 export function GlobalConfigPanel({ config, onChange, onClose }) {
     const [format, setFormat] = useState(config.format || '{content}');
@@ -23,14 +24,14 @@ export function GlobalConfigPanel({ config, onChange, onClose }) {
 
     return h('div', { class: 'node-config-panel' }, [
         h('div', { class: 'node-config-header' }, [
-            h('span', null, '⚙️ 全局配置'),
+            h('span', { class: 'node-config-header-title' }, [h(Icon, { name: 'settings', size: 14 }), ' 全局配置']),
             h(
                 'button',
                 {
                     class: 'node-config-close',
                     onClick: onClose,
                 },
-                '✕',
+                h(Icon, { name: 'x', size: 14 }),
             ),
         ]),
         h('div', { class: 'node-config-body' }, [
@@ -163,14 +164,14 @@ export function CategoryConfigPanel({
 
     return h('div', { class: 'node-config-panel' }, [
         h('div', { class: 'node-config-header' }, [
-            h('span', null, `⚙️ ${categoryName} - 配置`),
+            h('span', { class: 'node-config-header-title' }, [h(Icon, { name: 'settings', size: 14 }), ` ${categoryName} - 配置`]),
             h(
                 'button',
                 {
                     class: 'node-config-close',
                     onClick: onClose,
                 },
-                '✕',
+                h(Icon, { name: 'x', size: 14 }),
             ),
         ]),
         h('div', { class: 'node-config-body' }, [

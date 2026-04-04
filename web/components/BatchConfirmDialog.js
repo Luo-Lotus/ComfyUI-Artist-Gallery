@@ -5,6 +5,7 @@
 
 import { h } from '../lib/preact.mjs';
 import { Dialog, DialogButton } from './Dialog.js';
+import { Icon } from '../lib/icons.mjs';
 
 export function BatchConfirmDialog({
     isOpen,
@@ -50,10 +51,10 @@ export function BatchConfirmDialog({
 
     const getOperationIcon = () => {
         switch(operation) {
-            case 'delete': return '🗑️';
-            case 'move': return '📦';
-            case 'copy': return '📄';
-            default: return '⚠️';
+            case 'delete': return h(Icon, { name: 'trash-2', size: 18 });
+            case 'move': return h(Icon, { name: 'package', size: 18 });
+            case 'copy': return h(Icon, { name: 'copy', size: 18 });
+            default: return h(Icon, { name: 'alert-triangle', size: 18 });
         }
     };
 
@@ -108,8 +109,8 @@ export function BatchConfirmDialog({
     return h(Dialog, {
         isOpen,
         onClose,
-        title: `${getOperationIcon()} 确认批量${getOperationLabel()}`,
-        titleIcon: '',
+        title: `确认批量${getOperationLabel()}`,
+        titleIcon: h(Icon, { name: operation === 'delete' ? 'trash-2' : operation === 'move' ? 'move' : 'copy', size: 18 }),
         maxWidth: '500px',
         footer: renderFooter(),
         closeOnOverlayClick: false // 防止误操作

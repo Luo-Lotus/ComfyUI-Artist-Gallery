@@ -3,6 +3,7 @@
  * 显示单个分类的卡片（文件夹样式）
  */
 import { h } from '../lib/preact.mjs';
+import { Icon } from '../lib/icons.mjs';
 import { BaseCard } from './BaseCard.js';
 import { useContextMenu } from './ContextMenu.js';
 
@@ -32,22 +33,22 @@ export function CategoryCard({
         e.preventDefault();
         const menuItems = [
             {
-                icon: '✏️',
+                icon: 'edit',
                 label: '编辑',
                 action: () => onEdit && onEdit(category),
             },
             {
-                icon: '📦',
+                icon: 'move',
                 label: '移动',
                 action: () => onMove && onMove(category),
             },
             {
-                icon: '📄',
+                icon: 'copy',
                 label: '复制到',
                 action: () => onCopy && onCopy(category),
             },
             {
-                icon: '🗑️',
+                icon: 'trash-2',
                 label: '删除',
                 action: () => onDelete && onDelete(category),
             },
@@ -66,7 +67,7 @@ export function CategoryCard({
         onContextMenu: handleContextMenu,
     }, [
         // 文件夹图标
-        h('div', { class: 'category-icon' }, '📁'),
+        h('div', { class: 'category-icon' }, h(Icon, { name: 'folder', size: 48 })),
 
         // 分类信息
         h('div', { class: 'category-info' }, [

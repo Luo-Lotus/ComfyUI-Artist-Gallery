@@ -43,15 +43,17 @@
 }
 
 .toast-icon {
-    font-size: 20px;
-    font-weight: bold;
     flex-shrink: 0;
     width: 24px;
     height: 24px;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     border-radius: 50%;
+}
+
+.toast-icon svg {
+    vertical-align: middle;
 }
 
 .toast-message {

@@ -5,6 +5,7 @@
 
 import { h } from '../lib/preact.mjs';
 import { useState, useEffect } from '../lib/hooks.mjs';
+import { Icon } from '../lib/icons.mjs';
 
 let toastContainer = null;
 
@@ -94,18 +95,18 @@ export function ToastContainer() {
                         handleRemove(toast.id);
                     },
                     'aria-label': '关闭',
-                }, '×'),
+                }, h(Icon, { name: 'x', size: 12 })),
             ),
         ),
     );
 }
 
 function getIcon(type) {
-    const icons = {
-        success: '✓',
-        error: '✕',
-        info: 'ℹ',
-        warning: '⚠',
+    const map = {
+        success: 'check-circle',
+        error: 'x-circle',
+        info: 'info-circle',
+        warning: 'alert-triangle',
     };
-    return icons[type] || icons.info;
+    return h(Icon, { name: map[type] || 'info-circle', size: 18 });
 }

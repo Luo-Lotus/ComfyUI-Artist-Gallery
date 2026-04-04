@@ -7,6 +7,7 @@ import { useState, useMemo } from '../lib/hooks.mjs';
 import { Dialog, DialogButton } from './Dialog.js';
 import { FlatSelector } from './FlatSelector.js';
 import { showToast } from './Toast.js';
+import { Icon } from '../lib/icons.mjs';
 
 export function MoveDialog({
     isOpen,
@@ -81,7 +82,7 @@ export function MoveDialog({
         isOpen,
         onClose,
         title: getTitle(),
-        titleIcon: '📦',
+        titleIcon: h(Icon, { name: 'move', size: 18 }),
         maxWidth: '500px',
         footer: [
             h(DialogButton, { onClick: onClose }, '取消'),
@@ -96,8 +97,8 @@ export function MoveDialog({
             h('span', {}, '已选择：'),
             h('span', { class: 'target-name' },
                 selectedTarget.type === 'category'
-                    ? `📁 ${selectedTarget.name}`
-                    : `👤 ${selectedTarget.displayName || selectedTarget.name}`
+                    ? [h(Icon, { name: 'folder', size: 14 }), ' ', selectedTarget.name]
+                    : [h(Icon, { name: 'user', size: 14 }), ' ', selectedTarget.displayName || selectedTarget.name]
             )
         ]),
         h(FlatSelector, {

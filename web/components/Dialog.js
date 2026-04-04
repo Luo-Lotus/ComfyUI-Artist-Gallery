@@ -3,6 +3,7 @@
  * 可复用的模态框组件，支持自定义内容
  */
 import { h } from '../lib/preact.mjs';
+import { Icon } from '../lib/icons.mjs';
 
 export function Dialog({
     isOpen,
@@ -34,7 +35,7 @@ export function Dialog({
                         class: 'gallery-modal-btn primary',
                         onClick: onClose,
                     },
-                    '✕',
+                    h(Icon, { name: 'x', size: 14 }),
                 ),
         ]);
     };

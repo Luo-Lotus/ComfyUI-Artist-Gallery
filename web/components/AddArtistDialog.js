@@ -4,6 +4,7 @@
 import { h } from '../lib/preact.mjs';
 import { useState } from '../lib/hooks.mjs';
 import { showToast } from './Toast.js';
+import { Icon } from '../lib/icons.mjs';
 import {
     addArtist,
     updateArtist,
@@ -298,7 +299,7 @@ export function AddArtistDialog({
             isOpen,
             onClose: handleClose,
             title: editModeArtist ? '编辑画师' : '添加画师',
-            titleIcon: editModeArtist ? '✏️' : '➕',
+            titleIcon: h(Icon, { name: editModeArtist ? 'edit' : 'plus', size: 18 }),
             maxWidth: '500px',
             footer: renderFooter(),
         },

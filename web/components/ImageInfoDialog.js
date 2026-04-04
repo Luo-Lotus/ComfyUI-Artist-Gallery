@@ -6,6 +6,7 @@ import { h } from '../lib/preact.mjs';
 import { useState, useEffect } from '../lib/hooks.mjs';
 import { Dialog } from './Dialog.js';
 import { showToast } from './Toast.js';
+import { Icon } from '../lib/icons.mjs';
 
 function CopyButton({ text, label }) {
     const handleCopy = () => {
@@ -111,7 +112,7 @@ export function ImageInfoDialog({ isOpen, image, onClose }) {
             isOpen,
             onClose,
             title: '图片信息',
-            titleIcon: '\u2139\uFE0F',
+            titleIcon: h(Icon, { name: 'info-circle', size: 18 }),
             maxWidth: '550px',
             maxHeight: '80vh',
             footer: [
@@ -127,7 +128,7 @@ export function ImageInfoDialog({ isOpen, image, onClose }) {
 
             !loading && info && [
                 // 文件信息
-                h(InfoBlock, { title: '文件信息', icon: '\uD83D\uDDBC\uFE0F' }, [
+                h(InfoBlock, { title: '文件信息', icon: h(Icon, { name: 'image', size: 16 }) }, [
                     h('div', { class: 'image-info-grid' }, [
                         h('div', { class: 'image-info-row' }, [
                             h('span', { class: 'image-info-label' }, '尺寸'),
@@ -158,7 +159,7 @@ export function ImageInfoDialog({ isOpen, image, onClose }) {
                 artistJson &&
                     h(InfoBlock, {
                         title: `画师 (${artistNames.length})`,
-                        icon: '\uD83D\uDC64',
+                        icon: h(Icon, { name: 'image', size: 16 }),
                         copyText: artistJson,
                         copyLabel: '画师列表',
                     }, [
@@ -169,7 +170,7 @@ export function ImageInfoDialog({ isOpen, image, onClose }) {
                 metaPromptString &&
                     h(InfoBlock, {
                         title: 'Prompt String',
-                        icon: '\uD83D\uDCDD',
+                        icon: h(Icon, { name: 'edit', size: 16 }),
                         copyText: metaPromptString,
                         copyLabel: 'Prompt String',
                     }, [
@@ -180,7 +181,7 @@ export function ImageInfoDialog({ isOpen, image, onClose }) {
                 displayPrompt &&
                     h(InfoBlock, {
                         title: 'Prompt',
-                        icon: '\uD83D\uDCDD',
+                        icon: h(Icon, { name: 'edit', size: 16 }),
                         copyText: displayPrompt,
                         copyLabel: 'Prompt',
                     }, [
@@ -191,7 +192,7 @@ export function ImageInfoDialog({ isOpen, image, onClose }) {
                 workflowText &&
                     h(InfoBlock, {
                         title: '工作流',
-                        icon: '\uD83D\uDD27',
+                        icon: h(Icon, { name: 'package', size: 16 }),
                         copyText: workflowText,
                         copyLabel: '工作流',
                     }, [

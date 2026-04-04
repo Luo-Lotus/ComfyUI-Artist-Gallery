@@ -4,6 +4,7 @@
  */
 
 import { h } from '../lib/preact.mjs';
+import { Icon } from '../lib/icons.mjs';
 
 export function BatchActionBar({
     selectedCount = 0,
@@ -53,7 +54,7 @@ export function BatchActionBar({
     return h('div', { class: 'batch-action-bar' }, [
         // 左侧：已选信息
         h('div', { class: 'batch-info' }, [
-            h('span', { class: 'batch-icon' }, '📋'),
+            h('span', { class: 'batch-icon' }, h(Icon, { name: 'clipboard-list', size: 16 })),
             h('span', { class: 'batch-title' }, '批量操作'),
             h('span', { class: 'batch-count' }, `(${selectedCount}个${getSelectionTypeLabel()})`),
         ]),
@@ -78,27 +79,27 @@ export function BatchActionBar({
                 class: 'batch-op-btn export-btn',
                 onClick: () => onExport && onExport(),
                 title: '导出选中画师'
-            }, '📤 导出'),
+            }, [h(Icon, { name: 'upload', size: 14 }), ' 导出']),
             h('button', {
                 class: 'batch-op-btn delete-btn',
                 onClick: handleDelete,
                 title: '删除选中项目'
-            }, '🗑️ 删除'),
+            }, [h(Icon, { name: 'trash-2', size: 14 }), ' 删除']),
             h('button', {
                 class: 'batch-op-btn move-btn',
                 onClick: handleMove,
                 title: '移动选中项目'
-            }, '📦 移动'),
+            }, [h(Icon, { name: 'move', size: 14 }), ' 移动']),
             h('button', {
                 class: 'batch-op-btn copy-btn',
                 onClick: handleCopy,
                 title: '复制选中项目'
-            }, '📄 复制'),
+            }, [h(Icon, { name: 'copy', size: 14 }), ' 复制']),
             h('button', {
                 class: 'batch-op-btn exit-btn',
                 onClick: handleExit,
                 title: '退出多选模式'
-            }, '✕ 退出'),
+            }, [h(Icon, { name: 'x', size: 14 }), ' 退出']),
         ]),
     ]);
 }

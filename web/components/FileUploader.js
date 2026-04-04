@@ -6,6 +6,7 @@
 import { h } from '../lib/preact.mjs';
 import { useState, useRef } from '../lib/hooks.mjs';
 import { showToast } from './Toast.js';
+import { Icon } from '../lib/icons.mjs';
 
 export function FileUploader({ files, onChange, onPreview }) {
     const [dragging, setDragging] = useState(false);
@@ -84,7 +85,7 @@ export function FileUploader({ files, onChange, onPreview }) {
             onDrop: handleDrop,
             onClick: handleClick
         }, [
-            h('div', { class: 'drag-drop-icon' }, '📁'),
+            h('div', { class: 'drag-drop-icon' }, h(Icon, { name: 'folder', size: 28 })),
             h('div', { class: 'drag-drop-text' }, '拖拽图片到此处或点击选择'),
             h('div', { class: 'drag-drop-hint' },
                 '支持PNG、JPG、WEBP格式'
@@ -114,7 +115,7 @@ export function FileUploader({ files, onChange, onPreview }) {
                             removeFile(index);
                         },
                         title: '移除'
-                    }, '✕')
+                    }, h(Icon, { name: 'x', size: 14 }))
                 ])
             )
         ),

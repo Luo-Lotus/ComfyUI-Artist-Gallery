@@ -43,6 +43,7 @@ import { showToast } from './Toast.js';
 import { computeSizeVars } from './SizePresets.js';
 import { LazyList } from './LazyList.js';
 import { ImageInfoDialog } from './ImageInfoDialog.js';
+import { Icon } from '../lib/icons.mjs';
 
 export function GalleryModal({ isOpen, onClose }) {
     // 获取右键菜单 hook
@@ -68,7 +69,7 @@ export function GalleryModal({ isOpen, onClose }) {
     const [editingCategory, setEditingCategory] = useState(null);
 
     // ============ 视图模式状态 ============
-    const [viewMode, setViewMode] = useState('gallery'); // 'gallery' | 'artist'
+    const [viewMode, setViewMode] = useState('gallery'); // 'gallery' | 'artist' | 'combination'
     const [currentArtist, setCurrentArtist] = useState(null);
 
     // ============ 对话框状态 ============
@@ -1112,8 +1113,8 @@ export function GalleryModal({ isOpen, onClose }) {
         // 画廊视图才显示的管理按钮
         if (isGallery) {
             buttons.push(
-                h('button', { class: 'gallery-modal-btn', onClick: handleAddCategory }, '📁 新建分类'),
-                h('button', { class: 'gallery-modal-btn', onClick: openAddDialog }, '➕ 添加画师'),
+                h('button', { class: 'gallery-modal-btn', onClick: handleAddCategory }, [h(Icon, { name: 'folder-plus', size: 14 }), ' 新建分类']),
+                h('button', { class: 'gallery-modal-btn', onClick: openAddDialog }, [h(Icon, { name: 'plus', size: 14 }), ' 添加画师']),
                 h('button', {
                     class: 'gallery-modal-btn',
                     onClick: () => {
@@ -1121,28 +1122,28 @@ export function GalleryModal({ isOpen, onClose }) {
                         setCombinationDialogMode('add');
                         setShowCombinationDialog(true);
                     },
-                }, '🔗 新建组合'),
-                h('button', { class: 'gallery-modal-btn', onClick: () => setShowImportDialog(true) }, '📥 导入图片'),
+                }, [h(Icon, { name: 'link', size: 14 }), ' 新建组合']),
+                h('button', { class: 'gallery-modal-btn', onClick: () => setShowImportDialog(true) }, [h(Icon, { name: 'download', size: 14 }), ' 导入图片']),
                 h('button', {
                     class: 'gallery-modal-btn',
                     onClick: () => {
                         const input = document.getElementById('artist-import-file-input');
                         if (input) input.click();
                     },
-                }, '📤 导入画师'),
+                }, [h(Icon, { name: 'upload', size: 14 }), ' 导入画师']),
             );
         }
 
         // 画师详情视图：只显示导入图片
         if (isArtist) {
             buttons.push(
-                h('button', { class: 'gallery-modal-btn', onClick: () => setShowImportDialog(true) }, '📥 导入图片'),
+                h('button', { class: 'gallery-modal-btn', onClick: () => setShowImportDialog(true) }, [h(Icon, { name: 'download', size: 14 }), ' 导入图片']),
             );
         }
 
         // 通用按钮：刷新、批量操作（仅画廊）、关闭
         buttons.push(
-            h('button', { class: 'gallery-modal-btn', onClick: loadData }, '🔄 刷新'),
+            h('button', { class: 'gallery-modal-btn', onClick: loadData }, [h(Icon, { name: 'refresh-cw', size: 14 }), ' 刷新']),
         );
 
         if (isGallery || isArtist || isCombination) {
@@ -1151,7 +1152,7 @@ export function GalleryModal({ isOpen, onClose }) {
                     class: 'gallery-modal-btn',
                     onClick: handleToggleSelectionMode,
                     title: selectionMode ? '退出多选模式' : '批量操作',
-                }, selectionMode ? '📋 已选' : '📋 批量操作'),
+                }, [h(Icon, { name: 'clipboard-list', size: 14 }), selectionMode ? ' 已选' : ' 批量操作']),
             );
         }
 
@@ -1167,7 +1168,7 @@ export function GalleryModal({ isOpen, onClose }) {
         );
 
         buttons.push(
-            h('button', { class: 'gallery-modal-btn primary', onClick: onClose }, '✕ 关闭'),
+            h('button', { class: 'gallery-modal-btn primary', onClick: onClose }, [h(Icon, { name: 'x', size: 14 }), ' 关闭']),
         );
 
         return h('div', { class: 'gallery-modal-header' }, buttons);
@@ -1188,7 +1189,7 @@ export function GalleryModal({ isOpen, onClose }) {
      */
     const renderError = () => {
         return h('div', { class: 'gallery-error' }, [
-            h('div', { class: 'gallery-error-icon' }, '⚠️'),
+            h('div', { class: 'gallery-error-icon' }, h(Icon, { name: 'alert-triangle', size: 32 })),
             h('div', {}, '加载图库失败'),
             h('div', { class: 'gallery-error-message' }, error),
         ]);
@@ -1211,7 +1212,7 @@ export function GalleryModal({ isOpen, onClose }) {
 
             const menuItems = [
                 {
-                    icon: '🔍',
+                    icon: 'search',
                     label: '查看大图',
                     action: () => {
                         const imgIndex = combImages.indexOf(image);
@@ -1227,7 +1228,7 @@ export function GalleryModal({ isOpen, onClose }) {
                     },
                 },
                 {
-                    icon: '🖼️',
+                    icon: 'image',
                     label: '设为封面',
                     action: async () => {
                         try {
@@ -1247,7 +1248,7 @@ export function GalleryModal({ isOpen, onClose }) {
                     },
                 },
                 {
-                    icon: '🗑️',
+                    icon: 'trash-2',
                     label: '删除图片',
                     action: async () => {
                         if (
@@ -1287,7 +1288,7 @@ export function GalleryModal({ isOpen, onClose }) {
                     },
                 },
                 {
-                    icon: 'ℹ️',
+                    icon: 'info-circle',
                     label: '图片信息',
                     action: () => {
                         setImageInfoImage(image);
@@ -1371,7 +1372,7 @@ export function GalleryModal({ isOpen, onClose }) {
                       className: 'artist-detail-grid',
                   })
                 : h('div', { class: 'artist-detail-empty' },
-                    imageSearchQuery ? '🔍 未找到匹配图片' : '🔗 暂无交集图片'),
+                    imageSearchQuery ? '未找到匹配图片' : '暂无交集图片'),
         ]);
     };
 
@@ -1391,7 +1392,7 @@ export function GalleryModal({ isOpen, onClose }) {
 
             const menuItems = [
                 {
-                    icon: '🔍',
+                    icon: 'search',
                     label: '查看大图',
                     action: () =>
                         handleImageClick(
@@ -1404,7 +1405,7 @@ export function GalleryModal({ isOpen, onClose }) {
                         ),
                 },
                 {
-                    icon: '🖼️',
+                    icon: 'image',
                     label: '设为封面',
                     action: async () => {
                         try {
@@ -1425,7 +1426,7 @@ export function GalleryModal({ isOpen, onClose }) {
                     },
                 },
                 {
-                    icon: '📦',
+                    icon: 'move',
                     label: '移动图片',
                     action: () => {
                         setMoveItem(image);
@@ -1434,7 +1435,7 @@ export function GalleryModal({ isOpen, onClose }) {
                     },
                 },
                 {
-                    icon: '📄',
+                    icon: 'copy',
                     label: '复制图片',
                     action: () => {
                         setCopyItem(image);
@@ -1443,7 +1444,7 @@ export function GalleryModal({ isOpen, onClose }) {
                     },
                 },
                 {
-                    icon: '🗑️',
+                    icon: 'trash-2',
                     label: '删除图片',
                     action: async () => {
                         if (!confirm(`确定要删除这张图片吗？`)) return;
@@ -1490,7 +1491,7 @@ export function GalleryModal({ isOpen, onClose }) {
                     },
                 },
                 {
-                    icon: 'ℹ️',
+                    icon: 'info-circle',
                     label: '图片信息',
                     action: () => {
                         setImageInfoImage(image);
@@ -1575,7 +1576,7 @@ export function GalleryModal({ isOpen, onClose }) {
                       className: 'artist-detail-grid',
                   })
                 : h('div', { class: 'artist-detail-empty' },
-                    imageSearchQuery ? '🔍 未找到匹配图片' : '🎨 暂无图片'),
+                    imageSearchQuery ? '未找到匹配图片' : '暂无图片'),
         ]);
     };
 
@@ -1598,71 +1599,74 @@ export function GalleryModal({ isOpen, onClose }) {
             ]);
         }
 
-        // 画师详情视图
-        if (viewMode === 'artist' && currentArtist) {
-            return h('div', { class: 'gallery-container' }, [
-                renderMergedHeader(),
-                renderArtistDetail(),
-            ]);
-        }
-
-        // 组合详情视图
-        if (viewMode === 'combination' && viewModeCombination) {
-            return h('div', { class: 'gallery-container' }, [
-                renderMergedHeader(),
-                renderCombinationDetail(),
-            ]);
-        }
-
-        // 画廊视图
         return h('div', { class: 'gallery-container' }, [
             renderMergedHeader(),
-
-            // 批量操作工具栏（多选模式下显示）
-            selectionMode &&
-                h(BatchActionBar, {
-                    selectedCount: selectedItems.size,
-                    selectionType: getSelectionType(),
-                    onSelectAll: handleSelectAll,
-                    onDeselectAll: handleDeselectAll,
-                    onMove: handleBatchMove,
-                    onCopy: handleBatchCopy,
-                    onExport: handleBatchExport,
-                    onDelete: handleBatchDelete,
-                    onExit: handleToggleSelectionMode,
+            // 画廊视图
+            h('div', {
+                key: 'gallery-view',
+                class: 'view-stack-page',
+                style: { display: viewMode === 'gallery' ? '' : 'none' },
+            }, [
+                selectionMode &&
+                    h(BatchActionBar, {
+                        selectedCount: selectedItems.size,
+                        selectionType: getSelectionType(),
+                        onSelectAll: handleSelectAll,
+                        onDeselectAll: handleDeselectAll,
+                        onMove: handleBatchMove,
+                        onCopy: handleBatchCopy,
+                        onExport: handleBatchExport,
+                        onDelete: handleBatchDelete,
+                        onExit: handleToggleSelectionMode,
+                    }),
+                h(GalleryGrid, {
+                    categories: currentCategoryChildren,
+                    combinations: currentCombinations,
+                    artists: filteredArtists,
+                    allArtists: allArtists,
+                    favorites,
+                    onFavoriteToggle: handleFavoriteToggle,
+                    onImageClick: handleCardClick,
+                    onEdit: openEditDialog,
+                    onDelete: openDeleteConfirm,
+                    onCategoryClick: handleCategorySelect,
+                    onCategoryEdit: handleEditCategory,
+                    onCategoryDelete: handleDeleteCategory,
+                    onMove: openMoveDialog,
+                    onCopy: openCopyDialog,
+                    onExport: handleExportArtist,
+                    onCombinationClick: handleCombinationClick,
+                    onCombinationEdit: handleCombinationEdit,
+                    onCombinationDuplicate: handleCombinationDuplicate,
+                    onCombinationMove: (combination) => {
+                        setMoveItem(combination);
+                        setMoveItemType('combination');
+                        setShowMoveDialog(true);
+                    },
+                    onCombinationDelete: handleCombinationDelete,
+                    selectionMode,
+                    selectedItems,
+                    onSelect: handleSelectItem,
                 }),
+            ]),
 
-            h(GalleryGrid, {
-                categories: currentCategoryChildren,
-                combinations: currentCombinations,
-                artists: filteredArtists,
-                allArtists: allArtists,
-                favorites,
-                onFavoriteToggle: handleFavoriteToggle,
-                onImageClick: handleCardClick,
-                onEdit: openEditDialog,
-                onDelete: openDeleteConfirm,
-                onCategoryClick: handleCategorySelect,
-                onCategoryEdit: handleEditCategory,
-                onCategoryDelete: handleDeleteCategory,
-                onMove: openMoveDialog,
-                onCopy: openCopyDialog,
-                onExport: handleExportArtist,
-                // 组合相关props
-                onCombinationClick: handleCombinationClick,
-                onCombinationEdit: handleCombinationEdit,
-                onCombinationDuplicate: handleCombinationDuplicate,
-                onCombinationMove: (combination) => {
-                    setMoveItem(combination);
-                    setMoveItemType('combination');
-                    setShowMoveDialog(true);
-                },
-                onCombinationDelete: handleCombinationDelete,
-                // 多选相关props
-                selectionMode,
-                selectedItems,
-                onSelect: handleSelectItem,
-            }),
+            // 画师详情
+            currentArtist && h('div', {
+                key: `artist-${currentArtist.name}`,
+                class: 'view-stack-page',
+                style: { display: viewMode === 'artist' ? '' : 'none' },
+            }, [
+                renderArtistDetail(),
+            ]),
+
+            // 组合详情
+            viewModeCombination && h('div', {
+                key: `combination-${viewModeCombination.id}`,
+                class: 'view-stack-page',
+                style: { display: viewMode === 'combination' ? '' : 'none' },
+            }, [
+                renderCombinationDetail(),
+            ]),
         ]);
     };
 
@@ -1674,9 +1678,32 @@ export function GalleryModal({ isOpen, onClose }) {
         const isArtist = viewMode === 'artist';
         const isCombination = viewMode === 'combination';
 
+        // 返回按钮逻辑：非根页面都显示
+        const canGoBack = !isGallery || currentCategory !== 'root';
+
+        const handleBack = () => {
+            if (!isGallery) {
+                handleBackToGallery();
+            } else if (currentCategory !== 'root') {
+                // 返回父分类
+                const parentIndex = categoryPath.length - 2;
+                if (parentIndex >= 0) {
+                    const parent = categoryPath[parentIndex];
+                    setCurrentCategory(parent.id);
+                } else {
+                    setCurrentCategory('root');
+                }
+            }
+        };
+
         return h('div', { class: 'gallery-merged-header' }, [
-            // 左侧：面包屑导航
+            // 左侧：返回按钮 + 面包屑导航
             h('div', { class: 'gallery-breadcrumb-section' }, [
+                canGoBack && h('button', {
+                    class: 'gallery-back-btn',
+                    onClick: handleBack,
+                    title: isGallery ? '返回上级分类' : '返回画廊',
+                }, h(Icon, { name: 'arrow-left', size: 16 })),
                 h(Breadcrumb, {
                     path: categoryPath,
                     onNavigate: handleBreadcrumbNavigate,
@@ -1702,7 +1729,7 @@ export function GalleryModal({ isOpen, onClose }) {
                         onClick: () => setShowFavoritesOnly((prev) => !prev),
                         title: '只显示收藏',
                     },
-                    '⭐',
+                    h(Icon, { name: 'star', size: 16 }),
                 ),
 
                 // 排序选择
@@ -1731,7 +1758,7 @@ export function GalleryModal({ isOpen, onClose }) {
                             ),
                         title: sortOrder === 'asc' ? '升序' : '降序',
                     },
-                    sortOrder === 'asc' ? '↑' : '↓',
+                    sortOrder === 'asc' ? h(Icon, { name: 'arrow-up', size: 16 }) : h(Icon, { name: 'arrow-down', size: 16 }),
                 ),
 
                 // 计数显示

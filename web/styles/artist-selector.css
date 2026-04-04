@@ -99,7 +99,7 @@
 }
 
 .artist-selector-sort-button {
-    padding: 5px 10px; /* 减小内边距 */
+    padding: 5px 10px;
     background: #3b82f6;
     border: none;
     border-radius: 6px;
@@ -107,6 +107,14 @@
     font-size: 12px;
     cursor: pointer;
     white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    line-height: 1;
+}
+
+.artist-selector-sort-button svg {
+    display: block;
 }
 
 .artist-selector-sort-button:hover {
@@ -211,10 +219,13 @@
     border: 1px solid #444;
     border-radius: 6px;
     color: #e0e0e0;
-    font-size: 14px;
     cursor: pointer;
     transition: all 0.2s;
     min-width: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
 }
 
 .artist-selector-refresh-button:hover:not(:disabled) {
@@ -337,8 +348,15 @@
 }
 
 .artist-selector-category-icon {
-    font-size: 18px;
     flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+}
+
+.artist-selector-category-icon svg {
+    display: block;
+    color: #ffb347;
 }
 
 .artist-selector-category-name {
@@ -369,14 +387,13 @@
     border-radius: 4px;
     width: 24px;
     height: 24px;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    font-size: 16px;
-    font-weight: bold;
     transition: all 0.2s;
     flex-shrink: 0;
+    line-height: 1;
 }
 
 /* 选择器操作提示 */
@@ -620,6 +637,7 @@
     font-size: 13px;
     font-weight: 600;
     color: #ccc;
+    line-height: 1;
 }
 
 .node-config-close {
@@ -627,10 +645,13 @@
     border: none;
     color: #888;
     cursor: pointer;
-    font-size: 14px;
     padding: 2px 6px;
     border-radius: 3px;
     transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
 }
 
 .node-config-close:hover {
@@ -1034,7 +1055,14 @@
 }
 
 .artist-selector-tag-icon {
-    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+}
+
+.artist-selector-tag-icon svg {
+    display: block;
+    color: inherit;
 }
 
 .artist-selector-tag.orphaned {
@@ -1049,15 +1077,18 @@
     border: none;
     color: #888;
     cursor: pointer;
-    font-size: 16px;
     line-height: 1;
     padding: 0;
     width: 16px;
     height: 16px;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     border-radius: 2px;
+}
+
+.artist-remove-btn svg {
+    display: block;
 }
 
 .artist-remove-btn:hover {
@@ -1076,12 +1107,17 @@
 .partition-rule-badge {
     display: inline-flex;
     align-items: center;
-    justify: center;
+    justify-content: center;
     margin-left: 6px;
     font-size: 11px;
     padding: 2px 6px;
     border-radius: 3px;
     background: rgba(255, 255, 255, 0.1);
+    line-height: 1;
+}
+
+.partition-rule-badge svg {
+    display: block;
 }
 
 .partition-rule-badge.random {
@@ -1226,13 +1262,13 @@
     background: transparent;
     border: none;
     cursor: pointer;
-    font-size: 14px;
     padding: 4px 6px;
     border-radius: 4px;
     transition: all 0.2s;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
+    line-height: 1;
 }
 
 .partition-btn:hover {
@@ -1430,8 +1466,14 @@
 }
 
 .artist-selector-item.combination-item .artist-selector-item-icon {
-    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
     flex-shrink: 0;
+    line-height: 1;
+}
+
+.artist-selector-item.combination-item .artist-selector-item-icon svg {
+    display: block;
 }
 
 .artist-selector-combination-count {
@@ -1439,4 +1481,126 @@
     color: #999;
     margin-left: auto;
     flex-shrink: 0;
+}
+
+/* SVG 图标旋转动画 */
+@keyframes icon-spin {
+    to { transform: rotate(360deg); }
+}
+
+svg.spin {
+    animation: icon-spin 1s linear infinite;
+}
+
+/* 配置面板标题图标对齐 */
+.node-config-header-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1;
+}
+
+.node-config-header-title svg {
+    display: block;
+    flex-shrink: 0;
+}
+
+.node-config-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+/* 提示标题图标对齐 */
+.config-hint-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    line-height: 1;
+}
+
+.config-hint-title svg {
+    display: block;
+    flex-shrink: 0;
+}
+
+/* 分区操作按钮图标 */
+.partition-btn svg {
+    display: block;
+}
+
+/* 分类进入按钮图标对齐 */
+.artist-selector-category-enter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.artist-selector-category-enter svg {
+    display: block;
+}
+
+/* 排序/刷新按钮图标对齐 */
+.artist-selector-sort-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    line-height: 1;
+}
+
+.artist-selector-sort-button svg {
+    display: block;
+}
+
+.artist-selector-refresh-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.artist-selector-refresh-button svg {
+    display: block;
+}
+
+/* 组合项图标 */
+.artist-selector-item.combination-item .artist-selector-item-icon {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+}
+
+.artist-selector-item.combination-item .artist-selector-item-icon svg {
+    display: block;
+}
+
+/* 移除按钮 SVG 对齐 */
+.artist-remove-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.artist-remove-btn svg {
+    display: block;
+}
+
+/* Toggle 按钮状态 */
+.partition-btn.toggle {
+    opacity: 0.5;
+}
+
+.partition-btn.toggle.active {
+    opacity: 1;
+    color: #4caf50;
+}
+
+.partition-btn.config {
+    opacity: 0.6;
+}
+
+.partition-btn.config:hover {
+    opacity: 1;
 }

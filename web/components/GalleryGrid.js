@@ -110,7 +110,7 @@ export function GalleryGrid({
         onCombinationMove, onCombinationDelete, selectionMode, selectedItems, onSelect, artists]);
 
     if (allItems.length === 0) {
-        return h('div', { class: 'gallery-empty' }, '🔍 没有找到匹配的内容');
+        return h('div', { class: 'gallery-empty' }, '没有找到匹配的内容');
     }
 
     return h(LazyList, {
@@ -118,6 +118,6 @@ export function GalleryGrid({
         renderItem,
         layout: 'grid',
         className: 'gallery-grid',
-        emptyMessage: h('div', { class: 'gallery-empty' }, '🔍 没有找到匹配的内容'),
+        emptyMessage: h('div', { class: 'gallery-empty' }, '没有找到匹配的内容'),
     });
 }
