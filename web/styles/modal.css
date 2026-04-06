@@ -167,8 +167,9 @@
     padding: 12px;
 }
 
-/* 头部区域不需要滚动 */
-.gallery-container > .gallery-merged-header {
+/* 头部区域和批量操作栏固定在顶部，不随内容滚动 */
+.gallery-container > .gallery-merged-header,
+.gallery-container > .batch-action-bar {
     flex-shrink: 0;
 }
 

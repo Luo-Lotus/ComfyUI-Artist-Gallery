@@ -1,0 +1,146 @@
+/**
+ * 画师详情视图组件
+ * 显示画师的图片网格，支持搜索过滤、右键菜单、多选
+ * BatchActionBar 已提升到 GalleryModal 层级，固定在顶部
+ */
+import { h } from '../lib/preact.mjs';
+import { useContextMenu } from './ContextMenu.js';
+import { LazyList } from './LazyList.js';
+import { buildImageUrl, setArtistCover } from '../utils.js';
+import { showToast } from './Toast.js';
+
+export function ArtistDetailView({
+    artist,
+    filteredImages,
+    selectionMode,
+    selectedItems,
+    onLightbox,
+    onMoveImage,
+    onCopyImage,
+    onImageInfo,
+    onSelect,
+    onDeleteImageSuccess,
+    onSetCoverSuccess,
+}) {
+    const { showContextMenu } = useContextMenu();
+    const images = filteredImages;
+
+    const handleImageContextMenu = (e, image) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const menuItems = [
+            {
+                icon: 'search',
+                label: '查看大图',
+                action: () =>
+                    onLightbox(
+                        artist,
+                        images.indexOf(image),
+                    ),
+            },
+            {
+                icon: 'image',
+                label: '设为封面',
+                action: async () => {
+                    try {
+                        await setArtistCover(
+                            artist.categoryId,
+                            artist.name,
+                            image.path,
+                        );
+                        showToast('已设为封面', 'success');
+                        if (onSetCoverSuccess) onSetCoverSuccess(image.path);
+                    } catch (err) {
+                        showToast('设置封面失败: ' + err.message, 'error');
+                    }
+                },
+            },
+            {
+                icon: 'move',
+                label: '移动图片',
+                action: () => onMoveImage(image),
+            },
+            {
+                icon: 'copy',
+                label: '复制图片',
+                action: () => onCopyImage(image),
+            },
+            {
+                icon: 'trash-2',
+                label: '删除图片',
+                action: async () => {
+                    if (!confirm(`确定要删除这张图片吗？`)) return;
+                    try {
+                        const response = await fetch(
+                            `/artist_gallery/image`,
+                            {
+                                method: 'DELETE',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    imagePath: image.path,
+                                    artistId: artist.id,
+                                }),
+                            },
+                        );
+
+                        if (response.ok) {
+                            if (onDeleteImageSuccess) await onDeleteImageSuccess();
+                        } else {
+                            const error = await response.json();
+                            alert(`删除失败: ${error.error || '未知错误'}`);
+                        }
+                    } catch (error) {
+                        alert(`删除失败: ${error.message}`);
+                    }
+                },
+            },
+            {
+                icon: 'info-circle',
+                label: '图片信息',
+                action: () => onImageInfo(image),
+            },
+        ];
+
+        showContextMenu(e, menuItems);
+    };
+
+    return h('div', { class: 'artist-detail-view' }, [
+        images.length > 0
+            ? h(LazyList, {
+                  items: images,
+                  renderItem: (img, index) => {
+                      const imgKey = `image:${img.path}`;
+                      const isSelected = selectedItems.has(imgKey);
+                      return h(
+                          'div',
+                          {
+                              key: img.path,
+                              class: `artist-detail-image-item ${selectionMode ? 'selection-mode' : ''} ${isSelected ? 'selected' : ''}`,
+                              onClick: (e) => {
+                                  if (selectionMode) {
+                                      onSelect(imgKey, e.shiftKey);
+                                  } else {
+                                      onLightbox(artist, index);
+                                  }
+                              },
+                              onContextMenu: (e) =>
+                                  handleImageContextMenu(e, img),
+                          },
+                          [
+                              h('img', {
+                                  src: buildImageUrl(img.path),
+                                  alt: `${artist.name} - ${index + 1}`,
+                                  loading: 'lazy',
+                              }),
+                          ],
+                      );
+                  },
+                  layout: 'grid',
+                  className: 'artist-detail-grid',
+              })
+            : h('div', { class: 'artist-detail-empty' }, '暂无图片'),
+    ]);
+}

@@ -96,7 +96,7 @@
     background: rgba(255, 255, 255, 0.95);
     border-bottom: 2px solid #ffb6c1;
     border-radius: 16px;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
     box-shadow: 0 2px 8px rgba(255, 182, 159, 0.2);
     flex-wrap: wrap;
 }

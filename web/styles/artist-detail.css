@@ -130,42 +130,7 @@
     object-fit: cover;
 }
 
-/* 图片多选样式 */
-.artist-detail-image-item.selection-mode {
-    cursor: pointer;
-    position: relative;
-}
-
-.artist-detail-image-item.selection-mode::after {
-    content: '';
-    position: absolute;
-    top: 6px;
-    left: 6px;
-    width: 22px;
-    height: 22px;
-    border: 2px solid rgba(255, 255, 255, 0.6);
-    border-radius: 4px;
-    background: rgba(0, 0, 0, 0.3);
-    transition: all 0.2s;
-    z-index: 2;
-}
-
-.artist-detail-image-item.selected {
-    outline: 3px solid #ff6b9d;
-    outline-offset: -3px;
-}
-
-.artist-detail-image-item.selected::after {
-    background: #ff6b9d;
-    border-color: #ff6b9d;
-    content: '✓';
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    font-weight: bold;
-}
+/* 图片多选样式 — 通用选择样式在 batch.css 中定义 */
 
 .artist-detail-empty {
     flex: 1;
