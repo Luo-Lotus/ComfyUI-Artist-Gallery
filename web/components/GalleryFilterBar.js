@@ -6,49 +6,26 @@ import { h } from '../lib/preact.mjs';
 import { Breadcrumb } from './Breadcrumb.js';
 import { Icon } from '../lib/icons.mjs';
 import { Storage } from '../utils.js';
+import { useGallery } from './GalleryContext.js';
 
-export function GalleryFilterBar({
-    viewMode,
-    currentCategory,
-    categoryPath,
-    onBreadcrumbNavigate,
-    onBack,
-    // 画廊筛选
-    searchQuery,
-    onSearchChange,
-    showFavoritesOnly,
-    onToggleFavorites,
-    sortBy,
-    onSortChange,
-    sortOrder,
-    onSortOrderToggle,
-    filteredCount,
-    totalCount,
-    cardSize,
-    onCardSizeChange,
-    // 图片搜索（详情视图）
-    imageSearchQuery,
-    onImageSearchChange,
-    imageFilteredCount,
-    imageTotalCount,
-}) {
-    const isGallery = viewMode === 'gallery';
-    const isArtist = viewMode === 'artist';
-    const isCombination = viewMode === 'combination';
+export function GalleryFilterBar() {
+    const ctx = useGallery();
+    const isGallery = ctx.viewMode === 'gallery';
+    const isArtist = ctx.viewMode === 'artist';
+    const isCombination = ctx.viewMode === 'combination';
 
-    // 返回按钮逻辑：非根页面都显示
-    const canGoBack = !isGallery || currentCategory !== 'root';
+    // 返回按钮逻辑
+    const canGoBack = !isGallery || ctx.currentCategory !== 'root';
 
     const handleBack = () => {
         if (!isGallery) {
-            onBack();
-        } else if (currentCategory !== 'root') {
-            const parentIndex = categoryPath.length - 2;
+            ctx.navigateToGallery();
+        } else if (ctx.currentCategory !== 'root') {
+            const parentIndex = ctx.categoryPath.length - 2;
             if (parentIndex >= 0) {
-                const parent = categoryPath[parentIndex];
-                onBreadcrumbNavigate(parent);
+                ctx.handleBreadcrumbNavigate(ctx.categoryPath[parentIndex]);
             } else {
-                onBreadcrumbNavigate({ id: 'root' });
+                ctx.handleBreadcrumbNavigate({ id: 'root' });
             }
         }
     };
@@ -62,8 +39,8 @@ export function GalleryFilterBar({
                 title: isGallery ? '返回上级分类' : '返回画廊',
             }, h(Icon, { name: 'arrow-left', size: 16 })),
             h(Breadcrumb, {
-                path: categoryPath,
-                onNavigate: onBreadcrumbNavigate,
+                path: ctx.categoryPath,
+                onNavigate: ctx.handleBreadcrumbNavigate,
             }),
         ]),
 
@@ -73,48 +50,34 @@ export function GalleryFilterBar({
                 class: 'gallery-search-input',
                 type: 'text',
                 placeholder: '搜索画师...',
-                value: searchQuery,
-                onInput: (e) => onSearchChange(e.target.value),
+                value: ctx.searchQuery,
+                onInput: (e) => ctx.setSearchQuery(e.target.value),
             }),
 
-            h(
-                'button',
-                {
-                    class: `gallery-filter-btn ${showFavoritesOnly ? 'active' : ''}`,
-                    onClick: onToggleFavorites,
-                    title: '只显示收藏',
-                },
-                h(Icon, { name: 'star', size: 16 }),
-            ),
+            h('button', {
+                class: `gallery-filter-btn ${ctx.showFavoritesOnly ? 'active' : ''}`,
+                onClick: () => ctx.setShowFavoritesOnly(prev => !prev),
+                title: '只显示收藏',
+            }, h(Icon, { name: 'star', size: 16 })),
 
-            h(
-                'select',
-                {
-                    class: 'gallery-filter-select',
-                    value: sortBy,
-                    onChange: (e) => onSortChange(e.target.value),
-                },
-                [
-                    h('option', { value: 'name' }, '名称'),
-                    h('option', { value: 'created_at' }, '创建时间'),
-                    h('option', { value: 'image_count' }, '图片数量'),
-                ],
-            ),
+            h('select', {
+                class: 'gallery-filter-select',
+                value: ctx.sortBy,
+                onChange: (e) => ctx.setSortBy(e.target.value),
+            }, [
+                h('option', { value: 'name' }, '名称'),
+                h('option', { value: 'created_at' }, '创建时间'),
+                h('option', { value: 'image_count' }, '图片数量'),
+            ]),
 
-            h(
-                'button',
-                {
-                    class: 'gallery-filter-btn',
-                    onClick: onSortOrderToggle,
-                    title: sortOrder === 'asc' ? '升序' : '降序',
-                },
-                sortOrder === 'asc' ? h(Icon, { name: 'arrow-up', size: 16 }) : h(Icon, { name: 'arrow-down', size: 16 }),
-            ),
+            h('button', {
+                class: 'gallery-filter-btn',
+                onClick: () => ctx.setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc'),
+                title: ctx.sortOrder === 'asc' ? '升序' : '降序',
+            }, ctx.sortOrder === 'asc' ? h(Icon, { name: 'arrow-up', size: 16 }) : h(Icon, { name: 'arrow-down', size: 16 })),
 
-            h(
-                'span',
-                { class: 'gallery-count-badge' },
-                `${filteredCount}/${totalCount || 0}`,
+            h('span', { class: 'gallery-count-badge' },
+                `${ctx.filteredArtists.length}/${ctx.data?.totalCount || 0}`,
             ),
 
             h('div', { class: 'gallery-size-slider' }, [
@@ -124,10 +87,10 @@ export function GalleryFilterBar({
                     min: '0.5',
                     max: '1.5',
                     step: '0.05',
-                    value: cardSize,
+                    value: ctx.cardSize,
                     onInput: (e) => {
                         const val = parseFloat(e.target.value);
-                        onCardSizeChange(val);
+                        ctx.setCardSize(val);
                         Storage.saveCardSize(val);
                     },
                     title: '调节卡片大小',
@@ -142,13 +105,11 @@ export function GalleryFilterBar({
                 class: 'gallery-search-input',
                 type: 'text',
                 placeholder: '搜索图片...',
-                value: imageSearchQuery,
-                onInput: (e) => onImageSearchChange(e.target.value),
+                value: ctx.imageSearchQuery,
+                onInput: (e) => ctx.setImageSearchQuery(e.target.value),
             }),
-            h(
-                'span',
-                { class: 'gallery-count-badge' },
-                `${imageFilteredCount}/${imageTotalCount || 0}`,
+            h('span', { class: 'gallery-count-badge' },
+                `${isArtist ? ctx.filteredArtistImages.length : ctx.filteredCombinationImages.length}/${isArtist ? (ctx.currentArtist?.images?.length || 0) : (ctx.viewModeCombination?.images?.length || 0)}`,
             ),
         ]),
     ]);

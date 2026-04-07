@@ -1290,6 +1290,8 @@
     gap: 6px; /* 增加标签间距 */
     padding: 8px 4px 4px 4px;
     min-height: 36px;
+    max-height: 150px;
+    overflow-y: auto;
     border-radius: 4px;
     transition: background 0.2s;
 }
@@ -1423,24 +1425,28 @@
 
 /* ==================== 滚动条样式优化 ==================== */
 .artist-selector-list::-webkit-scrollbar,
-.partition-list-content::-webkit-scrollbar {
+.partition-list-content::-webkit-scrollbar,
+.partition-artists::-webkit-scrollbar {
     width: 8px;
 }
 
 .artist-selector-list::-webkit-scrollbar-track,
-.partition-list-content::-webkit-scrollbar-track {
+.partition-list-content::-webkit-scrollbar-track,
+.partition-artists::-webkit-scrollbar-track {
     background: rgba(30, 30, 30, 0.5);
     border-radius: 4px;
 }
 
 .artist-selector-list::-webkit-scrollbar-thumb,
-.partition-list-content::-webkit-scrollbar-thumb {
+.partition-list-content::-webkit-scrollbar-thumb,
+.partition-artists::-webkit-scrollbar-thumb {
     background: rgba(80, 80, 80, 0.5);
     border-radius: 4px;
 }
 
 .artist-selector-list::-webkit-scrollbar-thumb:hover,
-.partition-list-content::-webkit-scrollbar-thumb:hover {
+.partition-list-content::-webkit-scrollbar-thumb:hover,
+.partition-artists::-webkit-scrollbar-thumb:hover {
     background: rgba(100, 100, 100, 0.6);
 }
 

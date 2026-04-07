@@ -66,6 +66,7 @@ app.registerExtension({
 
         // 应用状态
         let isModalOpen = false;
+        let pendingNavigation = null;
 
         // 渲染模态框
         function renderModal() {
@@ -74,8 +75,10 @@ app.registerExtension({
                     isOpen: isModalOpen,
                     onClose: () => {
                         isModalOpen = false;
+                        pendingNavigation = null;
                         renderModal();
                     },
+                    initialNavigation: pendingNavigation,
                 }),
                 modalContainer,
             );
@@ -86,6 +89,13 @@ app.registerExtension({
 
         // 初始化渲染
         renderModal();
+
+        // 全局导航函数：从画师选择器打开画廊到指定视图
+        window.__openArtistGalleryTo = (navigation) => {
+            pendingNavigation = { ...navigation, _ts: Date.now() };
+            isModalOpen = true;
+            renderModal();
+        };
 
         // 创建拖动功能
         const draggable = new Draggable(floatingButton, (hasMoved) => {

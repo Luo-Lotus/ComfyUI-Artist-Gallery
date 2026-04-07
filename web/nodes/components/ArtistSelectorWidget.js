@@ -7,9 +7,11 @@ import { useState, useMemo, useCallback } from '../../lib/hooks.mjs';
 import { Icon } from '../../lib/icons.mjs';
 import { useArtistSelector } from './hooks/useArtistSelector.js';
 import { useImagePreview } from './hooks/useImagePreview.js';
+import { useContextMenu } from '../../components/ContextMenu.js';
 import { PartitionList } from './PartitionList.js';
 import { PartitionConfigPanel } from './PartitionConfigPanel.js';
 import { LazyList } from '../../components/LazyList.js';
+import { showToast } from '../../components/Toast.js';
 
 export function ArtistSelectorWidget({
     nodeInstance,
@@ -60,6 +62,9 @@ export function ArtistSelectorWidget({
 
     // 使用图片预览 hook
     const { showPreview, removePreview } = useImagePreview();
+
+    // 使用右键菜单 hook
+    const { showContextMenu } = useContextMenu();
 
     // 分区配置面板状态
     const [showPartitionConfig, setShowPartitionConfig] = useState(false);
@@ -175,6 +180,31 @@ export function ArtistSelectorWidget({
                     // 点击分类卡片选择/取消选择分类
                     toggleCategorySelection(cat.id);
                 },
+                onContextMenu: (e) => {
+                    e.preventDefault();
+                    showContextMenu(e, [
+                        {
+                            icon: 'copy',
+                            label: '复制文本',
+                            action: () => {
+                                navigator.clipboard.writeText(cat.name);
+                                showToast('已复制', 'success');
+                            },
+                        },
+                        {
+                            icon: 'image',
+                            label: '在画廊中打开',
+                            action: () => {
+                                if (window.__openArtistGalleryTo) {
+                                    window.__openArtistGalleryTo({
+                                        type: 'category',
+                                        categoryId: cat.id,
+                                    });
+                                }
+                            },
+                        },
+                    ]);
+                },
                 title: '点击选择分类，点击 > 进入分类',
             },
             [
@@ -259,6 +289,33 @@ export function ArtistSelectorWidget({
                 onClick: () => toggleSelection(artist.categoryId, artist.name),
                 onMouseEnter: (e) => handleMouseEnter(artist, e),
                 onMouseLeave: () => handleMouseLeave(),
+                onContextMenu: (e) => {
+                    e.preventDefault();
+                    const text = artist.displayName || artist.name;
+                    showContextMenu(e, [
+                        {
+                            icon: 'copy',
+                            label: '复制文本',
+                            action: () => {
+                                navigator.clipboard.writeText(text);
+                                showToast('已复制', 'success');
+                            },
+                        },
+                        {
+                            icon: 'image',
+                            label: '在画廊中打开',
+                            action: () => {
+                                if (window.__openArtistGalleryTo) {
+                                    window.__openArtistGalleryTo({
+                                        type: 'artist',
+                                        categoryId: artist.categoryId,
+                                        artistName: artist.name,
+                                    });
+                                }
+                            },
+                        },
+                    ]);
+                },
             },
             [
                 h(
@@ -284,6 +341,32 @@ export function ArtistSelectorWidget({
                 onClick: () => toggleCombinationSelection(combination.id),
                 onMouseEnter: (e) => handleMouseEnter(combination, e),
                 onMouseLeave: () => handleMouseLeave(),
+                onContextMenu: (e) => {
+                    e.preventDefault();
+                    showContextMenu(e, [
+                        {
+                            icon: 'copy',
+                            label: '复制文本',
+                            action: () => {
+                                navigator.clipboard.writeText(combination.name);
+                                showToast('已复制', 'success');
+                            },
+                        },
+                        {
+                            icon: 'image',
+                            label: '在画廊中打开',
+                            action: () => {
+                                if (window.__openArtistGalleryTo) {
+                                    window.__openArtistGalleryTo({
+                                        type: 'combination',
+                                        categoryId: combination.categoryId || currentCategory,
+                                        combinationId: combination.id,
+                                    });
+                                }
+                            },
+                        },
+                    ]);
+                },
             },
             [
                 h('span', { class: 'artist-selector-item-icon' }, h(Icon, { name: 'link', size: 14 })),
