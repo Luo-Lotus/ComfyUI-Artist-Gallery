@@ -20,7 +20,7 @@ export function CategoryCard({
     selected = false,
     onSelect,
 }) {
-    const isRoot = category.name === '全部';
+    const isRoot = category.id === 'root';
     const { showContextMenu } = useContextMenu();
 
     // 生成选择键（用于多选）

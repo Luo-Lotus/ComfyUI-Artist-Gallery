@@ -30,7 +30,12 @@ export function FlatSelector({
         const flattenCategories = (tree, level = 0) => {
             const result = [];
             tree.forEach(cat => {
-                if (cat.name === '全部') return;
+                if (cat.id === 'root') {
+                    if (cat.children && cat.children.length > 0) {
+                        result.push(...flattenCategories(cat.children, level));
+                    }
+                    return;
+                }
                 result.push({ ...cat, level });
                 if (cat.children && cat.children.length > 0) {
                     result.push(...flattenCategories(cat.children, level + 1));
