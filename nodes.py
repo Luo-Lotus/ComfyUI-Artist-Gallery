@@ -24,6 +24,10 @@ from . import routes
 # 全局循环状态存储
 _cycle_states = {}
 
+# prompt_string 画师匹配正则缓存
+_artist_regex_cache = None
+_artist_regex_names = None  # frozenset 指纹，用于检测画师列表是否变化
+
 
 class ArtistGallery:
     """画师图库节点 - 管理面板"""
@@ -383,14 +387,64 @@ class SaveToGallery:
     FUNCTION = "save_image"
     OUTPUT_NODE = True
 
+    @staticmethod
+    def _match_artists_from_prompt(prompt_string):
+        """从 prompt_string 中匹配已知画师名，返回 [{categoryId, name, saveToGallery}, ...]"""
+        global _artist_regex_cache, _artist_regex_names
+
+        if not prompt_string or not prompt_string.strip():
+            return []
+
+        artist_storage = get_storage()[0]
+        all_artists = artist_storage.get_all_artists()
+        if not all_artists:
+            return []
+
+        # 构建 name → [artist, ...] 查找表（同名画师可属于不同分类）
+        name_to_artists = {}
+        lower_to_canonical = {}  # 小写 → 原始大小写 key，用于 IGNORECASE 匹配后还原
+        for artist in all_artists:
+            name = artist.get("name", "").strip()
+            if name:
+                name_to_artists.setdefault(name, []).append(artist)
+                lower_to_canonical[name.lower()] = name
+
+        # 检查缓存是否需要重建
+        current_names = frozenset(name_to_artists.keys())
+        if current_names != _artist_regex_names:
+            # 按名称长度降序排列，确保贪心匹配（长名优先）
+            sorted_names = sorted(name_to_artists.keys(), key=len, reverse=True)
+            escaped = [re.escape(n) for n in sorted_names]
+            _artist_regex_cache = re.compile('|'.join(escaped), re.IGNORECASE)
+            _artist_regex_names = current_names
+
+        # 单次扫描匹配所有画师名
+        matches = _artist_regex_cache.findall(prompt_string)
+
+        # 去重保序，查找每个匹配名对应的所有画师
+        result = []
+        seen = set()
+        for name in matches:
+            matched_key = lower_to_canonical.get(name.lower())
+            if matched_key and matched_key not in seen:
+                seen.add(matched_key)
+                for artist in name_to_artists[matched_key]:
+                    result.append({
+                        "categoryId": artist.get("categoryId", "root"),
+                        "name": artist.get("name"),
+                        "saveToGallery": True,
+                    })
+
+        return result
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
                 "images": ("IMAGE",),
-                "metadata_json": ("STRING",),
             },
             "optional": {
+                "metadata_json": ("STRING", {"default": "{}"}),
                 "filename_prefix": ("STRING", {"default": "AG"}),
                 "prompt_string": ("STRING", {"default": ""}),
             },
@@ -400,13 +454,12 @@ class SaveToGallery:
             }
         }
 
-    def save_image(self, images, metadata_json, filename_prefix="AG", prompt_string="", prompt=None, extra_pnginfo=None):
+    def save_image(self, images, metadata_json="{}", filename_prefix="AG", prompt_string="", prompt=None, extra_pnginfo=None):
         """
         保存图片到 output/artist_gallery/ 并创建映射关系
-        :param metadata_json: 由 ArtistSelector 输出的 JSON，包含:
-            - artist_names: 解析后的完整画师名列表
-            - selected_artists: [{categoryId, name}, ...]
-            - formatted_result: 格式化后的完整字符串
+        支持两种输入源（优先级：metadata_json > prompt_string）：
+        :param metadata_json: 由 ArtistSelector 输出的 JSON（优先）
+        :param prompt_string: 提示词字符串，自动匹配已知画师名（备选）
         """
         import folder_paths
         import numpy as np
@@ -414,20 +467,32 @@ class SaveToGallery:
         import time
         import json
 
+        # 解析 metadata_json
         try:
             metadata = json.loads(metadata_json) if metadata_json else {}
         except:
             metadata = {}
 
-        artist_names = metadata.get("artist_names", [])
-        if not artist_names:
-            print("[SaveToGallery] 错误: 未选择画师")
-            return ()
-
-        # 仅 saveToGallery=true 的画师参与关联和计数
+        # 三路优先级：metadata_json（有效）> prompt_string > 报错
+        artist_names_from_meta = metadata.get("artist_names", [])
         selected_artists = metadata.get("selected_artists", [])
-        saveable_artists = [a for a in selected_artists if a.get("saveToGallery", True)]
-        saveable_names = [a["name"] for a in saveable_artists]
+
+        if artist_names_from_meta and selected_artists:
+            # Path A: metadata_json 有效，使用现有逻辑
+            saveable_artists = [a for a in selected_artists if a.get("saveToGallery", True)]
+            saveable_names = [a["name"] for a in saveable_artists]
+        elif prompt_string and prompt_string.strip():
+            # Path B: 从 prompt_string 匹配画师
+            saveable_artists = self._match_artists_from_prompt(prompt_string)
+            saveable_names = [a["name"] for a in saveable_artists]
+            if not saveable_names:
+                print("[SaveToGallery] 错误: prompt_string 中未匹配到已知画师")
+                return ()
+            print(f"[SaveToGallery] 从 prompt_string 匹配到画师: {', '.join(saveable_names)}")
+        else:
+            # Path C: 都没有有效内容
+            print("[SaveToGallery] 错误: 请提供 metadata_json 或 prompt_string")
+            return ()
 
         output_dir = Path(folder_paths.get_output_directory())
         save_dir = output_dir / "artist_gallery"
@@ -477,7 +542,7 @@ class SaveToGallery:
                     if category_id and name:
                         artist_storage.update_image_count(category_id, name, 1)
 
-                print(f"[SaveToGallery] 已保存: {filename} -> 画师: {', '.join(artist_names)}")
+                print(f"[SaveToGallery] 已保存: {filename} -> 画师: {', '.join(saveable_names)}")
 
             except Exception as e:
                 print(f"[SaveToGallery] 保存图片失败: {e}")
