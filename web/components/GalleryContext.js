@@ -60,7 +60,7 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
 
     // ============ 导出对话框状态 ============
     const [showExportDialog, setShowExportDialog] = useState(false);
-    const [exportCategoryState, setExportCategoryState] = useState(null);
+    const [exportPayload, setExportPayload] = useState(null);
 
     // ============ Hooks ============
 
@@ -100,6 +100,12 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
         favorites,
     );
 
+    // 打开批量导出对话框（需在 useSelection 之前定义）
+    const handleOpenBatchExportDialog = useCallback(() => {
+        setExportPayload({ type: 'batch' });
+        setShowExportDialog(true);
+    }, []);
+
     // 多选管理
     const selection = useSelection({
         categories: categoryMgr.categories,
@@ -109,6 +115,7 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
         loadData,
         setCurrentArtist,
         refreshCategories: categoryMgr.refreshCategories,
+        openBatchExportDialog: handleOpenBatchExportDialog,
     });
 
     // 移动/复制操作
@@ -323,38 +330,55 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
     }, []);
 
     // 导出
-    const handleExportArtist = useCallback(async (artist) => {
-        try {
-            await exportArtists([
-                { categoryId: artist.categoryId, name: artist.name },
-            ]);
-            showToast(
-                `已导出画师: ${artist.displayName || artist.name}`,
-                'success',
-            );
-        } catch (error) {
-            showToast('导出失败: ' + error.message, 'error');
-        }
+    const handleExportArtist = useCallback((artist) => {
+        setExportPayload({ type: 'artist', artist });
+        setShowExportDialog(true);
     }, []);
 
     // 打开分类导出对话框
     const handleOpenExportDialog = useCallback((category) => {
-        setExportCategoryState(category);
+        setExportPayload({ type: 'category', category });
         setShowExportDialog(true);
     }, []);
 
-    // 确认分类导出
-    const handleExportCategoryConfirm = useCallback(async (category, includeImages) => {
+    // 统一导出确认
+    const handleExportConfirm = useCallback(async (includeImages, maxImages) => {
+        if (!exportPayload) return;
+        const opts = { includeImages, maxImagesPerArtist: maxImages };
+
         try {
-            await exportCategory(category.id, includeImages);
-            showToast(
-                `已导出分类: ${category.name}${includeImages ? '' : ' (仅结构)'}`,
-                'success',
-            );
+            if (exportPayload.type === 'category') {
+                await exportCategory(exportPayload.category.id, opts);
+                showToast(
+                    `已导出分类: ${exportPayload.category.name}${includeImages ? '' : ' (仅结构)'}`,
+                    'success',
+                );
+            } else if (exportPayload.type === 'artist') {
+                await exportArtists([{
+                    categoryId: exportPayload.artist.categoryId,
+                    name: exportPayload.artist.name,
+                }], opts);
+                showToast(
+                    `已导出画师: ${exportPayload.artist.displayName || exportPayload.artist.name}`,
+                    'success',
+                );
+            } else if (exportPayload.type === 'batch') {
+                const details = selection.getSelectedDetails();
+                const artistKeys = details.artists.map(a => ({
+                    categoryId: a.categoryId,
+                    name: a.name,
+                }));
+                if (artistKeys.length === 0) {
+                    showToast('请选择画师后导出', 'warning');
+                    return;
+                }
+                await exportArtists(artistKeys, opts);
+                showToast(`已导出 ${artistKeys.length} 个画师`, 'success');
+            }
         } catch (error) {
             showToast('导出失败: ' + error.message, 'error');
         }
-    }, []);
+    }, [exportPayload, selection]);
 
     // 导入画师
     const handleImportArtists = useCallback(async (e) => {
@@ -636,7 +660,7 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
         openDeleteConfirm,
         showImportDialog, setShowImportDialog,
         showExportDialog, setShowExportDialog,
-        exportCategoryState, setExportCategoryState,
+        exportPayload, setExportPayload,
         showCombinationDialog, setShowCombinationDialog,
         combinationDialogMode, setCombinationDialogMode,
         editingCombination, setEditingCombination,
@@ -657,7 +681,8 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
         handleCombinationDialogSave,
         handleExportArtist,
         handleOpenExportDialog,
-        handleExportCategoryConfirm,
+        handleOpenBatchExportDialog,
+        handleExportConfirm,
         handleImportArtists,
         handleArtistDeleteImageSuccess,
         handleArtistSetCoverSuccess,
@@ -682,7 +707,7 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
         showAddArtistDialog, editModeArtist,
         showDeleteConfirm, artistToDelete,
         showImportDialog,
-        showExportDialog, exportCategoryState,
+        showExportDialog, exportPayload,
         showCombinationDialog, combinationDialogMode, editingCombination,
         lightbox,
         onClose,

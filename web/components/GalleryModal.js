@@ -214,12 +214,18 @@ function DialogLayer() {
 
         h(ExportDialog, {
             isOpen: ctx.showExportDialog,
-            category: ctx.exportCategoryState,
+            title: ctx.exportPayload?.type === 'category'
+                ? `导出分类: ${ctx.exportPayload.category.name}`
+                : ctx.exportPayload?.type === 'batch'
+                    ? '批量导出画师'
+                    : ctx.exportPayload?.type === 'artist'
+                        ? `导出画师: ${ctx.exportPayload.artist.displayName || ctx.exportPayload.artist.name}`
+                        : '导出',
             onClose: () => {
                 ctx.setShowExportDialog(false);
-                ctx.setExportCategoryState(null);
+                ctx.setExportPayload(null);
             },
-            onConfirm: ctx.handleExportCategoryConfirm,
+            onConfirm: ctx.handleExportConfirm,
         }),
 
         h(CombinationDialog, {

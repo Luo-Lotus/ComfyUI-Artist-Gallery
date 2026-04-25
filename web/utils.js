@@ -408,20 +408,18 @@ export async function fetchCombinationImages(id) {
 
 // ============ Export / Import ============
 
-export async function exportArtists(artists) {
-    const response = await fetch('/artist_gallery/export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artists }),
-    });
+async function _downloadZip(response) {
     if (!response.ok) {
         const err = await response.json().catch(() => ({ error: '导出失败' }));
         throw new Error(err.error || '导出失败');
     }
     const blob = await response.blob();
     const disposition = response.headers.get('Content-Disposition') || '';
-    const match = disposition.match(/filename="?(.+?)"?(?:;|$)/);
-    const filename = match ? match[1] : `artists_export_${new Date().toISOString().slice(0,10).replace(/-/g,'')}.zip`;
+    const utf8Match = disposition.match(/filename\*=UTF-8''(.+)/);
+    const asciiMatch = disposition.match(/filename="?(.+?)"?(?:;|$)/);
+    const filename = utf8Match ? decodeURIComponent(utf8Match[1])
+        : asciiMatch ? asciiMatch[1]
+        : `export_${new Date().toISOString().slice(0,10).replace(/-/g,'')}.zip`;
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -432,28 +430,28 @@ export async function exportArtists(artists) {
     URL.revokeObjectURL(url);
 }
 
-export async function exportCategory(categoryId, includeImages = true) {
-    const response = await fetch('/artist_gallery/export-category', {
+export async function exportArtists(artists, options = {}) {
+    await _downloadZip(await fetch('/artist_gallery/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ categoryId, includeImages }),
-    });
-    if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: '导出失败' }));
-        throw new Error(err.error || '导出失败');
-    }
-    const blob = await response.blob();
-    const disposition = response.headers.get('Content-Disposition') || '';
-    const match = disposition.match(/filename="?(.+?)"?(?:;|$)/);
-    const filename = match ? match[1] : `category_export_${new Date().toISOString().slice(0,10).replace(/-/g,'')}.zip`;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+        body: JSON.stringify({
+            artists,
+            includeImages: options.includeImages !== false,
+            maxImagesPerArtist: options.maxImagesPerArtist || 0,
+        }),
+    }));
+}
+
+export async function exportCategory(categoryId, options = {}) {
+    await _downloadZip(await fetch('/artist_gallery/export-category', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            categoryId,
+            includeImages: options.includeImages !== false,
+            maxImagesPerArtist: options.maxImagesPerArtist || 0,
+        }),
+    }));
 }
 
 export async function importArtists(file, categoryId) {

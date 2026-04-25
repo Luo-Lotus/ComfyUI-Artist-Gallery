@@ -150,11 +150,15 @@ export async function resetCycleState(nodeId) {
 /**
  * 导出画师（含图片）为 ZIP 文件
  */
-export async function exportArtists(artists) {
+export async function exportArtists(artists, options = {}) {
     const response = await fetch('/artist_gallery/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artists }),
+        body: JSON.stringify({
+            artists,
+            includeImages: options.includeImages !== false,
+            maxImagesPerArtist: options.maxImagesPerArtist || 0,
+        }),
     });
     if (!response.ok) {
         const err = await response.json().catch(() => ({ error: '导出失败' }));
@@ -174,11 +178,15 @@ export async function exportArtists(artists) {
 /**
  * 导出分类（递归含子分类、画师、组合）为 ZIP 文件
  */
-export async function exportCategory(categoryId, includeImages = true) {
+export async function exportCategory(categoryId, options = {}) {
     const response = await fetch('/artist_gallery/export-category', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ categoryId, includeImages }),
+        body: JSON.stringify({
+            categoryId,
+            includeImages: options.includeImages !== false,
+            maxImagesPerArtist: options.maxImagesPerArtist || 0,
+        }),
     });
     if (!response.ok) {
         const err = await response.json().catch(() => ({ error: '导出失败' }));

@@ -266,6 +266,8 @@ async def export_artists(request):
     try:
         data = await request.json()
         artists_param = data.get("artists", [])
+        include_images = data.get("includeImages", True)
+        max_images = data.get("maxImagesPerArtist", 0)  # 0 = unlimited
 
         artist_storage, mapping_storage, _, _ = get_storage()
         output_dir = Path(folder_paths.get_output_directory())
@@ -287,6 +289,9 @@ async def export_artists(request):
             })
 
             mappings = mapping_storage.get_mappings_by_artist(name)
+            if max_images > 0:
+                mappings = mappings[:max_images]
+
             for mapping in mappings:
                 image_path = mapping.get("imagePath")
                 if image_path not in exported_images:
@@ -308,14 +313,15 @@ async def export_artists(request):
                 "version": 1,
                 "exportedAt": int(time.time() * 1000),
                 "artists": manifest_artists,
-                "images": manifest_images,
+                "images": manifest_images if include_images else [],
             }
             zf.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
 
-            for original_path, info in exported_images.items():
-                full_path = output_dir / original_path
-                if full_path.exists():
-                    zf.write(full_path, info["path"])
+            if include_images:
+                for original_path, info in exported_images.items():
+                    full_path = output_dir / original_path
+                    if full_path.exists():
+                        zf.write(full_path, info["path"])
 
         from datetime import datetime
         date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -345,6 +351,7 @@ async def export_category(request):
         data = await request.json()
         category_id = data.get("categoryId", "root")
         include_images = data.get("includeImages", True)
+        max_images = data.get("maxImagesPerArtist", 0)  # 0 = unlimited
 
         artist_storage, mapping_storage, category_storage, combination_storage = get_storage()
         output_dir = Path(folder_paths.get_output_directory())
@@ -375,6 +382,8 @@ async def export_category(request):
         for artist in export_artists_list:
             name = artist.get("name")
             mappings = artist_mapping_index.get(name, [])
+            if max_images > 0:
+                mappings = mappings[:max_images]
             for mapping in mappings:
                 image_path = mapping.get("imagePath")
                 if image_path not in exported_images:

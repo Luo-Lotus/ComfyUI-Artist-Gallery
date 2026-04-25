@@ -3,7 +3,6 @@
  * 管理多选模式、选中项、批量操作
  */
 import { useState } from '../../lib/hooks.mjs';
-import { exportArtists } from '../../utils.js';
 import { showToast } from '../Toast.js';
 
 export function useSelection({
@@ -14,6 +13,7 @@ export function useSelection({
     loadData,
     setCurrentArtist,
     refreshCategories,
+    openBatchExportDialog,
 }) {
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedItems, setSelectedItems] = useState(new Set());
@@ -178,22 +178,13 @@ export function useSelection({
         setShowCopyDialog(true);
     };
 
-    const handleBatchExport = async () => {
+    const handleBatchExport = () => {
         const details = getSelectedDetails();
-        const artistKeys = details.artists.map((a) => ({
-            categoryId: a.categoryId,
-            name: a.name,
-        }));
-        if (artistKeys.length === 0) {
+        if (details.artists.length === 0) {
             showToast('请选择画师后导出', 'warning');
             return;
         }
-        try {
-            await exportArtists(artistKeys);
-            showToast(`已导出 ${artistKeys.length} 个画师`, 'success');
-        } catch (error) {
-            showToast('导出失败: ' + error.message, 'error');
-        }
+        openBatchExportDialog();
     };
 
     const handleBatchConfirm = async () => {
