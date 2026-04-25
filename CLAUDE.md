@@ -30,6 +30,11 @@ Artist Gallery is a ComfyUI custom node plugin that provides:
   - Tracks `partition_used_artists` (actual artists after random/cycle filtering)
   - Tracks `partition_formats` (per-partition format string)
 - **SaveToGallery**: Saves generated images to the gallery system
+  - Supports two input sources (priority: `metadata_json` > `prompt_string`):
+    - `metadata_json`: from `ArtistSelector`, contains explicit artist selections
+    - `prompt_string`: auto-matches known artist names via regex substring matching
+  - Validates at least one input source is provided
+  - `_match_artists_from_prompt()`: Regex alternation-based matching with module-level cache
   - Uses `collect_artist()` to register artist associations for saved images
 - **`_apply_format()`**: Applies format template (e.g., `@{content}`) to artist names
 
@@ -503,6 +508,7 @@ svg.spin {
 - **Image lazy loading**: `loading="lazy"` attribute on images
 - **Event listener cleanup**: Proper cleanup in `useEffect` return functions
 - **Virtual scroll**: `LazyList` component for large lists
+- **Prompt string artist matching**: SaveToGallery matches artist names via compiled regex alternation pattern (longest-first, case-insensitive), cached at module level with frozenset fingerprint invalidation
 
 ### Best Practices
 

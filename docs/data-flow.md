@@ -388,23 +388,40 @@ working_items = [
 
 ### 4.1 输入
 
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `images` | IMAGE | ComfyUI 图片张量（可能多张） |
-| `metadata_json` | STRING | 来自 ArtistSelector 的富化 metadata |
-| `filename_prefix` | STRING | 文件名前缀，默认 `"AG"` |
-| `prompt`（隐藏） | PROMPT | ComfyUI 工作流的 prompt 信息 |
-| `extra_pnginfo`（隐藏） | EXTRA_PNGINFO | ComfyUI 附加 PNG 信息 |
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `images` | IMAGE | 是 | ComfyUI 图片张量（可能多张） |
+| `metadata_json` | STRING | 否* | 来自 ArtistSelector 的富化 metadata（优先级高） |
+| `filename_prefix` | STRING | 否 | 文件名前缀，默认 `"AG"` |
+| `prompt_string` | STRING | 否* | 提示词字符串，自动匹配已知画师名（备选，优先级低） |
+| `prompt`（隐藏） | PROMPT | — | ComfyUI 工作流的 prompt 信息 |
+| `extra_pnginfo`（隐藏） | EXTRA_PNGINFO | — | ComfyUI 附加 PNG 信息 |
+
+> *`metadata_json` 和 `prompt_string` 至少需要提供一个。两者都提供时，优先使用 `metadata_json`。
 
 ### 4.2 处理流程
 
 ```
-接收 metadata_json
+接收 metadata_json 和 prompt_string
     ↓
-解析 JSON → 提取 artist_names 和 selected_artists
+解析 metadata_json（JSON → dict）
     ↓
-筛选 saveToGallery=true 的画师（saveable_artists）
-    ↓
+三路优先级判断 ──────────────────────────────────────────┐
+    ↓                                                    │
+Path A: metadata_json 有效                                │
+（包含 artist_names 和 selected_artists）                  │
+    → 筛选 saveToGallery=true 的画师                      │
+    ↓                                                    │
+Path B: metadata_json 无效，但有 prompt_string             │
+    → 调用 _match_artists_from_prompt(prompt_string)       │
+    → 使用正则交替模式匹配已知画师名                         │
+    → 所有匹配到的画师默认 saveToGallery=true               │
+    ↓                                                    │
+Path C: 两者都没有有效内容                                  │
+    → 输出错误日志，返回 ()                                │
+    ↓                                                    │
+└────────────────────────────────────────────────────────┘
+    ↓ （Path A 或 Path B 得到 saveable_artists / saveable_names）
 创建保存目录 output/artist_gallery/
     ↓
 遍历每张图片 ──────────────────────────┐
@@ -428,6 +445,33 @@ Tensor → numpy → PIL Image             │
 └───────────────────────────────────────┘
     ↓
 返回 ()
+```
+
+### 4.2.1 prompt_string 画师匹配算法
+
+当 `metadata_json` 无效但 `prompt_string` 有内容时，使用 `_match_artists_from_prompt()` 方法自动匹配画师。
+
+**原理**：格式模板（如 `@{content}`、`({content}:1.2)`）输出中，画师名始终是完整子串。因此只需在 prompt_string 中查找已知画师名的子串即可。
+
+**算法步骤**：
+1. 从 `ArtistStorage` 加载所有画师
+2. 构建 `name → [artist, ...]` 查找表（同名画师可属于不同分类）
+3. 将所有画师名编译为一个正则交替模式（`re.compile('name1|name2|...'，re.IGNORECASE)`），按名称长度降序排列确保贪心匹配
+4. 单次 `findall()` 扫描 prompt_string，获取所有匹配
+5. 去重保序，查找每个匹配名对应的所有画师
+6. 返回 `[{categoryId, name, saveToGallery: True}, ...]`
+
+**性能优化**：
+- 正则交替模式：将 N 个画师名编译为 1 个正则，单次扫描，匹配时间与画师数量无关
+- 模块级缓存：`_artist_regex_cache` + `frozenset` 指纹，画师列表未变化时复用已编译正则
+- 10,000 个画师名：正则编译 ~10-50ms（一次性），匹配 <1ms
+- 大小写不敏感匹配，结果使用存储中的规范大小写
+
+**示例**：
+```
+prompt_string = "@mike, (sarah:1.2), some other text, @tom"
+已知画师: mike, sarah, tom, alice
+匹配结果: [mike, sarah, tom] → 关联到保存的图片
 ```
 
 ### 4.3 关键细节

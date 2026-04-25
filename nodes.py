@@ -444,9 +444,9 @@ class SaveToGallery:
                 "images": ("IMAGE",),
             },
             "optional": {
-                "metadata_json": ("STRING", {"default": "{}"}),
+                "metadata_json": ("STRING", {"default": "{}", "forceInput": True}),
+                "prompt_string": ("STRING", {"default": "", "forceInput": True}),
                 "filename_prefix": ("STRING", {"default": "AG"}),
-                "prompt_string": ("STRING", {"default": ""}),
             },
             "hidden": {
                 "prompt": "PROMPT",

@@ -19,7 +19,7 @@
 - **自动扫描** - 自动检测 ComfyUI output 目录中匹配命名规则的图片
 - **拖拽操作** - 支持将画师和分类拖拽到不同分区
 - **格式模板** - 自定义输出格式，支持 `{content}` 和 `{random(min,max,step)}` 变量
-- **图片保存** - 将生成的图片保存到画廊并关联画师信息
+- **图片保存** - 将生成的图片保存到画廊并关联画师信息，支持通过 `metadata_json` 或 `prompt_string` 两种方式关联画师
 - **批量操作** - 批量添加画师、批量删除、批量移动
 - **导入导出** - 支持画师和分类数据的导入导出
 
@@ -87,9 +87,14 @@ git clone <repository-url> artist_gallery
 - **类型**: 输出节点
 - **输入**:
     - `images`: ComfyUI 图片张量
-    - `metadata_json`: 画师元数据 JSON（可连接 ArtistSelector 的输出）
+    - `metadata_json`: 画师元数据 JSON（可连接 ArtistSelector 的输出，优先级高）
     - `filename_prefix`: 文件名前缀（默认 `AG`）
+    - `prompt_string`: 提示词字符串（自动匹配已知画师名，无需连接 ArtistSelector）
 - **输出**: 图片保存到 `output/artist_gallery/` 目录
+- **说明**:
+    - `metadata_json` 和 `prompt_string` 至少提供一个
+    - 两者都提供时，优先使用 `metadata_json`
+    - `prompt_string` 模式会自动从提示词中匹配已知画师名（不区分大小写），支持带格式前缀的名称（如 `@mike`、`(sarah:1.2)` 等）
 
 ## 使用方法
 
@@ -119,11 +124,24 @@ git clone <repository-url> artist_gallery
 
 ### 保存到画廊
 
+支持两种方式关联画师：
+
+**方式一：通过画师选择器（推荐）**
+
 1. 在工作流中添加 **保存到画廊** 节点
 2. 将图片生成节点的输出连接到 `images` 输入
 3. 将画师选择节点的 `metadata_json` 输出连接到 `metadata_json` 输入
 4. 图片将保存到 `output/artist_gallery/` 并自动关联画师信息
 5. 如果分区启用了自动创建组合，保存时会自动创建组合
+
+**方式二：通过提示词字符串**
+
+1. 在工作流中添加 **保存到画廊** 节点
+2. 将图片生成节点的输出连接到 `images` 输入
+3. 将包含画师名称的文本连接到 `prompt_string` 输入（无需连接画师选择器）
+4. 插件会自动从提示词中匹配已知画师名，并关联到保存的图片
+
+> 两种方式可同时使用，同时提供时优先使用 `metadata_json`。
 
 ### 输出格式模板
 
