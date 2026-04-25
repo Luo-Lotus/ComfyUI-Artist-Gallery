@@ -1,7 +1,7 @@
 [project]
 name = "artist-gallery"
 description = "A ComfyUI custom node plugin for artist gallery management, artist selection, and image saving with categorization, combinations, and cover image support."
-version = "1.0.0"
+version = "1.0.1"
 license = { text = "MIT License" }
 requires-python = ">=3.9"
 dependencies = [
