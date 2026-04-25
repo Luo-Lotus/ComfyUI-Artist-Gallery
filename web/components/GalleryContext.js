@@ -40,6 +40,8 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
     const [viewMode, setViewMode] = useState('gallery');
     const [currentArtist, setCurrentArtist] = useState(null);
     const [imageSearchQuery, setImageSearchQuery] = useState('');
+    const [imageSortBy, setImageSortBy] = useState('name');
+    const [imageSortOrder, setImageSortOrder] = useState('asc');
     const [lightbox, setLightbox] = useState({ open: false, artist: null, imageIndex: 0 });
 
     // ============ 对话框状态 ============
@@ -48,8 +50,6 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
     const [artistToDelete, setArtistToDelete] = useState(null);
     const [editModeArtist, setEditModeArtist] = useState(null);
     const [showImportDialog, setShowImportDialog] = useState(false);
-    const [showImageInfoDialog, setShowImageInfoDialog] = useState(false);
-    const [imageInfoImage, setImageInfoImage] = useState(null);
 
     // ============ 组合相关状态 ============
     const [showCombinationDialog, setShowCombinationDialog] = useState(false);
@@ -127,24 +127,46 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
     }, [data]);
 
     const filteredArtistImages = useMemo(() => {
-        const images = currentArtist?.images || [];
-        if (!imageSearchQuery) return images;
-        const q = imageSearchQuery.toLowerCase();
-        return images.filter((img) => {
-            const filename = (img.path || '').split(/[/\\]/).pop().toLowerCase();
-            return filename.includes(q);
+        let images = [...(currentArtist?.images || [])];
+        if (imageSearchQuery) {
+            const q = imageSearchQuery.toLowerCase();
+            images = images.filter((img) => {
+                const filename = (img.path || '').split(/[/\\]/).pop().toLowerCase();
+                return filename.includes(q);
+            });
+        }
+        images.sort((a, b) => {
+            let cmp = 0;
+            if (imageSortBy === 'time') {
+                cmp = (a.mtime || 0) - (b.mtime || 0);
+            } else {
+                cmp = (a.path || '').localeCompare(b.path || '');
+            }
+            return imageSortOrder === 'asc' ? cmp : -cmp;
         });
-    }, [currentArtist?.images, imageSearchQuery]);
+        return images;
+    }, [currentArtist?.images, imageSearchQuery, imageSortBy, imageSortOrder]);
 
     const filteredCombinationImages = useMemo(() => {
-        const images = viewModeCombination?.images || [];
-        if (!imageSearchQuery) return images;
-        const q = imageSearchQuery.toLowerCase();
-        return images.filter((img) => {
-            const filename = (img.path || '').split(/[/\\]/).pop().toLowerCase();
-            return filename.includes(q);
+        let images = [...(viewModeCombination?.images || [])];
+        if (imageSearchQuery) {
+            const q = imageSearchQuery.toLowerCase();
+            images = images.filter((img) => {
+                const filename = (img.path || '').split(/[/\\]/).pop().toLowerCase();
+                return filename.includes(q);
+            });
+        }
+        images.sort((a, b) => {
+            let cmp = 0;
+            if (imageSortBy === 'time') {
+                cmp = (a.mtime || 0) - (b.mtime || 0);
+            } else {
+                cmp = (a.path || '').localeCompare(b.path || '');
+            }
+            return imageSortOrder === 'asc' ? cmp : -cmp;
         });
-    }, [viewModeCombination?.images, imageSearchQuery]);
+        return images;
+    }, [viewModeCombination?.images, imageSearchQuery, imageSortBy, imageSortOrder]);
 
     const galleryOrderedKeys = useMemo(() => {
         const keys = [];
@@ -200,19 +222,13 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
 
     const handleLightboxNavigate = useCallback((direction) => {
         setLightbox((prev) => {
-            const currentArtistIndex = filteredArtists.findIndex(
-                (a) =>
-                    a.categoryId === prev.artist?.categoryId &&
-                    a.name === prev.artist?.name,
-            );
-            const artist = filteredArtists[currentArtistIndex];
-            if (!artist || !artist.images) return prev;
+            if (!prev.artist?.images) return prev;
             let newIndex = prev.imageIndex + direction;
-            if (newIndex < 0) newIndex = artist.images.length - 1;
-            if (newIndex >= artist.images.length) newIndex = 0;
+            if (newIndex < 0) newIndex = prev.artist.images.length - 1;
+            if (newIndex >= prev.artist.images.length) newIndex = 0;
             return { ...prev, imageIndex: newIndex };
         });
-    }, [filteredArtists]);
+    }, []);
 
     const openLightbox = useCallback((artist, imageIndex) => {
         setLightbox({ open: true, artist, imageIndex });
@@ -537,6 +553,8 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
         handleFavoriteToggle,
         cardSize, setCardSize,
         imageSearchQuery, setImageSearchQuery,
+        imageSortBy, setImageSortBy,
+        imageSortOrder, setImageSortOrder,
         filteredArtistImages,
         filteredCombinationImages,
         currentCombinations,
@@ -587,8 +605,6 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
         artistToDelete, setArtistToDelete,
         openDeleteConfirm,
         showImportDialog, setShowImportDialog,
-        showImageInfoDialog, setShowImageInfoDialog,
-        imageInfoImage, setImageInfoImage,
         showCombinationDialog, setShowCombinationDialog,
         combinationDialogMode, setCombinationDialogMode,
         editingCombination, setEditingCombination,
@@ -623,7 +639,7 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
         categoryMgr.currentCategoryChildren, categoryMgr.refreshCategories,
         categoryMgr.showCategoryDialog, categoryMgr.categoryDialogMode, categoryMgr.editingCategory,
         filteredArtists, searchQuery, sortBy, sortOrder, showFavoritesOnly, favorites,
-        cardSize, imageSearchQuery,
+        cardSize, imageSearchQuery, imageSortBy, imageSortOrder,
         filteredArtistImages, filteredCombinationImages, currentCombinations,
         selection.selectionMode, selection.selectedItems, selection.showBatchConfirm,
         selection.batchOperation,
@@ -631,7 +647,7 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
         itemOps.showCopyDialog, itemOps.copyItem, itemOps.copyItemType,
         showAddArtistDialog, editModeArtist,
         showDeleteConfirm, artistToDelete,
-        showImportDialog, showImageInfoDialog, imageInfoImage,
+        showImportDialog,
         showCombinationDialog, combinationDialogMode, editingCombination,
         lightbox,
         onClose,

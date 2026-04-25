@@ -3,15 +3,23 @@
  * 显示画师的图片网格，支持搜索过滤、右键菜单、多选
  */
 import { h } from '../lib/preact.mjs';
+import { useEffect } from '../lib/hooks.mjs';
 import { useContextMenu } from './ContextMenu.js';
 import { LazyList } from './LazyList.js';
 import { buildImageUrl, setArtistCover } from '../utils.js';
 import { showToast } from './Toast.js';
 import { useGallery } from './GalleryContext.js';
+import { applySizeStyles } from './SizePresets.js';
 
 export function ArtistDetailView() {
     const ctx = useGallery();
     const { showContextMenu } = useContextMenu();
+
+    useEffect(() => {
+        const gridEl = document.querySelector('.artist-detail-grid');
+        if (gridEl) applySizeStyles(gridEl, ctx.cardSize);
+    }, [ctx.cardSize, ctx.filteredArtistImages]);
+
     const artist = ctx.currentArtist;
     const images = ctx.filteredArtistImages;
 
@@ -23,7 +31,7 @@ export function ArtistDetailView() {
             {
                 icon: 'search',
                 label: '查看大图',
-                action: () => ctx.openLightbox(artist, images.indexOf(image)),
+                action: () => ctx.openLightbox({ ...artist, images }, images.indexOf(image)),
             },
             {
                 icon: 'image',
@@ -70,14 +78,6 @@ export function ArtistDetailView() {
                     }
                 },
             },
-            {
-                icon: 'info-circle',
-                label: '图片信息',
-                action: () => {
-                    ctx.setImageInfoImage(image);
-                    ctx.setShowImageInfoDialog(true);
-                },
-            },
         ];
 
         showContextMenu(e, menuItems);
@@ -97,7 +97,7 @@ export function ArtistDetailView() {
                             if (ctx.selectionMode) {
                                 ctx.handleArtistSelect(imgKey, e.shiftKey);
                             } else {
-                                ctx.openLightbox(artist, index);
+                                ctx.openLightbox({ ...artist, images }, index);
                             }
                         },
                         onContextMenu: (e) => handleImageContextMenu(e, img),

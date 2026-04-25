@@ -1,18 +1,17 @@
-/* 灯箱效果 */
+/* 灯箱遮罩 - 全屏 */
 .gallery-lightbox {
     position: fixed;
     top: 0;
     left: 0;
-    right: 0;
-    bottom: 0;
+    width: 100vw;
+    height: 100vh;
     background: rgba(0, 0, 0, 0.95);
-    display: flex;
-    align-items: center;
-    justify-content: center;
     z-index: 10001;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s;
+    display: flex;
+    flex-direction: row;
 }
 
 .gallery-lightbox.open {
@@ -20,95 +19,280 @@
     pointer-events: auto;
 }
 
-.gallery-lightbox-content {
-    position: relative;
-    max-width: 90vw;
-    max-height: 90vh;
+/* 左侧图片区域 - 自动填充剩余空间 */
+.gallery-lightbox-image-section {
+    flex: 1;
+    min-width: 0;
     display: flex;
-    flex-direction: column;
     align-items: center;
+    justify-content: center;
+    position: relative;
+    padding: 60px 56px 50px;
 }
 
 .gallery-lightbox-img {
-    max-width: 90vw;
-    max-height: calc(85vh - 40px);
+    max-width: 100%;
+    max-height: 100%;
     object-fit: contain;
-    border-radius: 12px;
+    border-radius: 8px;
+    transition: opacity 0.2s;
 }
 
-.gallery-lightbox-close {
-    position: absolute;
-    top: -40px;
-    right: 0;
-    width: 32px;
-    height: 32px;
-    border: none;
-    background: rgba(255, 255, 255, 0.2);
-    color: #fff;
-    font-size: 20px;
-    cursor: pointer;
-    border-radius: 50%;
-    transition: all 0.2s;
-}
-
-.gallery-lightbox-close:hover {
-    background: rgba(255, 255, 255, 0.3);
-    transform: rotate(90deg);
-}
-
+/* 前后导航按钮 - 图片区两侧 */
 .gallery-lightbox-nav {
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     border: none;
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.15);
     color: #fff;
-    font-size: 18px;
     cursor: pointer;
     border-radius: 50%;
     transition: all 0.2s;
+    z-index: 5;
 }
 
 .gallery-lightbox-nav:hover {
-    background: rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.3);
     transform: translateY(-50%) scale(1.1);
 }
 
-.gallery-lightbox-prev {
-    left: -50px;
-}
-.gallery-lightbox-next {
-    right: -50px;
+.gallery-lightbox-nav svg {
+    display: block;
+    margin: auto;
 }
 
+.gallery-lightbox-prev {
+    left: 8px;
+}
+
+.gallery-lightbox-next {
+    right: 8px;
+}
+
+/* 底部信息栏 */
 .gallery-lightbox-info {
     position: absolute;
-    bottom: -30px;
+    bottom: 10px;
     left: 0;
     right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.gallery-lightbox-info-toggle {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    padding: 2px;
+    display: inline-flex;
+    align-items: center;
+    transition: color 0.2s;
+}
+
+.gallery-lightbox-info-toggle:hover,
+.gallery-lightbox-info-toggle.active {
+    color: #ff6b9d;
+}
+
+.gallery-lightbox-info-toggle svg {
+    display: block;
+}
+
+/* ===== 右侧信息面板 ===== */
+.gallery-lightbox-info-panel {
+    width: 360px;
+    flex-shrink: 0;
+    background: rgba(24, 24, 28, 0.98);
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.lightbox-info-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    color: #ff6b9d;
+    font-size: 14px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.lightbox-info-header svg {
+    display: block;
+    flex-shrink: 0;
+}
+
+.lightbox-info-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+}
+
+.lightbox-info-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.lightbox-info-loading svg {
+    display: block;
+}
+
+.lightbox-info-empty {
     text-align: center;
-    color: rgba(255, 255, 255, 0.8);
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 13px;
+    padding: 20px;
+    flex-shrink: 0;
+}
+
+/* 信息块 */
+.lightbox-info-block {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.lightbox-info-block-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    color: #ff6b9d;
     font-size: 12px;
     font-weight: 600;
 }
 
-/* 灯箱关联画师标签 */
-.gallery-lightbox-artists {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    justify-content: center;
-    margin-bottom: 8px;
+.lightbox-info-block-title svg {
+    display: block;
+    flex-shrink: 0;
 }
 
-.gallery-lightbox-artist-tag {
-    display: inline-block;
-    padding: 3px 10px;
-    background: rgba(255, 255, 255, 0.15);
-    color: rgba(255, 255, 255, 0.85);
-    border-radius: 12px;
+.lightbox-info-block-content {
+    padding: 8px 12px;
+}
+
+/* 文件信息网格 */
+.lightbox-info-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.lightbox-info-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.lightbox-info-label {
     font-size: 12px;
-    cursor: default;
+    color: rgba(255, 255, 255, 0.4);
+    min-width: 40px;
+    flex-shrink: 0;
+}
+
+.lightbox-info-value {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.8);
+    flex: 1;
+    word-break: break-all;
+}
+
+.lightbox-info-path {
+    font-family: monospace;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+/* 代码块 */
+.lightbox-info-pre {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.7);
+    background: rgba(255, 255, 255, 0.04);
+    padding: 8px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    max-height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin: 0;
+    line-height: 1.5;
+}
+
+.lightbox-info-workflow {
+    max-height: 200px;
+}
+
+/* 复制按钮 */
+.lightbox-info-copy-btn {
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    cursor: pointer;
+    padding: 3px 8px;
+    color: rgba(255, 255, 255, 0.4);
+    transition: all 0.15s;
+    flex-shrink: 0;
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.lightbox-info-copy-btn:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: #ff6b9d;
+    border-color: #ff6b9d;
+}
+
+.lightbox-info-copy-btn svg {
+    display: block;
+}
+
+.lightbox-info-copy-row {
+    display: flex;
+    justify-content: flex-end;
+    flex-shrink: 0;
+}
+
+/* 滚动条 */
+.gallery-lightbox-info-panel ::-webkit-scrollbar {
+    width: 4px;
+}
+
+.gallery-lightbox-info-panel ::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.gallery-lightbox-info-panel ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 2px;
+}
+
+.gallery-lightbox-info-panel ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.22);
 }

@@ -99,7 +99,7 @@ export function GalleryFilterBar() {
             ]),
         ]),
 
-        // 画师/组合详情视图：图片搜索
+        // 画师/组合详情视图：图片搜索 + 排序
         (isArtist || isCombination) && h('div', { class: 'gallery-filter-section' }, [
             h('input', {
                 class: 'gallery-search-input',
@@ -108,9 +108,43 @@ export function GalleryFilterBar() {
                 value: ctx.imageSearchQuery,
                 onInput: (e) => ctx.setImageSearchQuery(e.target.value),
             }),
+
+            h('select', {
+                class: 'gallery-filter-select',
+                value: ctx.imageSortBy,
+                onChange: (e) => ctx.setImageSortBy(e.target.value),
+            }, [
+                h('option', { value: 'name' }, '名称'),
+                h('option', { value: 'time' }, '时间'),
+            ]),
+
+            h('button', {
+                class: 'gallery-filter-btn',
+                onClick: () => ctx.setImageSortOrder(prev => prev === 'asc' ? 'desc' : 'asc'),
+                title: ctx.imageSortOrder === 'asc' ? '升序' : '降序',
+            }, ctx.imageSortOrder === 'asc' ? h(Icon, { name: 'arrow-up', size: 16 }) : h(Icon, { name: 'arrow-down', size: 16 })),
+
             h('span', { class: 'gallery-count-badge' },
                 `${isArtist ? ctx.filteredArtistImages.length : ctx.filteredCombinationImages.length}/${isArtist ? (ctx.currentArtist?.images?.length || 0) : (ctx.viewModeCombination?.images?.length || 0)}`,
             ),
+
+            h('div', { class: 'gallery-size-slider' }, [
+                h('span', { class: 'gallery-size-label' }, '◡'),
+                h('input', {
+                    type: 'range',
+                    min: '0.5',
+                    max: '1.5',
+                    step: '0.05',
+                    value: ctx.cardSize,
+                    onInput: (e) => {
+                        const val = parseFloat(e.target.value);
+                        ctx.setCardSize(val);
+                        Storage.saveCardSize(val);
+                    },
+                    title: '调节卡片大小',
+                }),
+                h('span', { class: 'gallery-size-label' }, '◠'),
+            ]),
         ]),
     ]);
 }

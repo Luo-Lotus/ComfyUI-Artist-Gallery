@@ -3,15 +3,23 @@
  * 显示组合成员画师的图片交集，支持搜索过滤、右键菜单、多选
  */
 import { h } from '../lib/preact.mjs';
+import { useEffect } from '../lib/hooks.mjs';
 import { useContextMenu } from './ContextMenu.js';
 import { LazyList } from './LazyList.js';
 import { buildImageUrl, updateCombination as updateCombinationApi } from '../utils.js';
 import { showToast } from './Toast.js';
 import { useGallery } from './GalleryContext.js';
+import { applySizeStyles } from './SizePresets.js';
 
 export function CombinationDetailView() {
     const ctx = useGallery();
     const { showContextMenu } = useContextMenu();
+
+    useEffect(() => {
+        const gridEl = document.querySelector('.artist-detail-grid');
+        if (gridEl) applySizeStyles(gridEl, ctx.cardSize);
+    }, [ctx.cardSize, ctx.filteredCombinationImages]);
+
     const comb = ctx.viewModeCombination;
     const combImages = ctx.filteredCombinationImages;
 
@@ -64,14 +72,6 @@ export function CombinationDetailView() {
                     } catch (err) {
                         showToast('删除失败: ' + err.message, 'error');
                     }
-                },
-            },
-            {
-                icon: 'info-circle',
-                label: '图片信息',
-                action: () => {
-                    ctx.setImageInfoImage(image);
-                    ctx.setShowImageInfoDialog(true);
                 },
             },
         ];

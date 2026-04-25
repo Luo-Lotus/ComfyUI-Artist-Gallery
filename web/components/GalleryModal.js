@@ -19,7 +19,7 @@ import { GalleryHeader } from './GalleryHeader.js';
 import { GalleryFilterBar } from './GalleryFilterBar.js';
 import { ArtistDetailView } from './ArtistDetailView.js';
 import { CombinationDetailView } from './CombinationDetailView.js';
-import { ImageInfoDialog } from './ImageInfoDialog.js';
+
 import { Icon } from '../lib/icons.mjs';
 
 export function GalleryModal({ isOpen, onClose, initialNavigation }) {
@@ -225,15 +225,6 @@ function DialogLayer() {
                 ctx.setShowCombinationDialog(false);
                 ctx.setEditingCombination(null);
                 await ctx.loadData();
-            },
-        }),
-
-        h(ImageInfoDialog, {
-            isOpen: ctx.showImageInfoDialog,
-            image: ctx.imageInfoImage,
-            onClose: () => {
-                ctx.setShowImageInfoDialog(false);
-                ctx.setImageInfoImage(null);
             },
         }),
     ];
