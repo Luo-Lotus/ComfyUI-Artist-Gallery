@@ -1,0 +1,21 @@
+[project]
+name = "artist-gallery"
+description = "A ComfyUI custom node plugin for artist gallery management, artist selection, and image saving with categorization, combinations, and cover image support."
+version = "1.0.0"
+license = { text = "MIT License" }
+requires-python = ">=3.9"
+dependencies = [
+    "Pillow",
+]
+classifiers = [
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Repository = "https://github.com/Luo-Lotus/ComfyUI-Artist-Gallery"
+"Bug Tracker" = "https://github.com/Luo-Lotus/ComfyUI-Artist-Gallery/issues"
+
+[tool.comfy]
+PublisherId = "lotus"
+DisplayName = "Artist Gallery"
+Icon = "https://raw.githubusercontent.com/Luo-Lotus/ComfyUI-Artist-Gallery/master/assets/demo1.png"
