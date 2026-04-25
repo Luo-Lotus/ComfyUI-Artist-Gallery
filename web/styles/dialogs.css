@@ -250,3 +250,77 @@
     color: #1b5e20;
     font-weight: 600;
 }
+
+/* ============ Export Dialog 导出对话框 ============ */
+.export-dialog-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.export-dialog-desc {
+    font-size: 13px;
+    color: #666;
+    line-height: 1.5;
+}
+
+.export-dialog-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.export-dialog-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 2px solid #ffb6c1;
+    border-radius: 10px;
+    background: #fff5f8;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.export-dialog-option:hover {
+    border-color: #ff6b9d;
+    background: #fff;
+}
+
+.export-dialog-option.active {
+    border-color: #ff6b9d;
+    background: #fff;
+    box-shadow: 0 0 0 1px #ff6b9d;
+}
+
+.export-dialog-option input[type="radio"] {
+    margin-top: 3px;
+    accent-color: #ff6b9d;
+    flex-shrink: 0;
+}
+
+.export-dialog-option-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.export-dialog-option-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+}
+
+.export-dialog-option-title svg {
+    display: block;
+    flex-shrink: 0;
+}
+
+.export-dialog-option-desc {
+    font-size: 12px;
+    color: #888;
+    line-height: 1.4;
+}

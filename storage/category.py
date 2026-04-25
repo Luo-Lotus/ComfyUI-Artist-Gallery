@@ -137,6 +137,20 @@ class CategoryStorage:
                     return True
             return False
 
+    def get_descendant_ids(self, category_id: str) -> List[str]:
+        """获取指定分类及其所有后代的ID列表"""
+        all_cats = self.get_all_categories()
+        result = [category_id]
+
+        def collect(parent_id):
+            for cat in all_cats:
+                if cat.get("parentId") == parent_id:
+                    result.append(cat["id"])
+                    collect(cat["id"])
+
+        collect(category_id)
+        return result
+
     def delete_category(self, category_id: str) -> bool:
         """删除分类（需先删除子分类）"""
         with self._lock:

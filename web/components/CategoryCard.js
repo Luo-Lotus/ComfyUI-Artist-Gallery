@@ -15,6 +15,7 @@ export function CategoryCard({
     onDelete,
     onMove,
     onCopy,
+    onExport,
     // 多选相关props
     selectionMode = false,
     selected = false,
@@ -46,6 +47,11 @@ export function CategoryCard({
                 icon: 'copy',
                 label: '复制到',
                 action: () => onCopy && onCopy(category),
+            },
+            {
+                icon: 'upload',
+                label: '导出',
+                action: () => onExport && onExport(category),
             },
             {
                 icon: 'trash-2',

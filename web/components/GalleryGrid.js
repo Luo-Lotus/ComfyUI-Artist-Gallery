@@ -58,6 +58,7 @@ export function GalleryGrid() {
                 },
                 onMove: () => ctx.openMoveDialog(category, 'category'),
                 onCopy: () => ctx.openCopyDialog(category, 'category'),
+                onExport: (cat) => ctx.handleOpenExportDialog(cat),
                 selectionMode: ctx.selectionMode,
                 selected: ctx.selectedItems.has(`category:${category.id}`),
                 onSelect: ctx.handleGallerySelect,

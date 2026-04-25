@@ -333,9 +333,152 @@ async def export_artists(request):
         return web.json_response({"error": str(e)}, status=500)
 
 
-@server.PromptServer.instance.routes.post("/artist_gallery/import-artists")
-async def import_artists(request):
-    """导入画师（从 ZIP 文件）"""
+@server.PromptServer.instance.routes.post("/artist_gallery/export-category")
+async def export_category(request):
+    """导出分类（递归包含子分类、画师、组合）为 ZIP 文件"""
+    import folder_paths
+    import zipfile
+    import io
+    import time
+
+    try:
+        data = await request.json()
+        category_id = data.get("categoryId", "root")
+        include_images = data.get("includeImages", True)
+
+        artist_storage, mapping_storage, category_storage, combination_storage = get_storage()
+        output_dir = Path(folder_paths.get_output_directory())
+
+        # 验证分类存在
+        root_cat = category_storage.get_category_by_id(category_id)
+        if not root_cat:
+            return web.json_response({"error": "分类不存在"}, status=404)
+
+        # 递归收集所有后代分类ID
+        all_cat_ids = category_storage.get_descendant_ids(category_id)
+        all_categories = category_storage.get_all_categories()
+        export_categories = [c for c in all_categories if c["id"] in set(all_cat_ids)]
+
+        # 收集这些分类下的所有画师
+        all_artists = artist_storage.get_all_artists()
+        export_artists_list = [a for a in all_artists if a.get("categoryId") in set(all_cat_ids)]
+
+        # 收集这些分类下的所有组合
+        all_combinations = combination_storage.get_all_combinations()
+        export_combinations = [c for c in all_combinations if c.get("categoryId") in set(all_cat_ids)]
+
+        # 批量构建画师 → 图片映射索引
+        artist_mapping_index = mapping_storage.build_artist_index()
+
+        # 收集所有相关图片
+        exported_images = {}
+        for artist in export_artists_list:
+            name = artist.get("name")
+            mappings = artist_mapping_index.get(name, [])
+            for mapping in mappings:
+                image_path = mapping.get("imagePath")
+                if image_path not in exported_images:
+                    filename = Path(image_path).name
+                    zip_path = f"images/{filename}"
+                    exported_images[image_path] = {"path": zip_path, "artistNames": [name]}
+                else:
+                    if name not in exported_images[image_path]["artistNames"]:
+                        exported_images[image_path]["artistNames"].append(name)
+
+        # 按拓扑顺序排列分类（父在前子在后）
+        parent_map = {c["id"]: c.get("parentId") for c in export_categories}
+        def get_depth(cat_id):
+            depth = 0
+            current = cat_id
+            while current and current != category_id:
+                current = parent_map.get(current)
+                depth += 1
+            return depth
+        export_categories.sort(key=lambda c: get_depth(c["id"]))
+
+        # 构建 manifest
+        manifest_categories = [
+            {
+                "id": c.get("id"),
+                "name": c.get("name"),
+                "parentId": c.get("parentId"),
+                "order": c.get("order", 0),
+            }
+            for c in export_categories
+        ]
+
+        manifest_artists = [
+            {
+                "name": a.get("name"),
+                "displayName": a.get("displayName"),
+                "categoryId": a.get("categoryId"),
+            }
+            for a in export_artists_list
+        ]
+
+        manifest_combinations = [
+            {
+                "name": c.get("name"),
+                "categoryId": c.get("categoryId"),
+                "artistKeys": c.get("artistKeys", []),
+                "outputContent": c.get("outputContent", ""),
+            }
+            for c in export_combinations
+        ]
+
+        manifest_images = [
+            {"path": info["path"], "artistNames": info["artistNames"]}
+            for info in exported_images.values()
+        ]
+
+        manifest = {
+            "version": 2,
+            "exportedAt": int(time.time() * 1000),
+            "rootCategoryId": category_id,
+            "rootCategoryName": root_cat.get("name"),
+            "categories": manifest_categories,
+            "artists": manifest_artists,
+            "combinations": manifest_combinations,
+            "images": [] if not include_images else manifest_images,
+        }
+
+        # 写入 ZIP
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+
+            if include_images:
+                for original_path, info in exported_images.items():
+                    full_path = output_dir / original_path
+                    if full_path.exists():
+                        zf.write(full_path, info["path"])
+
+        from datetime import datetime
+        from urllib.parse import quote
+        date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        cat_name = root_cat.get("name", "export")
+        ascii_name = "".join(c for c in cat_name if c.isascii() and c.isalnum()) or "export"
+        filename = f"category_{cat_name}_{date_str}.zip"
+        ascii_filename = f"category_{ascii_name}_{date_str}.zip"
+
+        zip_buffer.seek(0)
+        return web.Response(
+            body=zip_buffer.read(),
+            content_type='application/zip',
+            headers={
+                'Content-Disposition':
+                    f"attachment; filename=\"{ascii_filename}\"; filename*=UTF-8''{quote(filename)}"
+            }
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return web.json_response({"error": str(e)}, status=500)
+
+
+@server.PromptServer.instance.routes.post("/artist_gallery/import")
+async def import_unified(request):
+    """统一导入（支持 v1 画师格式 和 v2 分类格式）"""
     import folder_paths
     import zipfile
     import io
@@ -352,59 +495,223 @@ async def import_artists(request):
         zip_bytes = await field.read(decode=True)
         target_category_id = request.query.get("categoryId", "root")
 
-        artist_storage, mapping_storage, _, _ = get_storage()
+        artist_storage, mapping_storage, category_storage, combination_storage = get_storage()
         output_dir = Path(folder_paths.get_output_directory()) / "artist_gallery"
         output_dir.mkdir(parents=True, exist_ok=True)
 
         buffer = io.BytesIO(zip_bytes)
-        added_artists = []
-        added_images = 0
 
         with zipfile.ZipFile(buffer, 'r') as zf:
             manifest_data = json.loads(zf.read("manifest.json"))
+            version = manifest_data.get("version", 1)
 
-            for artist_info in manifest_data.get("artists", []):
-                name = artist_info.get("name", "").strip()
-                if not name:
-                    continue
-                existing = artist_storage.get_artist(target_category_id, name)
-                if not existing:
-                    try:
-                        artist_storage.add_artist(
-                            name=name,
-                            display_name=artist_info.get("displayName", name),
-                            category_id=target_category_id,
-                        )
-                        added_artists.append(name)
-                    except ValueError:
-                        pass
-
-            for img_info in manifest_data.get("images", []):
-                zip_img_path = img_info.get("path")
-                artist_names = img_info.get("artistNames", [])
-                if not zip_img_path or zip_img_path not in zf.namelist():
-                    continue
-
-                timestamp = int(time.time() * 1000)
-                rand_num = random.randint(0, 99999)
-                new_filename = f"AG_{timestamp}_{rand_num:05d}.png"
-                new_path = output_dir / new_filename
-
-                with open(new_path, 'wb') as f:
-                    f.write(zf.read(zip_img_path))
-
-                relative_path = f"artist_gallery/{new_filename}"
-                mapping_storage.add_mapping(
-                    image_path=relative_path,
-                    artist_names=artist_names,
+            if version >= 2:
+                # v2: 分类+画师+组合+图片
+                return await _import_v2(
+                    zf, manifest_data, target_category_id,
+                    artist_storage, mapping_storage, category_storage, combination_storage,
+                    output_dir,
                 )
-                added_images += 1
+            else:
+                # v1: 仅画师+图片
+                return await _import_v1(
+                    zf, manifest_data, target_category_id,
+                    artist_storage, mapping_storage, output_dir,
+                )
 
-        return web.json_response({
-            "success": True,
-            "addedArtists": len(added_artists),
-            "addedImages": added_images,
-            "artists": added_artists,
-        })
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return web.json_response({"error": str(e)}, status=500)
+
+
+async def _import_v1(zf, manifest_data, target_category_id, artist_storage, mapping_storage, output_dir):
+    """v1 导入：仅画师 + 图片"""
+    import time
+    import random
+
+    added_artists = []
+    added_images = 0
+
+    for artist_info in manifest_data.get("artists", []):
+        name = artist_info.get("name", "").strip()
+        if not name:
+            continue
+        existing = artist_storage.get_artist(target_category_id, name)
+        if not existing:
+            try:
+                artist_storage.add_artist(
+                    name=name,
+                    display_name=artist_info.get("displayName", name),
+                    category_id=target_category_id,
+                )
+                added_artists.append(name)
+            except ValueError:
+                pass
+
+    for img_info in manifest_data.get("images", []):
+        zip_img_path = img_info.get("path")
+        artist_names = img_info.get("artistNames", [])
+        if not zip_img_path or zip_img_path not in zf.namelist():
+            continue
+
+        timestamp = int(time.time() * 1000)
+        rand_num = random.randint(0, 99999)
+        new_filename = f"AG_{timestamp}_{rand_num:05d}.png"
+        new_path = output_dir / new_filename
+
+        with open(new_path, 'wb') as f:
+            f.write(zf.read(zip_img_path))
+
+        relative_path = f"artist_gallery/{new_filename}"
+        mapping_storage.add_mapping(
+            image_path=relative_path,
+            artist_names=artist_names,
+        )
+        added_images += 1
+
+    return web.json_response({
+        "success": True,
+        "addedArtists": len(added_artists),
+        "addedCombinations": 0,
+        "addedImages": added_images,
+        "addedCategories": 0,
+        "artists": added_artists,
+    })
+
+
+async def _import_v2(zf, manifest_data, target_category_id,
+                     artist_storage, mapping_storage, category_storage, combination_storage, output_dir):
+    """v2 导入：分类树 + 画师 + 组合 + 图片"""
+    import time
+    import random
+
+    # A. 重建分类树
+    old_to_new_cat = {}  # old_category_id -> new_category_id
+    root_old_id = manifest_data.get("rootCategoryId")
+    root_cat_name = manifest_data.get("rootCategoryName", "")
+
+    # 先创建根分类（作为目标分类的子分类）
+    if root_old_id and root_cat_name:
+        final_name = root_cat_name
+        suffix = 2
+        while True:
+            try:
+                new_cat = category_storage.add_category(name=final_name, parent_id=target_category_id)
+                break
+            except ValueError:
+                final_name = f"{root_cat_name} ({suffix})"
+                suffix += 1
+        old_to_new_cat[root_old_id] = new_cat["id"]
+        added_categories = 1
+
+    # 创建子分类（跳过根分类）
+    for cat_info in manifest_data.get("categories", []):
+        old_id = cat_info.get("id")
+        old_parent_id = cat_info.get("parentId")
+        name = cat_info.get("name", "")
+
+        if not old_id or not name:
+            continue
+
+        # 跳过根分类（已创建）
+        if old_id == root_old_id:
+            continue
+
+        # 确定新的父分类ID
+        new_parent_id = old_to_new_cat.get(old_parent_id, target_category_id)
+
+        # 创建分类，处理名称冲突
+        final_name = name
+        suffix = 2
+        while True:
+            try:
+                new_cat = category_storage.add_category(name=final_name, parent_id=new_parent_id)
+                break
+            except ValueError:
+                final_name = f"{name} ({suffix})"
+                suffix += 1
+
+        old_to_new_cat[old_id] = new_cat["id"]
+        added_categories += 1
+
+    # B. 导入画师
+    added_artists = []
+    for artist_info in manifest_data.get("artists", []):
+        name = artist_info.get("name", "").strip()
+        if not name:
+            continue
+        old_cat_id = artist_info.get("categoryId")
+        new_cat_id = old_to_new_cat.get(old_cat_id, target_category_id)
+
+        existing = artist_storage.get_artist(new_cat_id, name)
+        if not existing:
+            try:
+                artist_storage.add_artist(
+                    name=name,
+                    display_name=artist_info.get("displayName", name),
+                    category_id=new_cat_id,
+                )
+                added_artists.append(name)
+            except ValueError:
+                pass
+
+    # C. 导入组合
+    added_combinations = 0
+    for comb_info in manifest_data.get("combinations", []):
+        name = comb_info.get("name", "").strip()
+        if not name:
+            continue
+        old_cat_id = comb_info.get("categoryId")
+        new_cat_id = old_to_new_cat.get(old_cat_id, target_category_id)
+        artist_keys = comb_info.get("artistKeys", [])
+        output_content = comb_info.get("outputContent", "")
+
+        try:
+            combination_storage.add_combination(
+                name=name,
+                category_id=new_cat_id,
+                artist_keys=artist_keys,
+                output_content=output_content,
+            )
+            added_combinations += 1
+        except Exception:
+            pass
+
+    # D. 导入图片文件
+    added_images = 0
+    for img_info in manifest_data.get("images", []):
+        zip_img_path = img_info.get("path")
+        artist_names = img_info.get("artistNames", [])
+        if not zip_img_path or zip_img_path not in zf.namelist():
+            continue
+
+        timestamp = int(time.time() * 1000)
+        rand_num = random.randint(0, 99999)
+        new_filename = f"AG_{timestamp}_{rand_num:05d}.png"
+        new_path = output_dir / new_filename
+
+        with open(new_path, 'wb') as f:
+            f.write(zf.read(zip_img_path))
+
+        relative_path = f"artist_gallery/{new_filename}"
+        mapping_storage.add_mapping(
+            image_path=relative_path,
+            artist_names=artist_names,
+        )
+        added_images += 1
+
+    return web.json_response({
+        "success": True,
+        "addedCategories": added_categories,
+        "addedArtists": len(added_artists),
+        "addedCombinations": added_combinations,
+        "addedImages": added_images,
+        "artists": added_artists,
+    })
+
+
+@server.PromptServer.instance.routes.post("/artist_gallery/import-artists")
+async def import_artists_legacy(request):
+    """旧版导入端点（兼容）"""
+    return await import_unified(request)

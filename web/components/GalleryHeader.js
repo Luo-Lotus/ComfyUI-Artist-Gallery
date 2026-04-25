@@ -29,7 +29,7 @@ export function GalleryHeader() {
                     const input = document.getElementById('artist-import-file-input');
                     if (input) input.click();
                 },
-            }, [h(Icon, { name: 'upload', size: 14 }), ' 导入画师']),
+            }, [h(Icon, { name: 'upload', size: 14 }), ' 导入']),
         );
     }
 

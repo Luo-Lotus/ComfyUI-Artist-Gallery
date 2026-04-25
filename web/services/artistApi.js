@@ -172,13 +172,37 @@ export async function exportArtists(artists) {
 }
 
 /**
- * 导入画师（从 ZIP 文件）
+ * 导出分类（递归含子分类、画师、组合）为 ZIP 文件
+ */
+export async function exportCategory(categoryId, includeImages = true) {
+    const response = await fetch('/artist_gallery/export-category', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categoryId, includeImages }),
+    });
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: '导出失败' }));
+        throw new Error(err.error || '导出失败');
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'category_export.zip';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+/**
+ * 导入（从 ZIP 文件，支持 v1 画师格式和 v2 分类格式）
  */
 export async function importArtists(file, categoryId) {
     const formData = new FormData();
     formData.append('file', file);
     const response = await fetch(
-        `/artist_gallery/import-artists?categoryId=${encodeURIComponent(categoryId)}`,
+        `/artist_gallery/import?categoryId=${encodeURIComponent(categoryId)}`,
         { method: 'POST', body: formData }
     );
     return await response.json();

@@ -14,6 +14,7 @@ import {
     fetchCombinationImages,
     fetchGalleryData,
     exportArtists,
+    exportCategory,
 } from '../utils.js';
 import { useCategoryManager } from './hooks/useCategoryManager.js';
 import { useGalleryData } from './hooks/useGalleryData.js';
@@ -56,6 +57,10 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
     const [combinationDialogMode, setCombinationDialogMode] = useState('add');
     const [editingCombination, setEditingCombination] = useState(null);
     const [viewModeCombination, setViewModeCombination] = useState(null);
+
+    // ============ 导出对话框状态 ============
+    const [showExportDialog, setShowExportDialog] = useState(false);
+    const [exportCategoryState, setExportCategoryState] = useState(null);
 
     // ============ Hooks ============
 
@@ -332,6 +337,25 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
         }
     }, []);
 
+    // 打开分类导出对话框
+    const handleOpenExportDialog = useCallback((category) => {
+        setExportCategoryState(category);
+        setShowExportDialog(true);
+    }, []);
+
+    // 确认分类导出
+    const handleExportCategoryConfirm = useCallback(async (category, includeImages) => {
+        try {
+            await exportCategory(category.id, includeImages);
+            showToast(
+                `已导出分类: ${category.name}${includeImages ? '' : ' (仅结构)'}`,
+                'success',
+            );
+        } catch (error) {
+            showToast('导出失败: ' + error.message, 'error');
+        }
+    }, []);
+
     // 导入画师
     const handleImportArtists = useCallback(async (e) => {
         const file = e.target.files?.[0];
@@ -339,11 +363,17 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
         try {
             const result = await importArtists(file, currentCategory);
             if (result.success) {
+                const parts = [];
+                if (result.addedCategories > 0) parts.push(`${result.addedCategories} 个分类`);
+                if (result.addedArtists > 0) parts.push(`${result.addedArtists} 个画师`);
+                if (result.addedCombinations > 0) parts.push(`${result.addedCombinations} 个组合`);
+                if (result.addedImages > 0) parts.push(`${result.addedImages} 张图片`);
                 showToast(
-                    `导入成功: ${result.addedArtists} 个画师, ${result.addedImages} 张图片`,
+                    `导入成功: ${parts.join(', ') || '无新增内容'}`,
                     'success',
                 );
-                loadData();
+                await categoryMgr.refreshCategories();
+                await loadData();
             } else {
                 showToast(result.error || '导入失败', 'error');
             }
@@ -351,7 +381,7 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
             showToast('导入失败: ' + error.message, 'error');
         }
         e.target.value = '';
-    }, [currentCategory, loadData]);
+    }, [currentCategory, loadData, categoryMgr]);
 
     // 画师详情回调
     const handleArtistDeleteImageSuccess = useCallback(async () => {
@@ -605,6 +635,8 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
         artistToDelete, setArtistToDelete,
         openDeleteConfirm,
         showImportDialog, setShowImportDialog,
+        showExportDialog, setShowExportDialog,
+        exportCategoryState, setExportCategoryState,
         showCombinationDialog, setShowCombinationDialog,
         combinationDialogMode, setCombinationDialogMode,
         editingCombination, setEditingCombination,
@@ -624,6 +656,8 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
         handleCombinationMove,
         handleCombinationDialogSave,
         handleExportArtist,
+        handleOpenExportDialog,
+        handleExportCategoryConfirm,
         handleImportArtists,
         handleArtistDeleteImageSuccess,
         handleArtistSetCoverSuccess,
@@ -648,6 +682,7 @@ export function GalleryProvider({ children, onClose, initialNavigation }) {
         showAddArtistDialog, editModeArtist,
         showDeleteConfirm, artistToDelete,
         showImportDialog,
+        showExportDialog, exportCategoryState,
         showCombinationDialog, combinationDialogMode, editingCombination,
         lightbox,
         onClose,

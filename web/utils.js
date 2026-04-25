@@ -432,11 +432,35 @@ export async function exportArtists(artists) {
     URL.revokeObjectURL(url);
 }
 
+export async function exportCategory(categoryId, includeImages = true) {
+    const response = await fetch('/artist_gallery/export-category', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categoryId, includeImages }),
+    });
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: '导出失败' }));
+        throw new Error(err.error || '导出失败');
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="?(.+?)"?(?:;|$)/);
+    const filename = match ? match[1] : `category_export_${new Date().toISOString().slice(0,10).replace(/-/g,'')}.zip`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
 export async function importArtists(file, categoryId) {
     const formData = new FormData();
     formData.append('file', file);
     const response = await fetch(
-        `/artist_gallery/import-artists?categoryId=${encodeURIComponent(categoryId)}`,
+        `/artist_gallery/import?categoryId=${encodeURIComponent(categoryId)}`,
         { method: 'POST', body: formData },
     );
     if (!response.ok) {

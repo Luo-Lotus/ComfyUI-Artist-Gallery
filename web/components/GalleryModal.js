@@ -12,6 +12,7 @@ import { CategoryDialog } from './CategoryDialog.js';
 import { MoveDialog } from './MoveDialog.js';
 import { CopyDialog } from './CopyDialog.js';
 import { ImportImagesDialog } from './ImportImagesDialog.js';
+import { ExportDialog } from './ExportDialog.js';
 import { CombinationDialog } from './CombinationDialog.js';
 import { BatchActionBar } from './BatchActionBar.js';
 import { BatchConfirmDialog } from './BatchConfirmDialog.js';
@@ -209,6 +210,16 @@ function DialogLayer() {
                 await ctx.loadData();
                 ctx.setShowImportDialog(false);
             },
+        }),
+
+        h(ExportDialog, {
+            isOpen: ctx.showExportDialog,
+            category: ctx.exportCategoryState,
+            onClose: () => {
+                ctx.setShowExportDialog(false);
+                ctx.setExportCategoryState(null);
+            },
+            onConfirm: ctx.handleExportCategoryConfirm,
         }),
 
         h(CombinationDialog, {
