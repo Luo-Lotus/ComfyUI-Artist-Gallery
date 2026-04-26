@@ -110,6 +110,10 @@ partitionData = {
     combinationPartitionMap: { // 组合 → 分区ID 的映射
         "combination:uuid-xxx": "partition-default"
     },
+    artistWeights: {           // 画师权重（仅画师，不含分类/组合）
+        "root:artist_a": 1.5,  // key 格式同 artistPartitionMap
+        "cat1:artist_b": 0.8   // 不存在或为 1.0 时表示默认权重
+    },
     globalConfig: { ... }      // 全局默认配置
 }
 ```
@@ -131,6 +135,7 @@ partitionData = {
 | `moveArtistToPartition(key, pid)` | 将画师移到指定分区（pid=null 则移除） |
 | `moveCategoryToPartition(catId, pid)` | 将分类移到指定分区 |
 | `moveCombinationToPartition(combKey, pid)` | 将组合移到指定分区 |
+| `setArtistWeight(key, weight)` | 设置画师权重（0~2，weight=1.0 时删除 key） |
 
 ### 2.4 节点同步（前端 → ComfyUI）
 

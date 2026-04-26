@@ -62,6 +62,7 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
         deletePartition,
         updatePartition,
         moveArtistToPartition,
+        setArtistWeight,
         moveCategoryToPartition,
         moveCombinationToPartition,
         togglePartition,
@@ -365,6 +366,7 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
         categories,
         selectedKeys,
         selectedCategories,
+        selectedArtistsCache,
         loading,
         searchQuery,
 
@@ -391,6 +393,7 @@ export function useArtistSelector(nodeInstance, selectedInput, metadataInput) {
         deletePartition,
         updatePartition,
         moveArtistToPartition,
+        setArtistWeight,
         moveCategoryToPartition,
         moveCombinationToPartition,
         togglePartition,

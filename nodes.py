@@ -144,6 +144,7 @@ class ArtistSelector:
             return ("", "{}")
 
         partitions = metadata_dict.get('partitions', [])
+        artist_weights = metadata_dict.get('artistWeights', {})
         if not partitions:
             return ("", "{}")
 
@@ -250,7 +251,9 @@ class ArtistSelector:
                                 partition_used_artists[pid] = []
                             partition_used_artists[pid].append(artist_name)
                 else:
-                    formatted_results.append(self._apply_format(current_item[2], partition_format))
+                    formatted = self._apply_format(current_item[2], partition_format)
+                    w_key = f"{current_item[1]}:{current_item[2]}"
+                    formatted_results.append(self._apply_weight(formatted, artist_weights.get(w_key)))
                     collect_artist(current_item[1], current_item[2], save_to_gallery)
                     # 记录实际输出的画师名（用于自动创建组合）
                     if save_to_gallery and current_item[0] == 'artist':
@@ -274,7 +277,9 @@ class ArtistSelector:
                                     partition_used_artists[pid] = []
                                 partition_used_artists[pid].append(artist_name)
                     else:
-                        formatted_results.append(self._apply_format(item[2], partition_format))
+                        formatted = self._apply_format(item[2], partition_format)
+                        w_key = f"{item[1]}:{item[2]}"
+                        formatted_results.append(self._apply_weight(formatted, artist_weights.get(w_key)))
                         collect_artist(item[1], item[2], save_to_gallery)
                         # 记录实际输出的画师名（用于自动创建组合）
                         if save_to_gallery and item[0] == 'artist':
@@ -334,6 +339,16 @@ class ArtistSelector:
         })
 
         return (result, enriched_metadata)
+
+    def _apply_weight(self, formatted_str, weight):
+        """对格式化后的字符串应用 SD 权重包裹"""
+        if weight is None or abs(weight - 1.0) < 0.001:
+            return formatted_str
+        if weight == int(weight):
+            weight_str = str(int(weight))
+        else:
+            weight_str = f"{weight:.1f}".rstrip('0').rstrip('.')
+        return f"({formatted_str}:{weight_str})"
 
     def _apply_format(self, artist_name, format_str):
         """应用格式字符串到画师名称"""

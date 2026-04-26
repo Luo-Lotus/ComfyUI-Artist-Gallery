@@ -39,6 +39,7 @@ export function useNodeSync({
             version: 1,
             partitions,
             globalConfig: partitionData.globalConfig,
+            artistWeights: partitionData.artistWeights || {},
         };
 
         // selected_artists 字符串：仅用于显示（后端从 metadata 中解析）

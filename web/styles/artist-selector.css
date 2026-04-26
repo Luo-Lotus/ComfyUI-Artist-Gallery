@@ -1610,3 +1610,82 @@ svg.spin {
 .partition-btn.config:hover {
     opacity: 1;
 }
+
+/* ==================== 权重系统样式 ==================== */
+
+/* 权重数字前缀 */
+.artist-weight-value {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.75);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    min-width: 24px;
+    text-align: center;
+}
+
+/* 权重聚焦状态（画师标签被选中调整权重） */
+.artist-selector-tag.weight-focused {
+    outline: 2px solid rgba(255, 255, 255, 0.6);
+    outline-offset: 1px;
+    box-shadow: 0 0 8px rgba(108, 92, 231, 0.5);
+}
+
+/* 悬浮权重滑条弹窗（fixed 定位，由 JS 设置位置） */
+.weight-slider-popup {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: rgba(30, 30, 30, 0.95);
+    border: 1px solid rgba(108, 92, 231, 0.5);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 10000;
+    white-space: nowrap;
+}
+
+.weight-slider-popup::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: rgba(108, 92, 231, 0.5);
+}
+
+.weight-slider-popup-value {
+    font-size: 11px;
+    font-weight: 600;
+    color: #ddd;
+    min-width: 24px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.weight-slider-input {
+    width: 100px;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: #3a3a3a;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+.weight-slider-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: #6c5ce7;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.weight-slider-input::-webkit-slider-thumb:hover {
+    background: #7c6cf7;
+}

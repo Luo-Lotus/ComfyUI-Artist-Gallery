@@ -12,6 +12,7 @@ export function PartitionList({
     artistsByPartition,
     categoriesByPartition,
     combinationsByPartition,
+    artistWeights,
     onPartitionAction,
     onArtistMove,
     onArtistRemove,
@@ -19,6 +20,7 @@ export function PartitionList({
     onCategoryRemove,
     onCombinationMove,
     onCombinationRemove,
+    onArtistWeightChange,
 }) {
     const [showAddPartition, setShowAddPartition] = useState(false);
 
@@ -79,6 +81,7 @@ export function PartitionList({
                         artists,
                         partitionCategories,
                         partitionCombinations,
+                        artistWeights,
                         onPartitionAction,
                         onArtistMove,
                         onCategoryMove,
@@ -86,6 +89,7 @@ export function PartitionList({
                         onCategoryRemove,
                         onCombinationMove,
                         onCombinationRemove,
+                        onArtistWeightChange,
                     });
                 })
         ),

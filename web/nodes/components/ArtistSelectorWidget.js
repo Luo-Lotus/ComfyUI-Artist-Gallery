@@ -25,6 +25,7 @@ export function ArtistSelectorWidget({
         selectedKeys,
         selectedCategories,
         selectedCombinationKeys,
+        selectedArtistsCache,
         loading,
         searchQuery,
         sortBy,
@@ -43,6 +44,7 @@ export function ArtistSelectorWidget({
         deletePartition,
         updatePartition,
         moveArtistToPartition,
+        setArtistWeight,
         moveCategoryToPartition,
         moveCombinationToPartition,
         togglePartition,
@@ -126,6 +128,7 @@ export function ArtistSelectorWidget({
             artistsByPartition: getArtistsByPartition,
             categoriesByPartition: getCategoriesByPartition,
             combinationsByPartition: getCombinationsByPartition,
+            artistWeights: partitionData.artistWeights,
             selectedCategories: selectedCategoriesList,
             categories: categories,
             onPartitionAction: (action, data) => {
@@ -162,6 +165,9 @@ export function ArtistSelectorWidget({
                 // 从 key 提取 combination id
                 const combId = combinationKey.replace('combination:', '');
                 toggleCombinationSelection(combId);
+            },
+            onArtistWeightChange: (artistKey, weight) => {
+                setArtistWeight(artistKey, weight);
             },
         });
     };

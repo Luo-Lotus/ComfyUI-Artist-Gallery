@@ -1,63 +1,36 @@
 /**
  * 图片预览 Hook
- * 直接操作 DOM，将预览窗口渲染到 body 上
- * 使用画师封面图（不再发请求获取全部图片）
+ * 用 Preact 组件渲染到 body，不受节点 transform 影响
  */
+import { h } from '../../../lib/preact.mjs';
 import { buildImageUrl } from '../../../utils.js';
+import { useBodyRender } from './useBodyRender.js';
 
-let previewElement = null;
+function ImagePreviewPopup({ imageUrl, alt, x, y }) {
+    return h('div', {
+        class: 'artist-selector-hover-preview',
+        style: `position:fixed;left:${x}px;top:${y}px;pointer-events:none;`,
+    }, h('img', { src: imageUrl, alt }));
+}
 
 export function useImagePreview() {
-    /**
-     * 显示图片预览（使用封面图）
-     */
+    const { renderToBody, clear } = useBodyRender();
+
     const showPreview = (artist, event) => {
-        // 使用 coverImagePath 直接展示封面
         const coverPath = artist.coverImagePath;
         if (!coverPath) return;
 
-        // 移除旧的预览窗口
-        removePreview();
-
-        const imageUrl = buildImageUrl(coverPath);
-
-        // 创建预览窗口
-        previewElement = document.createElement('div');
-        previewElement.className = 'artist-selector-hover-preview';
-        previewElement.id = 'artist-hover-preview';
-
-        // 创建图片元素
-        const img = document.createElement('img');
-        img.src = imageUrl;
-        img.alt = artist.displayName || artist.name;
-        previewElement.appendChild(img);
-
-        // 计算位置（使用鼠标位置）
-        const x = event.clientX + 15;
-        const y = event.clientY + 15;
-
-        // 设置样式
-        previewElement.style.position = 'fixed';
-        previewElement.style.left = `${x}px`;
-        previewElement.style.top = `${y}px`;
-        previewElement.style.zIndex = '999999';
-
-        // 添加到 body
-        document.body.appendChild(previewElement);
+        renderToBody(h(ImagePreviewPopup, {
+            imageUrl: buildImageUrl(coverPath),
+            alt: artist.displayName || artist.name,
+            x: event.clientX + 15,
+            y: event.clientY + 15,
+        }));
     };
 
-    /**
-     * 移除图片预览
-     */
     const removePreview = () => {
-        if (previewElement) {
-            previewElement.remove();
-            previewElement = null;
-        }
+        clear();
     };
 
-    return {
-        showPreview,
-        removePreview,
-    };
+    return { showPreview, removePreview };
 }

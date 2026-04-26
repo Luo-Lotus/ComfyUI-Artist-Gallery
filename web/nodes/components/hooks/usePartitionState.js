@@ -27,6 +27,7 @@ const DEFAULT_PARTITION = {
 const DEFAULT_PARTITION_DATA = {
     partitions: [DEFAULT_PARTITION],
     artistPartitionMap: {},
+    artistWeights: {},
     categoryPartitionMap: {},
     combinationPartitionMap: {},
     globalConfig: { ...DEFAULT_CONFIG },
@@ -42,6 +43,7 @@ function validatePartitionData(data) {
         return null;
     }
     if (!data.artistPartitionMap) data.artistPartitionMap = {};
+    if (!data.artistWeights) data.artistWeights = {};
     if (!data.categoryPartitionMap) data.categoryPartitionMap = {};
     if (!data.combinationPartitionMap) data.combinationPartitionMap = {};
     if (!data.globalConfig) data.globalConfig = { ...DEFAULT_CONFIG };
@@ -85,6 +87,7 @@ function parseWidgetMetadata(widgetValue) {
         return validatePartitionData({
             partitions,
             artistPartitionMap,
+            artistWeights: data.artistWeights || {},
             categoryPartitionMap,
             combinationPartitionMap,
             globalConfig: data.globalConfig || { ...DEFAULT_CONFIG },
@@ -235,14 +238,33 @@ export function usePartitionState({ selectedArtistsCache, categories, combinatio
     const moveArtistToPartition = useCallback((artistKey, partitionId) => {
         setPartitionData((prev) => {
             const newMap = { ...prev.artistPartitionMap };
+            const newWeights = { ...prev.artistWeights };
             if (partitionId == null) {
                 delete newMap[artistKey];
+                delete newWeights[artistKey];
             } else {
                 newMap[artistKey] = partitionId;
             }
             return {
                 ...prev,
                 artistPartitionMap: newMap,
+                artistWeights: newWeights,
+            };
+        });
+    }, []);
+
+    // 设置画师权重
+    const setArtistWeight = useCallback((artistKey, weight) => {
+        setPartitionData((prev) => {
+            const newWeights = { ...prev.artistWeights };
+            if (weight === 1.0 || weight == null) {
+                delete newWeights[artistKey];
+            } else {
+                newWeights[artistKey] = Math.round(weight * 10) / 10;
+            }
+            return {
+                ...prev,
+                artistWeights: newWeights,
             };
         });
     }, []);
@@ -311,6 +333,7 @@ export function usePartitionState({ selectedArtistsCache, categories, combinatio
         deletePartition,
         updatePartition,
         moveArtistToPartition,
+        setArtistWeight,
         moveCategoryToPartition,
         moveCombinationToPartition,
         togglePartition,
