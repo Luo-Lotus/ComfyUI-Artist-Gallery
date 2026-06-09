@@ -337,6 +337,9 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
     }
 
     result.sort((a, b) => {
+      const pinnedComparison = Number(!!b?.metadata?.pinned) - Number(!!a?.metadata?.pinned);
+      if (pinnedComparison !== 0) return pinnedComparison;
+
       let comparison = 0;
       if (sortBy === 'name') {
         comparison = a.value.localeCompare(b.value, 'zh-CN');

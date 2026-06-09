@@ -120,6 +120,7 @@ class CombinationStorage:
             "prompts": prompts,
             "outputContent": output_content,
             "createdAt": int(time.time() * 1000),
+            "metadata": {},
         }
         if target_file:
             new_combination["_source_file"] = target_file
@@ -140,6 +141,10 @@ class CombinationStorage:
                     for key, value in kwargs.items():
                         if key in ("name", "prompts", "outputContent", "categoryId", "coverImageId"):
                             c[key] = value
+                        elif key == "metadata":
+                            if not isinstance(c.get("metadata"), dict):
+                                c["metadata"] = {}
+                            c["metadata"].update(value)
                     self._write_data(data)
                     return c
             return None

@@ -3,6 +3,14 @@
  */
 import { useMemo } from '../../lib/hooks.mjs';
 
+export function isPinned(item) {
+  return !!item?.metadata?.pinned;
+}
+
+export function comparePinned(a, b) {
+  return Number(isPinned(b)) - Number(isPinned(a));
+}
+
 export function useFilteredPrompts(data, searchQuery, sortBy, sortOrder, showFavoritesOnly, favorites, categories) {
   const filteredPrompts = useMemo(() => {
     if (!data) return [];
@@ -36,6 +44,9 @@ export function useFilteredPrompts(data, searchQuery, sortBy, sortOrder, showFav
 
     // 排序
     result.sort((a, b) => {
+      const pinnedComparison = comparePinned(a, b);
+      if (pinnedComparison !== 0) return pinnedComparison;
+
       let comparison = 0;
       if (sortBy === 'name') {
         comparison = a.value.localeCompare(b.value, 'zh-CN');

@@ -16,7 +16,7 @@ import { useBodyRender } from './hooks/useBodyRender.js';
 import { AddPromptDialog } from '../../components/AddPromptDialog.js';
 import { CategoryDialog } from '../../components/CategoryDialog.js';
 import { addCategory, batchResolve, searchAll, Storage } from '../../utils.js';
-import { updateCategoryMetadata } from '../../services/promptApi.js';
+import { updateCategoryMetadata, updateCombinationMetadata, updatePromptMetadata } from '../../services/promptApi.js';
 
 // 辅助函数：构建面包屑路径
 function buildBreadcrumbPath(categoryId, categories) {
@@ -35,6 +35,14 @@ function buildBreadcrumbPath(categoryId, categories) {
 function getCategoryPathName(categoryId, categories) {
   const path = buildBreadcrumbPath(categoryId, categories);
   return path.map((c) => c.name).join(' / ');
+}
+
+function isPinned(item) {
+  return !!item?.metadata?.pinned;
+}
+
+function comparePinned(a, b) {
+  return Number(isPinned(b)) - Number(isPinned(a));
 }
 
 export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInput }) {
@@ -282,6 +290,23 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
     removePreview();
   };
 
+  const handleTogglePinned = async (type, item) => {
+    const pinned = !item?.metadata?.pinned;
+    try {
+      if (type === 'category') {
+        await updateCategoryMetadata(item.id, { pinned });
+      } else if (type === 'prompt') {
+        await updatePromptMetadata(item.categoryId, item.value, { pinned });
+      } else if (type === 'combination') {
+        await updateCombinationMetadata(item.id, { pinned });
+      }
+      showToast(pinned ? '已置顶' : '已取消置顶', 'success');
+      handleRefresh();
+    } catch (err) {
+      showToast('置顶操作失败: ' + err.message, 'error');
+    }
+  };
+
   /**
    * 渲染已选择的Prompt和分类标签列表
    */
@@ -363,6 +388,11 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
           const isBlocked = cat.metadata?.blockGallerySave;
           showContextMenu(e, [
             {
+              icon: 'bookmark',
+              label: cat.metadata?.pinned ? '取消置顶' : '置顶',
+              action: () => handleTogglePinned('category', cat),
+            },
+            {
               icon: 'copy',
               label: '复制文本',
               action: () => {
@@ -404,6 +434,7 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
         h('span', { class: 'prompt-selector-item-content' }, [
           h('span', { class: 'prompt-selector-category-name' }, [
             cat.name,
+            cat.metadata?.pinned && h(Icon, { name: 'bookmark', size: 10 }),
             cat.metadata?.blockGallerySave &&
               h(
                 'span',
@@ -549,6 +580,11 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
           const text = prompt.value;
           showContextMenu(e, [
             {
+              icon: 'bookmark',
+              label: prompt.metadata?.pinned ? '取消置顶' : '置顶',
+              action: () => handleTogglePinned('prompt', prompt),
+            },
+            {
               icon: 'copy',
               label: '复制文本',
               action: () => {
@@ -574,7 +610,10 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
       },
       [
         h('span', { class: 'prompt-selector-item-content' }, [
-          h('span', { class: 'prompt-selector-item-name' }, prompt.name || prompt.value),
+          h('span', { class: 'prompt-selector-item-name' }, [
+            prompt.metadata?.pinned && h(Icon, { name: 'bookmark', size: 10 }),
+            prompt.name || prompt.value,
+          ]),
           categoryPath && h('span', { class: 'prompt-selector-item-path' }, categoryPath),
         ]),
       ],
@@ -598,6 +637,11 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
         onContextMenu: (e) => {
           e.preventDefault();
           showContextMenu(e, [
+            {
+              icon: 'bookmark',
+              label: combination.metadata?.pinned ? '取消置顶' : '置顶',
+              action: () => handleTogglePinned('combination', combination),
+            },
             {
               icon: 'copy',
               label: '复制文本',
@@ -679,7 +723,10 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
       },
       [
         h('span', { class: 'prompt-selector-item-icon' }, h(Icon, { name: 'link', size: 14 })),
-        h('span', { class: 'prompt-selector-item-name' }, combination.name),
+        h('span', { class: 'prompt-selector-item-name' }, [
+          combination.metadata?.pinned && h(Icon, { name: 'bookmark', size: 10 }),
+          combination.name,
+        ]),
         h('span', { class: 'prompt-selector-combination-count' }, `${(combination.prompts || []).length}人`),
       ],
     );
@@ -697,11 +744,11 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
 
     // 合并为扁平数组（搜索时使用全局过滤结果）
     const listItems = [
-      ...filteredCategories.map((cat) => ({
+      ...[...filteredCategories].sort(comparePinned).map((cat) => ({
         type: 'category',
         data: cat,
       })),
-      ...filteredCombinations.map((comb) => ({
+      ...[...filteredCombinations].sort(comparePinned).map((comb) => ({
         type: 'combination',
         data: comb,
       })),

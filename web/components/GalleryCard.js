@@ -21,6 +21,7 @@ export function GalleryCard({
   onMove,
   onCopy,
   onExport,
+  onTogglePinned,
   // 多选相关props
   selectionMode = false,
   selected = false,
@@ -62,6 +63,11 @@ export function GalleryCard({
     if (selectionMode) return;
 
     const menuItems = [
+      {
+        icon: 'bookmark',
+        label: prompt.metadata?.pinned ? '取消置顶' : '置顶',
+        action: () => onTogglePinned && onTogglePinned('prompt', prompt),
+      },
       { icon: 'clipboard-list', label: '复制名称', action: handleCopy },
       {
         icon: 'star',
@@ -113,7 +119,10 @@ export function GalleryCard({
       h(
         'span',
         { class: 'gallery-card-name-tag' },
-        name,
+        [
+          prompt.metadata?.pinned && h(Icon, { name: 'bookmark', size: 11 }),
+          name,
+        ],
       ),
       h('div', { class: 'gallery-card-bottom-bar' }, [
         showValue &&

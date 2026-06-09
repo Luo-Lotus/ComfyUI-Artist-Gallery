@@ -144,6 +144,9 @@
   white-space: nowrap;
   min-width: 0;
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .prompt-selector-item-content {
@@ -393,6 +396,9 @@
   white-space: nowrap;
   min-width: 0;
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* 分类标签样式（已选择的分类） */

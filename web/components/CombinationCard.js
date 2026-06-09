@@ -16,6 +16,7 @@ export function CombinationCard({
   onDuplicate,
   onMove,
   onDelete,
+  onTogglePinned,
   // 多选相关
   selectionMode = false,
   selected = false,
@@ -51,6 +52,11 @@ export function CombinationCard({
     if (selectionMode) return;
 
     const menuItems = [
+      {
+        icon: 'bookmark',
+        label: combination.metadata?.pinned ? '取消置顶' : '置顶',
+        action: () => onTogglePinned && onTogglePinned('combination', combination),
+      },
       {
         icon: 'clipboard-list',
         label: copied ? '已复制' : '复制文本',
@@ -90,7 +96,10 @@ export function CombinationCard({
       h(
         'span',
         { class: 'gallery-card-name-tag' },
-        combination.name,
+        [
+          combination.metadata?.pinned && h(Icon, { name: 'bookmark', size: 11 }),
+          combination.name,
+        ],
       ),
       outputText &&
         h('div', { class: 'gallery-card-bottom-bar' }, [

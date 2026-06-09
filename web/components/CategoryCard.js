@@ -16,6 +16,7 @@ export function CategoryCard({
   onMove,
   onCopy,
   onExport,
+  onTogglePinned,
   // 多选相关props
   selectionMode = false,
   selected = false,
@@ -33,6 +34,11 @@ export function CategoryCard({
 
     e.preventDefault();
     const menuItems = [
+      {
+        icon: 'bookmark',
+        label: category.metadata?.pinned ? '取消置顶' : '置顶',
+        action: () => onTogglePinned && onTogglePinned('category', category),
+      },
       {
         icon: 'edit',
         label: '编辑',
@@ -77,6 +83,7 @@ export function CategoryCard({
     [
       // 文件夹图标
       h('div', { class: 'category-icon' }, h(Icon, { name: 'folder', size: 48 })),
+      category.metadata?.pinned && h('span', { class: 'gallery-pinned-badge', title: '已置顶' }, h(Icon, { name: 'bookmark', size: 12 })),
 
       // 分类信息
       h('div', { class: 'category-info' }, [h('div', { class: 'category-name' }, category.name)]),

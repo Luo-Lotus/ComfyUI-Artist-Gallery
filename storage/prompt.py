@@ -313,6 +313,10 @@ class PromptStorage:
             for key, val in kwargs.items():
                 if key in ["value", "name", "alias", "imageCount", "categoryId", "coverImageId"]:
                     target_prompt[key] = val
+                elif key == "metadata":
+                    if not isinstance(target_prompt.get("metadata"), dict):
+                        target_prompt["metadata"] = {}
+                    target_prompt["metadata"].update(val)
 
             self._write_data(data)
             return True
@@ -339,6 +343,10 @@ class PromptStorage:
                     for key, value in kwargs.items():
                         if key in ["value", "name", "alias", "imageCount", "categoryId", "coverImageId"]:
                             prompt[key] = value
+                        elif key == "metadata":
+                            if not isinstance(prompt.get("metadata"), dict):
+                                prompt["metadata"] = {}
+                            prompt["metadata"].update(value)
                     self._write_data(data)
                     return True
             return False

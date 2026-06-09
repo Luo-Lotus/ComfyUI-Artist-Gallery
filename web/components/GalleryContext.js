@@ -14,7 +14,13 @@ import {
   exportPrompts,
   exportCategory,
 } from '../utils.js';
-import { deleteCombination as deleteCombinationApi, deletePromptByKey } from '../services/promptApi.js';
+import {
+  deleteCombination as deleteCombinationApi,
+  deletePromptByKey,
+  updateCategoryMetadata,
+  updateCombinationMetadata,
+  updatePromptMetadata,
+} from '../services/promptApi.js';
 import { useCategoryManager } from './hooks/useCategoryManager.js';
 import { useGalleryData } from './hooks/useGalleryData.js';
 import { useFilteredPrompts } from './hooks/useFilteredPrompts.js';
@@ -272,6 +278,27 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
       setFavorites(new Set(updated));
     },
     [favorites],
+  );
+
+  const handleTogglePinned = useCallback(
+    async (type, item) => {
+      const pinned = !item?.metadata?.pinned;
+      try {
+        if (type === 'category') {
+          await updateCategoryMetadata(item.id, { pinned });
+          await categoryMgr.refreshCategories();
+        } else if (type === 'prompt') {
+          await updatePromptMetadata(item.categoryId, item.value, { pinned });
+        } else if (type === 'combination') {
+          await updateCombinationMetadata(item.id, { pinned });
+        }
+        await loadData();
+        showToast(pinned ? '已置顶' : '已取消置顶', 'success');
+      } catch (err) {
+        showToast('置顶操作失败: ' + err.message, 'error');
+      }
+    },
+    [categoryMgr.refreshCategories, loadData],
   );
 
   const handleCardClick = useCallback(
@@ -825,6 +852,7 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
       setShowFavoritesOnly,
       favorites,
       handleFavoriteToggle,
+      handleTogglePinned,
       cardSize,
       setCardSize,
       cardLayoutMode,
@@ -993,6 +1021,7 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
       sortOrder,
       showFavoritesOnly,
       favorites,
+      handleTogglePinned,
       cardSize,
       imageSearchQuery,
       imageSortBy,

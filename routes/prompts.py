@@ -75,6 +75,7 @@ async def batch_resolve_prompts(request):
                     "alias": p.get("alias", ""),
                     "imageCount": p.get("imageCount", 0),
                     "createdAt": p.get("createdAt", 0),
+                    "metadata": p.get("metadata", {}),
                 }
 
         return web.json_response({"prompts": result})
@@ -124,6 +125,7 @@ async def batch_resolve(request):
                         "alias": p.get("alias", ""),
                         "imageCount": p.get("imageCount", 0),
                         "createdAt": p.get("createdAt", 0),
+                        "metadata": p.get("metadata", {}),
                     }
             result["prompts"] = prompts_result
 
@@ -155,6 +157,7 @@ async def batch_resolve(request):
                         "categoryId": c.get("categoryId", "root"),
                         "prompts": c.get("prompts", []),
                         "outputContent": c.get("outputContent", ""),
+                        "metadata": c.get("metadata", {}),
                     }
             result["combinations"] = combinations_result
 
@@ -205,6 +208,7 @@ async def search_prompts(request):
                     "coverImagePath": cover_path,
                     "imageCount": p.get("imageCount", 0),
                     "createdAt": p.get("createdAt", 0),
+                    "metadata": p.get("metadata", {}),
                 })
                 if len(matched_prompts) >= limit:
                     break
@@ -233,6 +237,7 @@ async def search_prompts(request):
                     "prompts": c.get("prompts", []),
                     "outputContent": c.get("outputContent", ""),
                     "coverImagePath": cover_path,
+                    "metadata": c.get("metadata", {}),
                 })
                 if len(matched_combinations) >= limit:
                     break
@@ -353,6 +358,8 @@ async def update_prompt_composite(request):
             kwargs["categoryId"] = data["categoryId"]
         if "coverImageId" in data:
             kwargs["coverImageId"] = data["coverImageId"]
+        if "metadata" in data:
+            kwargs["metadata"] = data["metadata"]
         if "value" in data:
             kwargs["value"] = new_value
 
@@ -380,6 +387,8 @@ async def update_prompt_composite(request):
                     update_kwargs["categoryId"] = kwargs["categoryId"]
                 if "coverImageId" in kwargs:
                     update_kwargs["coverImageId"] = kwargs["coverImageId"]
+                if "metadata" in kwargs:
+                    update_kwargs["metadata"] = kwargs["metadata"]
                 update_kwargs["value"] = new_value
 
                 success = prompt_storage.update_prompt(cat_id, old_value, **update_kwargs)
@@ -481,6 +490,8 @@ async def update_prompt(request):
             kwargs["categoryId"] = data["categoryId"]
         if "coverImageId" in data:
             kwargs["coverImageId"] = data["coverImageId"]
+        if "metadata" in data:
+            kwargs["metadata"] = data["metadata"]
 
         success = prompt_storage.update_prompt_by_id(prompt_id, **kwargs)
 

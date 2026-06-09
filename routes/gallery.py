@@ -67,7 +67,8 @@ async def get_gallery_data(request):
                 "categoryId": prompt.get("categoryId", "root"),
                 "coverImagePath": cover_path,
                 "imageCount": image_count,
-                "createdAt": prompt.get("createdAt", 0)
+                "createdAt": prompt.get("createdAt", 0),
+                "metadata": prompt.get("metadata", {}),
             }
 
             result_prompts.append(result_prompt)

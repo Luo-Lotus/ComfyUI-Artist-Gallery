@@ -206,6 +206,9 @@
   font-size: var(--card-name-tag-font);
   align-self: flex-start;
   max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .gallery-card:hover .gallery-card-name-tag {

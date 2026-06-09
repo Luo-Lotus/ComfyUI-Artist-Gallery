@@ -11,6 +11,7 @@ import { CombinationCard } from './CombinationCard.js';
 import { LazyList } from './LazyList.js';
 import { useGallery } from './GalleryContext.js';
 import { computeSizeVars } from './SizePresets.js';
+import { comparePinned } from './hooks/useFilteredPrompts.js';
 
 export function GalleryGrid() {
   const ctx = useGallery();
@@ -23,9 +24,11 @@ export function GalleryGrid() {
 
   // 搜索时同时过滤分类名称
   const categories = useMemo(() => {
-    if (!ctx.searchQuery) return allCategories;
+    if (!ctx.searchQuery) return [...allCategories].sort(comparePinned);
     const query = ctx.searchQuery.toLowerCase();
-    return allCategories.filter((cat) => (cat.name || '').toLowerCase().includes(query));
+    return allCategories
+      .filter((cat) => (cat.name || '').toLowerCase().includes(query))
+      .sort(comparePinned);
   }, [allCategories, ctx.searchQuery]);
 
   // 计算每个分类的Prompt数量
@@ -43,7 +46,7 @@ export function GalleryGrid() {
       type: 'category',
       data: cat,
     }));
-    const combItems = combinations.map((c) => ({
+    const combItems = [...combinations].sort(comparePinned).map((c) => ({
       type: 'combination',
       data: c,
     }));
@@ -72,6 +75,7 @@ export function GalleryGrid() {
           onMove: () => ctx.openMoveDialog(category, 'category'),
           onCopy: () => ctx.openCopyDialog(category, 'category'),
           onExport: (cat) => ctx.handleOpenExportDialog(cat),
+          onTogglePinned: ctx.handleTogglePinned,
           selectionMode: ctx.selectionMode,
           selected: ctx.selectedItems.has(`category:${category.id}`),
           onSelect: ctx.handleGallerySelect,
@@ -86,6 +90,7 @@ export function GalleryGrid() {
           onDuplicate: ctx.handleCombinationDuplicate,
           onMove: () => ctx.openMoveDialog(combination, 'combination'),
           onDelete: ctx.handleCombinationDelete,
+          onTogglePinned: ctx.handleTogglePinned,
           selectionMode: ctx.selectionMode,
           selected: ctx.selectedItems.has(`combination:${combination.id}`),
           onSelect: ctx.handleGallerySelect,
@@ -105,6 +110,7 @@ export function GalleryGrid() {
           onMove: () => ctx.openMoveDialog(prompt, 'prompt'),
           onCopy: () => ctx.openCopyDialog(prompt, 'prompt'),
           onExport: () => ctx.handleExportPrompt(prompt),
+          onTogglePinned: ctx.handleTogglePinned,
           selectionMode: ctx.selectionMode,
           selected: ctx.selectedItems.has(`prompt:${prompt.categoryId}:${prompt.value}`),
           onSelect: ctx.handleGallerySelect,
@@ -117,6 +123,7 @@ export function GalleryGrid() {
       combinations.length,
       ctx.currentCombinations,
       ctx.favorites,
+      ctx.handleTogglePinned,
       ctx.selectionMode,
       ctx.selectedItems,
     ],

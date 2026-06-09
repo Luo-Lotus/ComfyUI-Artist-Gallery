@@ -291,3 +291,38 @@ export async function updateCategoryMetadata(categoryId, metadata) {
   }
   return await response.json();
 }
+
+/**
+ * 更新 Prompt metadata
+ */
+export async function updatePromptMetadata(categoryId, value, metadata) {
+  const response = await fetch(
+    `/prompt_gallery/prompts/${encodeURIComponent(categoryId)}/${encodeURIComponent(value)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ metadata }),
+    },
+  );
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || '更新 Prompt metadata 失败');
+  }
+  return await response.json();
+}
+
+/**
+ * 更新组合 metadata
+ */
+export async function updateCombinationMetadata(id, metadata) {
+  const response = await fetch(`/prompt_gallery/combinations/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ metadata }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || '更新组合 metadata 失败');
+  }
+  return await response.json();
+}
