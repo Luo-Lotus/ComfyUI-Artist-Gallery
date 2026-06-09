@@ -780,6 +780,8 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
         '右键点击可复制文本、在画廊中打开',
         h('br'),
         '保存图片时间过长可右键数据量大的分类禁止保存到画廊',
+        h('br'),
+        '双击分类可以打开分类',
       ]),
     ]);
   };
