@@ -92,17 +92,22 @@ async def batch_delete(request):
                 result["deleted_files"].extend(prompt_result["deleted_files"])
                 result["disassociated_images"].extend(prompt_result["disassociated_images"])
 
-        # 删除组合
-        for comb_id in combination_ids:
-            try:
-                comb = combination_storage.get_combination(comb_id)
-                if not comb:
+        # 删除组合（批量删除，一次写入）
+        if combination_ids:
+            all_combinations = combination_storage.get_all_combinations()
+            existing_ids = {c.get("id") for c in all_combinations}
+            valid_ids = []
+            seen_ids = set()
+            for comb_id in combination_ids:
+                if comb_id in seen_ids:
+                    continue
+                seen_ids.add(comb_id)
+                if comb_id not in existing_ids:
                     result["errors"].append(f"组合 {comb_id} 不存在")
                     continue
-                combination_storage.delete_combination(comb_id)
-                result["deleted_combinations"] += 1
-            except Exception as e:
-                result["errors"].append(f"删除组合 {comb_id} 失败: {str(e)}")
+                valid_ids.append(comb_id)
+            if valid_ids:
+                result["deleted_combinations"] += combination_storage.batch_delete(valid_ids)
 
         # 删除图片
         for img_data in images:

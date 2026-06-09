@@ -15,7 +15,7 @@ import { showToast } from '../../components/Toast.js';
 import { useBodyRender } from './hooks/useBodyRender.js';
 import { AddPromptDialog } from '../../components/AddPromptDialog.js';
 import { CategoryDialog } from '../../components/CategoryDialog.js';
-import { addCategory, batchResolve, searchAll } from '../../utils.js';
+import { addCategory, batchResolve, searchAll, Storage } from '../../utils.js';
 import { updateCategoryMetadata } from '../../services/promptApi.js';
 
 // 辅助函数：构建面包屑路径
@@ -105,10 +105,12 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [showPromptDialog, setShowPromptDialog] = useState(false);
   const hoverMenuTimerRef = useRef(null);
+  const categoryClickTimerRef = useRef(null);
 
   // 拖拽分隔条状态
   const [splitPercent, setSplitPercent] = useState(35);
   const [isDragging, setIsDragging] = useState(false);
+  const [showSearchPath, setShowSearchPath] = useState(() => Storage.getNodeSearchShowPath());
   const containerRef = useRef(null);
   const draggingRef = useRef(false);
 
@@ -139,6 +141,34 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (hoverMenuTimerRef.current) clearTimeout(hoverMenuTimerRef.current);
+      if (categoryClickTimerRef.current) clearTimeout(categoryClickTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleNodeSettingsChange = (event) => {
+      if (event.detail && typeof event.detail.showSearchPath === 'boolean') {
+        setShowSearchPath(event.detail.showSearchPath);
+      } else {
+        setShowSearchPath(Storage.getNodeSearchShowPath());
+      }
+    };
+    const handleStorageChange = (event) => {
+      if (event.key === 'prompt-gallery-node-search-show-path') {
+        setShowSearchPath(Storage.getNodeSearchShowPath());
+      }
+    };
+    window.addEventListener('prompt-gallery-node-settings-change', handleNodeSettingsChange);
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('prompt-gallery-node-settings-change', handleNodeSettingsChange);
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
 
@@ -299,20 +329,35 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
     const isSelected = selectedCategories.has(cat.id);
     // 搜索模式下显示父分类路径
     const parentPath =
-      showPath && cat.parentId
+      showPath && showSearchPath && cat.parentId
         ? buildBreadcrumbPath(cat.parentId, categories)
             .map((c) => c.name)
             .join(' / ')
         : '';
+
+    const handleCategoryClick = () => {
+      if (categoryClickTimerRef.current) clearTimeout(categoryClickTimerRef.current);
+      categoryClickTimerRef.current = setTimeout(() => {
+        toggleCategorySelection(cat.id);
+        categoryClickTimerRef.current = null;
+      }, 220);
+    };
+
+    const handleCategoryDoubleClick = () => {
+      if (categoryClickTimerRef.current) {
+        clearTimeout(categoryClickTimerRef.current);
+        categoryClickTimerRef.current = null;
+      }
+      handleCategoryChange(cat.id);
+    };
+
     return h(
       'div',
       {
         key: cat.id,
         class: `prompt-selector-category-card ${currentCategory === cat.id ? 'active' : ''} ${isSelected ? 'selected' : ''}`,
-        onClick: (e) => {
-          // 点击分类卡片选择/取消选择分类
-          toggleCategorySelection(cat.id);
-        },
+        onClick: handleCategoryClick,
+        onDblClick: handleCategoryDoubleClick,
         onContextMenu: (e) => {
           e.preventDefault();
           const isBlocked = cat.metadata?.blockGallerySave;
@@ -352,22 +397,24 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
             },
           ]);
         },
-        title: '点击选择分类，点击 > 进入分类',
+        title: '单击选择分类，双击进入分类',
       },
       [
         h('span', { class: 'prompt-selector-category-icon' }, h(Icon, { name: 'folder', size: 16 })),
-        h('span', { class: 'prompt-selector-category-name' }, [
-          parentPath && h('span', { class: 'prompt-selector-item-path' }, parentPath + ' / '),
-          cat.name,
-          cat.metadata?.blockGallerySave &&
-            h(
-              'span',
-              {
-                class: 'prompt-selector-badge gallery-block-badge',
-                title: '已禁止保存到画廊',
-              },
-              h(Icon, { name: 'ban', size: 11 }),
-            ),
+        h('span', { class: 'prompt-selector-item-content' }, [
+          h('span', { class: 'prompt-selector-category-name' }, [
+            cat.name,
+            cat.metadata?.blockGallerySave &&
+              h(
+                'span',
+                {
+                  class: 'prompt-selector-badge gallery-block-badge',
+                  title: '已禁止保存到画廊',
+                },
+                h(Icon, { name: 'ban', size: 11 }),
+              ),
+          ]),
+          parentPath && h('span', { class: 'prompt-selector-item-path' }, parentPath),
         ]),
         h(
           'span',
@@ -375,6 +422,10 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
             class: 'prompt-selector-category-enter',
             onClick: (e) => {
               e.stopPropagation();
+              if (categoryClickTimerRef.current) {
+                clearTimeout(categoryClickTimerRef.current);
+                categoryClickTimerRef.current = null;
+              }
               handleCategoryChange(cat.id);
             },
             title: '进入分类',
@@ -484,7 +535,7 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
   const renderPromptItem = (prompt, showCategoryPath) => {
     const key = makePromptKey(prompt.categoryId, prompt.value);
     const isSelected = selectedKeys.has(key);
-    const categoryPath = showCategoryPath ? getCategoryPathName(prompt.categoryId, categories) : '';
+    const categoryPath = showCategoryPath && showSearchPath ? getCategoryPathName(prompt.categoryId, categories) : '';
     return h(
       'div',
       {
@@ -522,8 +573,10 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
         },
       },
       [
-        categoryPath && h('span', { class: 'prompt-selector-item-path' }, categoryPath),
-        h('span', { class: 'prompt-selector-item-name' }, prompt.name || prompt.value),
+        h('span', { class: 'prompt-selector-item-content' }, [
+          h('span', { class: 'prompt-selector-item-name' }, prompt.name || prompt.value),
+          categoryPath && h('span', { class: 'prompt-selector-item-path' }, categoryPath),
+        ]),
       ],
     );
   };

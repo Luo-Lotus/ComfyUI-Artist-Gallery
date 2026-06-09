@@ -9,6 +9,7 @@ import { ImageFieldPanel } from './ImageFieldPanel.js';
 
 const MENU_ITEMS = [
   { key: 'gallery', label: '图库设置', icon: 'image' },
+  { key: 'node', label: '节点', icon: 'settings' },
   { key: 'imageFields', label: '图片字段', icon: 'image' },
   { key: 'storage', label: '存储管理', icon: 'folder' },
   { key: 'faq', label: '常见问题', icon: 'info-circle' },
@@ -28,6 +29,11 @@ function GallerySettings() {
   const handleThemeChange = useCallback((newTheme) => {
     ctx.setTheme(newTheme);
   }, [ctx.setTheme]);
+
+  const handleResetButtonPosition = useCallback(() => {
+    const reset = Storage.resetButtonPosition();
+    showToast(reset ? '悬浮球位置已重置' : '未找到悬浮球按钮', reset ? 'success' : 'warning');
+  }, []);
 
   return h('div', { class: 'settings-panel' }, [
     h('div', { class: 'settings-section-title' }, '图库设置'),
@@ -70,6 +76,56 @@ function GallerySettings() {
       }, [
         h(Icon, { name: 'image', size: 14 }),
         '自适应',
+      ]),
+    ]),
+    h('div', { class: 'settings-divider' }),
+    h('div', { class: 'settings-option-row' }, [
+      h('div', { class: 'settings-option-label' }, '悬浮球位置'),
+      h('div', { class: 'settings-option-desc' }, '将画廊悬浮球恢复到右下角默认位置'),
+    ]),
+    h('button', {
+      class: 'settings-radio-btn',
+      onClick: handleResetButtonPosition,
+    }, [
+      h(Icon, { name: 'refresh-cw', size: 14 }),
+      '重置悬浮球位置',
+    ]),
+  ]);
+}
+
+// ───────── 节点设置面板 ─────────
+
+function NodeSettings() {
+  const [showSearchPath, setShowSearchPath] = useState(() => Storage.getNodeSearchShowPath());
+
+  const handleShowSearchPathChange = useCallback((enabled) => {
+    setShowSearchPath(enabled);
+    Storage.saveNodeSearchShowPath(enabled);
+    window.dispatchEvent(new CustomEvent('prompt-gallery-node-settings-change', {
+      detail: { showSearchPath: enabled },
+    }));
+  }, []);
+
+  return h('div', { class: 'settings-panel' }, [
+    h('div', { class: 'settings-section-title' }, '节点设置'),
+    h('div', { class: 'settings-option-row' }, [
+      h('div', { class: 'settings-option-label' }, '搜索结果路径'),
+      h('div', { class: 'settings-option-desc' }, '控制 Prompt 选择节点搜索结果下方是否显示分类路径'),
+    ]),
+    h('div', { class: 'settings-radio-group' }, [
+      h('button', {
+        class: 'settings-radio-btn' + (showSearchPath ? ' active' : ''),
+        onClick: () => handleShowSearchPathChange(true),
+      }, [
+        h(Icon, { name: 'check-circle', size: 14 }),
+        '显示路径',
+      ]),
+      h('button', {
+        class: 'settings-radio-btn' + (!showSearchPath ? ' active' : ''),
+        onClick: () => handleShowSearchPathChange(false),
+      }, [
+        h(Icon, { name: 'x-circle', size: 14 }),
+        '隐藏路径',
       ]),
     ]),
   ]);
@@ -338,6 +394,7 @@ function FAQ() {
 
 const PANELS = {
   gallery: GallerySettings,
+  node: NodeSettings,
   imageFields: ImageFieldPanel,
   storage: StorageSettings,
   faq: FAQ,

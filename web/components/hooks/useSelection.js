@@ -149,7 +149,8 @@ export function useSelection({
 
   const handleBatchDelete = () => {
     const details = getSelectedDetails();
-    if (details.categories.length === 0 && details.prompts.length === 0 && details.images.length === 0) return;
+    const totalSelected = details.categories.length + details.prompts.length + details.combinations.length + details.images.length;
+    if (totalSelected === 0) return;
 
     setBatchOperation('delete');
     setShowBatchConfirm(true);

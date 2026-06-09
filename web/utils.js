@@ -30,6 +30,16 @@ export const Storage = {
   saveButtonPosition(left, top) {
     localStorage.setItem('prompt-gallery-btn-pos', JSON.stringify({ left, top }));
   },
+  resetButtonPosition() {
+    localStorage.removeItem('prompt-gallery-btn-pos');
+    const btn = document.getElementById('prompt-gallery-floating-btn');
+    if (!btn) return false;
+    btn.style.left = 'auto';
+    btn.style.top = 'auto';
+    btn.style.right = '30px';
+    btn.style.bottom = '100px';
+    return true;
+  },
   getFavorites() {
     try {
       const saved = localStorage.getItem('prompt-favorites');
@@ -81,6 +91,16 @@ export const Storage = {
   },
   saveTheme(theme) {
     localStorage.setItem('prompt-gallery-theme', theme);
+  },
+  getNodeSearchShowPath() {
+    try {
+      return localStorage.getItem('prompt-gallery-node-search-show-path') !== '0';
+    } catch {
+      return true;
+    }
+  },
+  saveNodeSearchShowPath(showPath) {
+    localStorage.setItem('prompt-gallery-node-search-show-path', showPath ? '1' : '0');
   },
 };
 

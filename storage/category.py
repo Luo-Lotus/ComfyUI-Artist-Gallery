@@ -245,3 +245,27 @@ class CategoryStorage:
                 self._write_data(data)
                 return True
             return False
+
+    def batch_delete(self, category_ids: List[str]) -> int:
+        """
+        批量删除分类（一次锁和一次写入）。
+        :param category_ids: 要删除的分类 ID 列表
+        :return: 实际删除数量
+        """
+        id_set = set(category_ids)
+        if not id_set:
+            return 0
+        if "root" in id_set:
+            raise ValueError("不能删除根分类")
+
+        with self._lock:
+            data = self._read_data()
+            original_count = len(data["categories"])
+            data["categories"] = [
+                c for c in data["categories"]
+                if c.get("id") not in id_set
+            ]
+            deleted = original_count - len(data["categories"])
+            if deleted > 0:
+                self._write_data(data)
+            return deleted

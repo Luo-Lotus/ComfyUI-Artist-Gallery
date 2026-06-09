@@ -211,12 +211,12 @@ def delete_category_cascade(category_id: str,
         result["deleted_files"].extend(prompt_result["deleted_files"])
         result["disassociated_images"].extend(prompt_result["disassociated_images"])
 
-    # 4. 从叶到根删除分类记录
-    for cid in reversed(all_cat_ids):
-        try:
-            category_storage.delete_category(cid)
-            result["deleted_categories"].append(cid)
-        except Exception as e:
-            print(f"[DeleteUtils] 删除分类 {cid} 失败: {e}")
+    # 4. 批量删除分类记录（一次写入）
+    try:
+        deleted_count = category_storage.batch_delete(all_cat_ids)
+        if deleted_count:
+            result["deleted_categories"].extend(all_cat_ids)
+    except Exception as e:
+        print(f"[DeleteUtils] 批量删除分类失败: {e}")
 
     return result
