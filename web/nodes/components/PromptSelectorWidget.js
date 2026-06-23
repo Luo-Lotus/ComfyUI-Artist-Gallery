@@ -360,10 +360,11 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
             .join(' / ')
         : '';
 
-    const handleCategoryClick = () => {
+    const handleCategoryClick = (e) => {
       if (categoryClickTimerRef.current) clearTimeout(categoryClickTimerRef.current);
+      const shiftKey = e.shiftKey;
       categoryClickTimerRef.current = setTimeout(() => {
-        toggleCategorySelection(cat.id);
+        toggleCategorySelection(cat.id, shiftKey);
         categoryClickTimerRef.current = null;
       }, 220);
     };
@@ -572,7 +573,7 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
       {
         key: key,
         class: `prompt-selector-item ${isSelected ? 'selected' : ''}`,
-        onClick: () => toggleSelection(prompt.categoryId, prompt.value),
+        onClick: (e) => toggleSelection(prompt.categoryId, prompt.value, e.shiftKey),
         onMouseEnter: (e) => handleMouseEnter(prompt, e),
         onMouseLeave: () => handleMouseLeave(),
         onContextMenu: (e) => {
@@ -631,7 +632,7 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
       {
         key: key,
         class: `prompt-selector-item combination-item ${isSelected ? 'selected' : ''}`,
-        onClick: () => toggleCombinationSelection(combination.id),
+        onClick: (e) => toggleCombinationSelection(combination.id, e.shiftKey),
         onMouseEnter: (e) => handleMouseEnter(combination, e),
         onMouseLeave: () => handleMouseLeave(),
         onContextMenu: (e) => {
@@ -778,6 +779,8 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
       }),
       h('div', { class: 'prompt-selector-hint' }, [
         '右键点击可复制文本、在画廊中打开',
+        h('br'),
+        'Shift+点击可快速选择范围内的标签',
         h('br'),
         '保存图片时间过长可右键数据量大的分类禁止保存到画廊',
         h('br'),

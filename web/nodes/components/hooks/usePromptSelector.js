@@ -47,6 +47,9 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
   // 搜索结果状态
   const [searchResults, setSearchResults] = useState(null);
 
+  // Shift 范围选择：记录上一次点击的项
+  const lastSelectedItemRef = useRef(null);
+
   // 封面缓存（key -> coverImagePath）
   const coversCacheRef = useRef({});
 
@@ -371,14 +374,92 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
     );
   }, [combinations, searchResults, searchQuery]);
 
+  // Shift 范围选择：构建当前视图的有序键列表（与渲染顺序一致：置顶优先 → 分类 → 组合 → Prompt）
+  const orderedKeys = useMemo(() => {
+    const keys = [];
+    // 分类（置顶优先）
+    const sortedCats = [...filteredCategories].sort(
+      (a, b) => Number(!!b?.metadata?.pinned) - Number(!!a?.metadata?.pinned),
+    );
+    for (const cat of sortedCats) keys.push(`category:${cat.id}`);
+    // 组合（置顶优先）
+    const sortedCombs = [...filteredCombinations].sort(
+      (a, b) => Number(!!b?.metadata?.pinned) - Number(!!a?.metadata?.pinned),
+    );
+    for (const comb of sortedCombs) keys.push(`combination:${comb.id}`);
+    // Prompt
+    for (const prompt of filteredPrompts) keys.push(makePromptKey(prompt.categoryId, prompt.value));
+    return keys;
+  }, [filteredCategories, filteredCombinations, filteredPrompts]);
+
+  // 辅助函数：将范围内的项批量添加到默认分区
+  const addRangeToDefaultPartition = useCallback(
+    (keysToAdd) => {
+      const defaultPartition = partitionData.partitions.find((p) => p.isDefault);
+      if (!defaultPartition) return;
+
+      // 缓存 prompt 信息
+      const cacheUpdates = {};
+      for (const key of keysToAdd) {
+        if (key.startsWith('combination:')) continue;
+        if (key.includes(':')) {
+          // prompt key 格式为 categoryId:value
+          const prompt = prompts.find((a) => makePromptKey(a.categoryId, a.value) === key);
+          if (prompt) cacheUpdates[key] = prompt;
+        }
+      }
+      if (Object.keys(cacheUpdates).length > 0) {
+        setSelectedPromptsCache((prev) => ({ ...prev, ...cacheUpdates }));
+      }
+
+      // 批量添加到默认分区
+      for (const key of keysToAdd) {
+        if (key.startsWith('combination:')) {
+          addItemToPartition('combination', key, defaultPartition.id);
+        } else if (key.includes(':')) {
+          addItemToPartition('prompt', key, defaultPartition.id);
+        } else {
+          addItemToPartition('category', key, defaultPartition.id);
+        }
+      }
+    },
+    [partitionData, prompts, addItemToPartition, setSelectedPromptsCache],
+  );
+
   // 切换画师选择状态
   const toggleSelection = useCallback(
-    (categoryId, value) => {
+    (categoryId, value, shiftKey = false) => {
       const key = makePromptKey(categoryId, value);
-      const isAdding = !selectedKeys.has(key);
 
+      // Shift 范围选择
+      if (shiftKey && lastSelectedItemRef.current && orderedKeys.length > 0) {
+        const startIdx = orderedKeys.indexOf(lastSelectedItemRef.current);
+        const endIdx = orderedKeys.indexOf(key);
+        if (startIdx >= 0 && endIdx >= 0) {
+          const from = Math.min(startIdx, endIdx);
+          const to = Math.max(startIdx, endIdx);
+          const keysToAdd = [];
+          for (let i = from; i <= to; i++) {
+            // 只添加尚未选中的项
+            const k = orderedKeys[i];
+            const type = k.startsWith('combination:') ? 'combination' : k.includes(':') ? 'prompt' : 'category';
+            const isSelected =
+              type === 'prompt'
+                ? selectedKeys.has(k)
+                : type === 'category'
+                  ? selectedCategories.has(k)
+                  : selectedCombinationKeys.has(k);
+            if (!isSelected) keysToAdd.push(k);
+          }
+          if (keysToAdd.length > 0) addRangeToDefaultPartition(keysToAdd);
+          lastSelectedItemRef.current = key;
+          return;
+        }
+      }
+
+      // 普通切换
+      const isAdding = !selectedKeys.has(key);
       if (isAdding) {
-        // 缓存 prompt 信息
         const prompt = prompts.find((a) => a.categoryId === categoryId && a.value === value);
         if (prompt) {
           setSelectedPromptsCache((prev) => ({ ...prev, [key]: prompt }));
@@ -390,15 +471,41 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
       } else {
         removeItemGlobally('prompt', key);
       }
+      lastSelectedItemRef.current = key;
     },
-    [selectedKeys, prompts, partitionData, addItemToPartition, removeItemGlobally],
+    [selectedKeys, selectedCategories, selectedCombinationKeys, prompts, partitionData, addItemToPartition, removeItemGlobally, orderedKeys, addRangeToDefaultPartition],
   );
 
   // 切换分类选择状态
   const toggleCategorySelection = useCallback(
-    (categoryId) => {
-      const isAdding = !selectedCategories.has(categoryId);
+    (categoryId, shiftKey = false) => {
+      // Shift 范围选择
+      if (shiftKey && lastSelectedItemRef.current && orderedKeys.length > 0) {
+        const startIdx = orderedKeys.indexOf(lastSelectedItemRef.current);
+        const endIdx = orderedKeys.indexOf(categoryId);
+        if (startIdx >= 0 && endIdx >= 0) {
+          const from = Math.min(startIdx, endIdx);
+          const to = Math.max(startIdx, endIdx);
+          const keysToAdd = [];
+          for (let i = from; i <= to; i++) {
+            const k = orderedKeys[i];
+            const type = k.startsWith('combination:') ? 'combination' : k.includes(':') ? 'prompt' : 'category';
+            const isSelected =
+              type === 'prompt'
+                ? selectedKeys.has(k)
+                : type === 'category'
+                  ? selectedCategories.has(k)
+                  : selectedCombinationKeys.has(k);
+            if (!isSelected) keysToAdd.push(k);
+          }
+          if (keysToAdd.length > 0) addRangeToDefaultPartition(keysToAdd);
+          lastSelectedItemRef.current = categoryId;
+          return;
+        }
+      }
 
+      // 普通切换
+      const isAdding = !selectedCategories.has(categoryId);
       if (isAdding) {
         const defaultPartition = partitionData.partitions.find((p) => p.isDefault);
         if (defaultPartition) {
@@ -407,16 +514,43 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
       } else {
         removeItemGlobally('category', categoryId);
       }
+      lastSelectedItemRef.current = categoryId;
     },
-    [selectedCategories, partitionData, addItemToPartition, removeItemGlobally],
+    [selectedKeys, selectedCategories, selectedCombinationKeys, partitionData, addItemToPartition, removeItemGlobally, orderedKeys, addRangeToDefaultPartition],
   );
 
   // 切换组合选择状态
   const toggleCombinationSelection = useCallback(
-    (combinationId) => {
+    (combinationId, shiftKey = false) => {
       const combinationKey = `combination:${combinationId}`;
-      const isAdding = !selectedCombinationKeys.has(combinationKey);
 
+      // Shift 范围选择
+      if (shiftKey && lastSelectedItemRef.current && orderedKeys.length > 0) {
+        const startIdx = orderedKeys.indexOf(lastSelectedItemRef.current);
+        const endIdx = orderedKeys.indexOf(combinationKey);
+        if (startIdx >= 0 && endIdx >= 0) {
+          const from = Math.min(startIdx, endIdx);
+          const to = Math.max(startIdx, endIdx);
+          const keysToAdd = [];
+          for (let i = from; i <= to; i++) {
+            const k = orderedKeys[i];
+            const type = k.startsWith('combination:') ? 'combination' : k.includes(':') ? 'prompt' : 'category';
+            const isSelected =
+              type === 'prompt'
+                ? selectedKeys.has(k)
+                : type === 'category'
+                  ? selectedCategories.has(k)
+                  : selectedCombinationKeys.has(k);
+            if (!isSelected) keysToAdd.push(k);
+          }
+          if (keysToAdd.length > 0) addRangeToDefaultPartition(keysToAdd);
+          lastSelectedItemRef.current = combinationKey;
+          return;
+        }
+      }
+
+      // 普通切换
+      const isAdding = !selectedCombinationKeys.has(combinationKey);
       if (isAdding) {
         const defaultPartition = partitionData.partitions.find((p) => p.isDefault);
         if (defaultPartition) {
@@ -425,8 +559,9 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
       } else {
         removeItemGlobally('combination', combinationKey);
       }
+      lastSelectedItemRef.current = combinationKey;
     },
-    [selectedCombinationKeys, partitionData, addItemToPartition, removeItemGlobally],
+    [selectedKeys, selectedCategories, selectedCombinationKeys, partitionData, addItemToPartition, removeItemGlobally, orderedKeys, addRangeToDefaultPartition],
   );
 
   // 节点同步
