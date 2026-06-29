@@ -1,13 +1,10 @@
 """
 Batch 操作端点
 """
-from pathlib import Path
 from aiohttp import web
 import server
 from ..storage import get_storage
-from ..storage.backup import BackupManager
-from ._utils import is_remote_path
-from ._delete_utils import delete_category_cascade, delete_prompt_cascade, batch_delete_prompts_cascade, remove_image_prompt_link, delete_image_completely
+from ._delete_utils import delete_category_cascade, batch_delete_prompts_cascade, delete_image_completely
 
 
 # ============ Batch Operations API ============
@@ -32,10 +29,6 @@ async def batch_delete(request):
         images = data.get("images", [])
 
         prompt_storage, mapping_storage, category_storage, combination_storage = get_storage()
-
-        # 备份
-        storage_dir = Path(prompt_storage.storage_dir)
-        BackupManager(storage_dir).create_backup()
 
         result = {
             "deleted_categories": [],
@@ -150,21 +143,25 @@ async def batch_move(request):
     批量移动分类和Prompt
     请求体: {
       "categories": [{"id": "xxx", "newParentId": "yyy"}],
-      "prompts": [{"categoryId": "xxx", "value": "yyy", "newCategoryId": "zzz"}]
+      "prompts": [{"categoryId": "xxx", "value": "yyy", "newCategoryId": "zzz"}],
+      "combinations": [{"id": "xxx", "newCategoryId": "zzz"}]
     }
     """
     try:
         data = await request.json()
         categories = data.get("categories", [])
         prompts = data.get("prompts", [])
+        combinations = data.get("combinations", [])
 
-        prompt_storage, _, category_storage, _ = get_storage()
+        prompt_storage, _, category_storage, combination_storage = get_storage()
 
         moved_categories = []
         moved_prompts = []
+        moved_combinations = []
         errors = []
 
         # 移动分类
+        category_moves = []
         for cat_data in categories:
             try:
                 cat_id = cat_data.get("id")
@@ -190,18 +187,20 @@ async def batch_move(request):
                     errors.append(f"不能将分类 {cat_id} 移动到自己的子分类下")
                     continue
 
-                # 更新分类的父分类
-                success = category_storage.update_category(cat_id, parentId=new_parent_id)
-                if success:
-                    cat = category_storage.get_category_by_id(cat_id)
-                    moved_categories.append(cat.get("name", cat_id))
-                else:
+                if not category_storage.get_category_by_id(cat_id):
                     errors.append(f"分类 {cat_id} 不存在")
+                    continue
+
+                category_moves.append({"id": cat_id, "parentId": new_parent_id})
 
             except Exception as e:
                 errors.append(f"移动分类 {cat_data.get('id')} 失败: {str(e)}")
 
+        for cat in category_storage.batch_move(category_moves):
+            moved_categories.append(cat.get("name", cat.get("id")))
+
         # 移动Prompt
+        prompt_moves_by_target = {}
         for prompt_data in prompts:
             try:
                 category_id = prompt_data.get("categoryId")
@@ -214,21 +213,57 @@ async def batch_move(request):
                     errors.append(f"目标分类 {new_category_id} 不存在")
                     continue
 
-                # 更新Prompt的分类
-                success = prompt_storage.update_prompt(category_id, value, categoryId=new_category_id)
-                if success:
-                    prompt = prompt_storage.get_prompt(new_category_id, value)
-                    moved_prompts.append(prompt.get("name", value))
-                else:
+                prompt = prompt_storage.get_prompt(category_id, value)
+                if not prompt:
                     errors.append(f"Prompt {value} 不存在")
+                    continue
+
+                prompt_moves_by_target.setdefault(new_category_id, []).append((category_id, value))
 
             except Exception as e:
                 errors.append(f"移动Prompt {prompt_data.get('value')} 失败: {str(e)}")
+
+        for target_id, keys in prompt_moves_by_target.items():
+            for prompt in prompt_storage.batch_move(keys, target_id):
+                moved_prompts.append(prompt.get("name", prompt.get("value")))
+
+        # 移动组合
+        combination_moves_by_target = {}
+        seen_combination_ids = set()
+        for comb_data in combinations:
+            try:
+                comb_id = comb_data.get("id")
+                new_category_id = comb_data.get("newCategoryId", comb_data.get("targetCategoryId", "root"))
+                if not comb_id:
+                    errors.append(f"无效的组合数据: {comb_data}")
+                    continue
+                if comb_id in seen_combination_ids:
+                    continue
+                seen_combination_ids.add(comb_id)
+
+                target_cat = category_storage.get_category_by_id(new_category_id)
+                if not target_cat:
+                    errors.append(f"目标分类 {new_category_id} 不存在")
+                    continue
+
+                combination = combination_storage.get_combination_by_id(comb_id)
+                if not combination:
+                    errors.append(f"组合 {comb_id} 不存在")
+                    continue
+
+                combination_moves_by_target.setdefault(new_category_id, []).append(comb_id)
+            except Exception as e:
+                errors.append(f"移动组合 {comb_data.get('id')} 失败: {str(e)}")
+
+        for target_id, ids in combination_moves_by_target.items():
+            for combination in combination_storage.batch_move(ids, target_id):
+                moved_combinations.append(combination.get("name", combination.get("id")))
 
         return web.json_response({
             "success": True,
             "movedCategories": moved_categories,
             "movedPrompts": moved_prompts,
+            "movedCombinations": moved_combinations,
             "errors": errors
         })
 

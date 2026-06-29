@@ -1,28 +1,45 @@
 """
 组合 API 端点
 """
-import json
 from pathlib import Path
 from aiohttp import web
 import server
 from ..storage import get_storage
-from ..storage.backup import BackupManager
 from ._utils import is_remote_path
 
 
-
-
 # ============ 组合 CRUD API ============
+
+def _resolve_combination_cover(comb, prompt_mapping_index, output_dir):
+    """Resolve cover path using explicit cover first, then first existing member prompt image."""
+    cover_path = comb.get("coverImageId")
+    if cover_path:
+        return cover_path
+
+    output_path = Path(output_dir)
+    for prompt_name in comb.get("prompts", []):
+        for m in prompt_mapping_index.get(prompt_name, []):
+            image_path = m.get("imagePath")
+            if is_remote_path(image_path, m.get("type", "")) or (output_path / image_path).exists():
+                return image_path
+    return None
+
+
+def _serialize_combination_with_cover(comb, prompt_mapping_index, output_dir):
+    comb_data = dict(comb)
+    comb_data["coverImagePath"] = _resolve_combination_cover(comb, prompt_mapping_index, output_dir)
+    return comb_data
+
 
 @server.PromptServer.instance.routes.get("/prompt_gallery/combinations")
 async def get_combinations(request):
     """获取组合列表（支持 ?category= 过滤），附带封面图片路径"""
     try:
         import folder_paths
-        from pathlib import Path
 
         _, mapping_storage, _, combination_storage = get_storage()
         output_dir = folder_paths.get_output_directory()
+        prompt_mapping_index = mapping_storage.build_prompt_index()
 
         category_id = request.query.get("category")
         if category_id:
@@ -30,24 +47,10 @@ async def get_combinations(request):
         else:
             raw_combinations = combination_storage.get_all_combinations()
 
-        # 为每个组合添加封面图片路径
-        result_combinations = []
-        for comb in raw_combinations:
-            comb_data = dict(comb)
-            # 优先使用设置的封面，否则取第一个成员Prompt的第一张图
-            cover_path = comb.get("coverImageId")
-            if not cover_path:
-                for prompt_name in comb.get("prompts", []):
-                    mappings = mapping_storage.get_mappings_by_prompt(prompt_name)
-                    for m in mappings:
-                        image_path = m.get("imagePath")
-                        if is_remote_path(image_path, m.get("type", "")) or (Path(output_dir) / image_path).exists():
-                            cover_path = image_path
-                            break
-                    if cover_path:
-                        break
-            comb_data["coverImagePath"] = cover_path
-            result_combinations.append(comb_data)
+        result_combinations = [
+            _serialize_combination_with_cover(comb, prompt_mapping_index, output_dir)
+            for comb in raw_combinations
+        ]
 
         return web.json_response({
             "success": True,
@@ -62,30 +65,16 @@ async def get_all_combinations(request):
     """获取所有组合（选择器用），附带封面图片路径"""
     try:
         import folder_paths
-        from pathlib import Path
 
         _, mapping_storage, _, combination_storage = get_storage()
         output_dir = folder_paths.get_output_directory()
         raw_combinations = combination_storage.get_all_combinations()
+        prompt_mapping_index = mapping_storage.build_prompt_index()
 
-        # 为每个组合添加封面图片路径
-        result_combinations = []
-        for comb in raw_combinations:
-            comb_data = dict(comb)
-            # 优先使用设置的封面，否则取第一个成员Prompt的第一张图
-            cover_path = comb.get("coverImageId")
-            if not cover_path:
-                for prompt_name in comb.get("prompts", []):
-                    mappings = mapping_storage.get_mappings_by_prompt(prompt_name)
-                    for m in mappings:
-                        image_path = m.get("imagePath")
-                        if is_remote_path(image_path, m.get("type", "")) or (Path(output_dir) / image_path).exists():
-                            cover_path = image_path
-                            break
-                    if cover_path:
-                        break
-            comb_data["coverImagePath"] = cover_path
-            result_combinations.append(comb_data)
+        result_combinations = [
+            _serialize_combination_with_cover(comb, prompt_mapping_index, output_dir)
+            for comb in raw_combinations
+        ]
 
         return web.json_response({
             "success": True,
@@ -172,11 +161,7 @@ async def delete_combination(request):
     try:
         combination_id = request.match_info.get("id")
 
-        prompt_storage, _, _, combination_storage = get_storage()
-
-        # 备份
-        storage_dir = Path(prompt_storage.storage_dir)
-        BackupManager(storage_dir).create_backup()
+        _, _, _, combination_storage = get_storage()
 
         success = combination_storage.delete_combination(combination_id)
 
@@ -258,14 +243,16 @@ async def get_combination_images(request):
                 "totalCount": 0,
             })
 
+        prompt_mapping_index = mapping_storage.build_prompt_index()
+
         # 获取每个Prompt的图片路径集合
         prompt_image_sets = []
+        output_path = Path(output_dir)
         for prompt_name in prompts:
-            mappings = mapping_storage.get_mappings_by_prompt(prompt_name)
             paths = set()
-            for m in mappings:
+            for m in prompt_mapping_index.get(prompt_name, []):
                 image_path = m.get("imagePath")
-                if is_remote_path(image_path, m.get("type", "")) or (Path(output_dir) / image_path).exists():
+                if is_remote_path(image_path, m.get("type", "")) or (output_path / image_path).exists():
                     paths.add(image_path)
             prompt_image_sets.append(paths)
 
@@ -324,11 +311,7 @@ async def batch_delete_combinations(request):
         data = await request.json()
         ids = data.get("ids", [])
 
-        prompt_storage, _, _, combination_storage = get_storage()
-
-        # 备份
-        storage_dir = Path(prompt_storage.storage_dir)
-        BackupManager(storage_dir).create_backup()
+        _, _, _, combination_storage = get_storage()
 
         deleted = combination_storage.batch_delete(ids)
 

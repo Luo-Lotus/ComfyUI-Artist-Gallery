@@ -195,9 +195,17 @@ export function useItemOperations({
             value: a.value,
             newCategoryId: target.id,
           })),
+          combinations: details.combinations.map((c) => ({
+            id: c.id,
+            newCategoryId: target.id,
+          })),
         };
 
-        if (batchPayload.categories.length > 0 || batchPayload.prompts.length > 0) {
+        if (
+          batchPayload.categories.length > 0 ||
+          batchPayload.prompts.length > 0 ||
+          batchPayload.combinations.length > 0
+        ) {
           try {
             const res = await fetch('/prompt_gallery/batch/move', {
               method: 'POST',
@@ -206,32 +214,22 @@ export function useItemOperations({
             });
             const data = await res.json();
             if (res.ok && data.success) {
-              successCount += (data.movedCategories?.length || 0) + (data.movedPrompts?.length || 0);
+              successCount +=
+                (data.movedCategories?.length || 0) +
+                (data.movedPrompts?.length || 0) +
+                (data.movedCombinations?.length || 0);
               if (data.errors?.length > 0) failCount += data.errors.length;
             } else {
-              failCount += batchPayload.categories.length + batchPayload.prompts.length;
+              failCount +=
+                batchPayload.categories.length +
+                batchPayload.prompts.length +
+                batchPayload.combinations.length;
             }
           } catch {
-            failCount += batchPayload.categories.length + batchPayload.prompts.length;
-          }
-        }
-
-        // 组合逐个移动（没有批量API）
-        for (const comb of details.combinations) {
-          try {
-            const res = await fetch(`/prompt_gallery/combinations/${comb.id}/move`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ targetCategoryId: target.id }),
-            });
-            const data = await res.json();
-            if (res.ok && data.success) {
-              successCount++;
-            } else {
-              failCount++;
-            }
-          } catch {
-            failCount++;
+            failCount +=
+              batchPayload.categories.length +
+              batchPayload.prompts.length +
+              batchPayload.combinations.length;
           }
         }
 

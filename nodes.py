@@ -27,6 +27,7 @@ _cycle_states = {}
 # prompt_string 画师匹配缓存
 _prompt_match_cache = None           # 按长度降序的名称列表
 _prompt_match_names = None           # frozenset 指纹
+_prompt_match_lookup = None          # name/alias -> [prompt, ...]
 _blocked_category_cache = None       # 被禁止保存到画廊的分类 ID 集合
 _blocked_category_fingerprint = None # 分类数据指纹
 
@@ -434,7 +435,7 @@ class SaveToGallery:
     @staticmethod
     def _match_prompts_from_prompt(prompt_string):
         """从 prompt_string 中匹配已知画师名，返回 [{categoryId, name, saveToGallery}, ...]"""
-        global _prompt_match_cache, _prompt_match_names
+        global _prompt_match_cache, _prompt_match_names, _prompt_match_lookup
 
         if not prompt_string or not prompt_string.strip():
             return []
@@ -446,26 +447,37 @@ class SaveToGallery:
 
         blocked_ids = _get_blocked_category_ids(category_storage)
 
-        # 构建 name → [prompt, ...] 查找表（同名画师可属于不同分类）
-        name_to_prompts = {}
+        # 先计算轻量指纹，只有 Prompt/别名集合变化时才重建查找表。
+        current_names = []
         for prompt in all_prompts:
             value = prompt.get("value", "").strip()
             if value:
-                name_to_prompts.setdefault(value, []).append(prompt)
-            # 别名也加入匹配
+                current_names.append((value, prompt.get("categoryId", "root"), prompt.get("value", "")))
             alias = prompt.get("alias", "").strip()
             if alias:
                 for a in alias.split(","):
                     a = a.strip()
                     if a:
-                        name_to_prompts.setdefault(a, []).append(prompt)
+                        current_names.append((a, prompt.get("categoryId", "root"), prompt.get("value", "")))
 
         # 检查缓存是否需要重建
-        current_names = frozenset(name_to_prompts.keys())
-        if current_names != _prompt_match_names:
+        current_fingerprint = frozenset(current_names)
+        if current_fingerprint != _prompt_match_names:
+            name_to_prompts = {}
+            for prompt in all_prompts:
+                value = prompt.get("value", "").strip()
+                if value:
+                    name_to_prompts.setdefault(value, []).append(prompt)
+                alias = prompt.get("alias", "").strip()
+                if alias:
+                    for a in alias.split(","):
+                        a = a.strip()
+                        if a:
+                            name_to_prompts.setdefault(a, []).append(prompt)
             # 按名称长度降序排列，确保贪心匹配（长名优先）
             _prompt_match_cache = sorted(name_to_prompts.keys(), key=len, reverse=True)
-            _prompt_match_names = current_names
+            _prompt_match_lookup = name_to_prompts
+            _prompt_match_names = current_fingerprint
 
         # 循环匹配（CPython in 操作使用 C 级优化字符串搜索）
         prompt_lower = prompt_string.lower()
@@ -477,7 +489,7 @@ class SaveToGallery:
             if name.lower() in prompt_lower:
                 if name not in seen_names:
                     seen_names.add(name)
-                    for prompt in name_to_prompts[name]:
+                    for prompt in _prompt_match_lookup.get(name, []):
                         value = prompt.get("value")
                         cat_id = prompt.get("categoryId", "root")
                         if cat_id in blocked_ids:
@@ -821,4 +833,3 @@ class PromptCategoryReader:
         key = "name" if property == "name" else "value"
         result = separator.join(p.get(key, "") for p in filtered)
         return (result,)
-

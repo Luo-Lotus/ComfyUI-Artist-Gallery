@@ -109,22 +109,12 @@ def delete_prompt_cascade(category_id: str, value: str,
         "affected_combinations": 0,
     }
 
-    # 获取该 prompt 关联的所有图片映射
-    mappings = mapping_storage.get_mappings_by_prompt(value)
-
-    for mapping in mappings:
-        image_path = mapping.get("imagePath", "")
-        link_result = remove_image_prompt_link(image_path, value, mapping_storage)
-        if link_result["file_deleted"]:
-            result["deleted_files"].append(image_path)
-        elif not link_result["orphan"]:
-            result["disassociated_images"].append(image_path)
-
-    # 从组合中移除
-    result["affected_combinations"] = combination_storage.remove_prompt_from_all(value)
-
-    # 删除 prompt 记录
-    prompt_storage.delete_prompt(category_id, value)
+    prompt_result = batch_delete_prompts_cascade(
+        [(category_id, value)],
+        prompt_storage, mapping_storage, combination_storage,
+    )
+    result["deleted_files"].extend(prompt_result["deleted_files"])
+    result["disassociated_images"].extend(prompt_result["disassociated_images"])
 
     return result
 

@@ -1,87 +1,36 @@
 import json
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-import threading
 
-from ._config import get_disabled_files
+from ._json_store import SplitJsonStorage
 
 
-class ImageMappingStorage:
+class ImageMappingStorage(SplitJsonStorage):
     """图片-Prompt映射关系管理"""
 
+    item_key = "mappings"
+    file_attr = "mappings_file"
+    glob_pattern = "*.images.json"
+
     def __init__(self, storage_dir: Path):
+        super().__init__(storage_dir)
         self.storage_dir = storage_dir
         self.mappings_file = storage_dir / "images.json"
-        self._glob_pattern = "*.images.json"
-        self._lock = threading.Lock()
-        self._cache = None
         self._idx_by_path = None  # imagePath -> mapping
+        self._idx_by_prompt = None  # prompt value -> [mapping, ...]
         self._ensure_storage_dir()
 
     def _ensure_storage_dir(self):
         """确保存储目录存在"""
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
-        if not self.mappings_file.exists():
-            split_files = [f for f in self.storage_dir.glob(self._glob_pattern)
-                           if f.resolve() != self.mappings_file.resolve()]
-            if not split_files:
-                self._write_data({"mappings": []})
+        if not self.mappings_file.exists() and not self._has_split_files():
+            self._write_data({"mappings": []})
 
-    def _glob_source_files(self) -> list:
-        """查找所有源文件：主文件 + glob 匹配的分片文件（排除已禁用）"""
-        disabled = get_disabled_files(self.storage_dir)
-        sources = []
-        if self.mappings_file.exists():
-            sources.append(self.mappings_file)
-        for f in sorted(self.storage_dir.glob(self._glob_pattern)):
-            if f.resolve() != self.mappings_file.resolve():
-                if f.name not in disabled:
-                    sources.append(f)
-        return sources
-
-    def _read_data(self) -> dict:
-        """读取并合并所有源文件（带缓存）"""
-        if self._cache is not None:
-            return self._cache
-        merged_items = []
-        for source_file in self._glob_source_files():
-            try:
-                with open(source_file, 'r', encoding='utf-8') as f:
-                    file_data = json.load(f)
-                for item in file_data.get("mappings", []):
-                    item["_source_file"] = str(source_file)
-                    merged_items.append(item)
-            except Exception as e:
-                print(f"Error reading {source_file.name}: {e}")
-        self._cache = {"mappings": merged_items}
-        return self._cache
-
-    def _write_data(self, data: dict):
-        """按来源文件分组回写，新数据写入主文件"""
-        try:
-            groups: Dict[str, list] = {}
-            for item in data.get("mappings", []):
-                source = item.pop("_source_file", None) or str(self.mappings_file)
-                groups.setdefault(source, []).append(item)
-
-            main_key = str(self.mappings_file)
-            if main_key not in groups and len(groups) > 0:
-                groups[main_key] = []
-
-            for file_path_str, items in groups.items():
-                file_path = Path(file_path_str)
-                file_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    json.dump({"mappings": items}, f, ensure_ascii=False, indent=2)
-
-            self._cache = None
-            self._idx_by_path = None
-        except Exception as e:
-            self._cache = None
-            self._idx_by_path = None
-            print(f"Error writing mappings files: {e}")
-            raise
+    def _invalidate_cache(self):
+        super()._invalidate_cache()
+        self._idx_by_path = None
+        self._idx_by_prompt = None
 
     def get_all_mappings(self) -> List[dict]:
         """获取所有映射关系"""
@@ -194,20 +143,18 @@ class ImageMappingStorage:
         :param prompt_value: Prompt值
         :return: 图片映射列表
         """
-        mappings = self.get_all_mappings()
-        return [
-            m for m in mappings
-            if prompt_value in m.get("prompts", [])
-        ]
+        with self._lock:
+            if self._idx_by_prompt is None:
+                self._build_prompt_index()
+            return list(self._idx_by_prompt.get(prompt_value, []))
 
     def get_first_mapping_by_prompt(self, prompt_value: str) -> Optional[dict]:
         """获取Prompt的第一张图片映射（用于封面图）"""
         with self._lock:
-            data = self._read_data()
-            for m in data.get("mappings", []):
-                if prompt_value in m.get("prompts", []):
-                    return m
-            return None
+            if self._idx_by_prompt is None:
+                self._build_prompt_index()
+            mappings = self._idx_by_prompt.get(prompt_value, [])
+            return mappings[0] if mappings else None
 
     def get_mappings_by_prompt_id(self, prompt_id: str) -> List[dict]:
         """
@@ -228,6 +175,14 @@ class ImageMappingStorage:
             path = m.get("imagePath")
             if path:
                 self._idx_by_path[path] = m
+
+    def _build_prompt_index(self):
+        """构建 prompt_value -> [mapping, ...] 索引（懒加载）"""
+        data = self._read_data()
+        self._idx_by_prompt = {}
+        for m in data.get("mappings", []):
+            for value in m.get("prompts", []):
+                self._idx_by_prompt.setdefault(value, []).append(m)
 
     def get_mappings_by_image(self, image_path: str) -> Optional[dict]:
         """根据图片路径获取映射（O(1) 索引查找）"""
@@ -385,9 +340,6 @@ class ImageMappingStorage:
         用于批量查询场景，消除 N+1 问题。
         """
         with self._lock:
-            data = self._read_data()
-            index: Dict[str, List[dict]] = {}
-            for m in data.get("mappings", []):
-                for value in m.get("prompts", []):
-                    index.setdefault(value, []).append(m)
-            return index
+            if self._idx_by_prompt is None:
+                self._build_prompt_index()
+            return {key: list(value) for key, value in self._idx_by_prompt.items()}

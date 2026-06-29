@@ -6,7 +6,6 @@ from pathlib import Path
 from aiohttp import web
 import server
 from ..storage import get_storage
-from ..storage.backup import BackupManager
 from ._utils import is_remote_path
 from ._delete_utils import remove_image_prompt_link, delete_image_completely
 
@@ -253,10 +252,6 @@ async def delete_image(request):
             return web.json_response({"error": "缺少imagePath参数"}, status=400)
 
         prompt_storage, mapping_storage, _, _ = get_storage()
-
-        # 备份
-        storage_dir = Path(prompt_storage.storage_dir)
-        BackupManager(storage_dir).create_backup()
 
         if prompt_value:
             # 从 prompt 详情删图片：只断开该 prompt 的关联

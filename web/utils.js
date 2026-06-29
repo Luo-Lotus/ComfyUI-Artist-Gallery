@@ -165,20 +165,13 @@ export async function updateCategory(categoryId, data) {
 }
 
 export async function fetchAllPrompts() {
-  // Deprecated: 使用 searchPrompts 替代
-  const response = await fetch('/prompt_gallery/prompts');
-  if (!response.ok) {
-    throw new Error('获取Prompt列表失败');
-  }
-  return await response.json();
+  const { fetchAllPrompts: apiFetchAllPrompts } = await import('./services/promptApi.js');
+  return await apiFetchAllPrompts();
 }
 
 export async function searchPrompts(query, limit = 100) {
-  const response = await fetch(`/prompt_gallery/prompts?search=${encodeURIComponent(query)}&limit=${limit}`);
-  if (!response.ok) {
-    throw new Error('搜索Prompt失败');
-  }
-  return await response.json();
+  const { searchPrompts: apiSearchPrompts } = await import('./services/promptApi.js');
+  return await apiSearchPrompts(query, limit);
 }
 
 export async function searchAll(query, limit = 50) {
@@ -227,57 +220,23 @@ export async function batchResolve({ prompts = [], categories = [], combinations
 // ============ Prompt API (Composite Key) ============
 
 export async function fetchPrompt(categoryId, value) {
-  const response = await fetch(
-    `/prompt_gallery/prompts/${encodeURIComponent(categoryId)}/${encodeURIComponent(value)}`,
-  );
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '获取Prompt失败');
-  }
-  return await response.json();
+  const { fetchPrompt: apiFetchPrompt } = await import('./services/promptApi.js');
+  return await apiFetchPrompt(categoryId, value);
 }
 
 export async function copyPrompt(categoryId, value, targetCategoryId, newValue) {
-  const response = await fetch(
-    `/prompt_gallery/prompts/${encodeURIComponent(categoryId)}/${encodeURIComponent(value)}/copy`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        targetCategoryId,
-        newValue,
-      }),
-    },
-  );
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '复制Prompt失败');
-  }
-  return await response.json();
+  const { copyPrompt: apiCopyPrompt } = await import('./services/promptApi.js');
+  return await apiCopyPrompt(categoryId, value, targetCategoryId, newValue);
 }
 
 export async function fetchPromptImages(value) {
-  const response = await fetch(`/prompt_gallery/prompt_images?value=${encodeURIComponent(value)}`);
-  if (!response.ok) {
-    throw new Error('获取Prompt图片失败');
-  }
-  return await response.json();
+  const { fetchPromptImages: apiFetchPromptImages } = await import('./services/promptApi.js');
+  return await apiFetchPromptImages(value);
 }
 
 export async function setPromptCover(categoryId, value, coverImagePath) {
-  const response = await fetch(
-    `/prompt_gallery/prompts/${encodeURIComponent(categoryId)}/${encodeURIComponent(value)}`,
-    {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ coverImageId: coverImagePath }),
-    },
-  );
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '设置封面失败');
-  }
-  return await response.json();
+  const { setPromptCover: apiSetPromptCover } = await import('./services/promptApi.js');
+  return await apiSetPromptCover(categoryId, value, coverImagePath);
 }
 
 export async function fetchInitData() {
@@ -289,47 +248,20 @@ export async function fetchInitData() {
 }
 
 export async function copyImage(imagePath, toPromptValue) {
-  const response = await fetch('/prompt_gallery/image/copy', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      imagePath,
-      toPromptValue,
-    }),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '复制图片失败');
-  }
-  return await response.json();
+  const { copyImage: apiCopyImage } = await import('./services/promptApi.js');
+  return await apiCopyImage(imagePath, toPromptValue);
 }
 
 // ============ Legacy Prompt API (ID-based, for compatibility) ============
 
 export async function addPrompt(data) {
-  const response = await fetch('/prompt_gallery/prompts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '添加Prompt失败');
-  }
-  return await response.json();
+  const { addPrompt: apiAddPrompt } = await import('./services/promptApi.js');
+  return await apiAddPrompt(data);
 }
 
 export async function addPromptsBatch(promptsData) {
-  const response = await fetch('/prompt_gallery/prompts/batch', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompts: promptsData }),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '批量添加Prompt失败');
-  }
-  return await response.json();
+  const { addPromptsBatch: apiAddPromptsBatch } = await import('./services/promptApi.js');
+  return await apiAddPromptsBatch(promptsData);
 }
 
 export async function movePrompt(promptId, newCategoryId) {

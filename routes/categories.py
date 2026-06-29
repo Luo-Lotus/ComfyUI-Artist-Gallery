@@ -1,11 +1,9 @@
 """
 Category CRUD + 移动端点
 """
-from pathlib import Path
 from aiohttp import web
 import server
 from ..storage import get_storage
-from ..storage.backup import BackupManager
 from ._delete_utils import delete_category_cascade
 
 
@@ -100,10 +98,6 @@ async def delete_category(request):
         category = category_storage.get_category_by_id(category_id)
         if not category:
             return web.json_response({"error": "分类不存在"}, status=404)
-
-        # 备份
-        storage_dir = Path(prompt_storage.storage_dir)
-        BackupManager(storage_dir).create_backup()
 
         result = delete_category_cascade(
             category_id,

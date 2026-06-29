@@ -29,10 +29,7 @@ async def get_gallery_data(request):
             return web.json_response({"error": "分类不存在"}, status=400)
 
         # 只获取该分类下的Prompt（不包含子分类）
-        prompts_data = [
-            a for a in prompt_storage.get_all_prompts()
-            if a.get("categoryId") == category_id
-        ]
+        prompts_data = prompt_storage.get_prompts_by_category(category_id)
 
         # 一次性构建 prompt_value → [mapping, ...] 索引，消除 N+1 查询
         prompt_mapping_index = mapping_storage.build_prompt_index()

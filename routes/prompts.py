@@ -5,7 +5,6 @@ from pathlib import Path
 from aiohttp import web
 import server
 from ..storage import get_storage
-from ..storage.backup import BackupManager
 from ._utils import is_remote_path
 from ._delete_utils import delete_prompt_cascade
 
@@ -445,10 +444,6 @@ async def delete_prompt_composite(request):
         prompt = prompt_storage.get_prompt(category_id, value)
         if not prompt:
             return web.json_response({"error": "Prompt不存在"}, status=404)
-
-        # 备份
-        storage_dir = Path(prompt_storage.storage_dir)
-        BackupManager(storage_dir).create_backup()
 
         result = delete_prompt_cascade(
             category_id, value,

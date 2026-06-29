@@ -163,4 +163,10 @@ def clear_all_caches():
         s._cache = None
     prompt_storage._idx_by_key = None
     prompt_storage._idx_by_id = None
+    prompt_storage._idx_by_category = None
     mapping_storage._idx_by_path = None
+    mapping_storage._idx_by_prompt = None
+    category_storage._idx_by_id = None
+    category_storage._idx_by_parent = None
+    combination_storage._idx_by_id = None
+    combination_storage._idx_by_category = None
