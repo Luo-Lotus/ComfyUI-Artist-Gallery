@@ -195,7 +195,7 @@ def _extract_metadata(full_path, rel_path):
 
     item = {
         "image_path": rel_path,
-        "prompt_values": [],
+        "prompt_string": generate_prompt or "",
         "file_info": file_info,
         "mapping_type": "local",
     }

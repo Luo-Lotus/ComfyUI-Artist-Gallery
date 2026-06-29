@@ -28,26 +28,6 @@ _cycle_states = {}
 _prompt_match_cache = None           # 按长度降序的名称列表
 _prompt_match_names = None           # frozenset 指纹
 _prompt_match_lookup = None          # name/alias -> [prompt, ...]
-_blocked_category_cache = None       # 被禁止保存到画廊的分类 ID 集合
-_blocked_category_fingerprint = None # 分类数据指纹
-
-
-def _get_blocked_category_ids(category_storage):
-    """获取被禁止保存到画廊的分类 ID 集合（带缓存）"""
-    global _blocked_category_cache, _blocked_category_fingerprint
-    all_categories = category_storage.get_all_categories()
-    cat_fingerprint = frozenset(
-        (c.get("id"), c.get("metadata", {}).get("blockGallerySave", False))
-        for c in all_categories
-    )
-    if cat_fingerprint != _blocked_category_fingerprint:
-        blocked_ids = set()
-        for cat in all_categories:
-            if cat.get("metadata", {}).get("blockGallerySave"):
-                blocked_ids.update(category_storage.get_descendant_ids(cat["id"]))
-        _blocked_category_cache = blocked_ids
-        _blocked_category_fingerprint = cat_fingerprint
-    return _blocked_category_cache
 
 
 class PromptGallery:
@@ -75,10 +55,10 @@ class PromptGallery:
             print("[PromptGallery] 数据已刷新 - 请在画廊中查看")
         elif action == "统计信息":
             try:
-                prompt_storage, _, _, _ = get_storage()
+                prompt_storage, mapping_storage, _, _ = get_storage()
                 prompts = prompt_storage.get_all_prompts()
                 total_prompts = len(prompts)
-                total_images = sum(a.get("imageCount", 0) for a in prompts)
+                total_images = len(mapping_storage.get_all_mappings())
                 print(f"[PromptGallery] 统计: {total_prompts} 个画师, {total_images} 张图片")
             except Exception as e:
                 print(f"[PromptGallery] 获取统计信息失败: {e}")
@@ -156,20 +136,19 @@ class PromptSelector:
 
         formatted_results = []
         # 跨分区收集全部已解析画师（用于 SaveToGallery）
-        all_resolved = []      # [{categoryId, value, saveToGallery}, ...]
+        all_resolved = []      # [{categoryId, value}, ...]
         seen_keys = set()
         # 记录每个分区实际使用的画师名（考虑随机/循环后）
         partition_used_prompts = {}  # {partition_id: [name, ...]}
         partition_formats = {}  # {partition_id: format_string}
 
-        def collect_prompt(cat_id, name, save_to_gallery=True):
+        def collect_prompt(cat_id, name):
             key = f"{cat_id}:{name}"
             if key not in seen_keys:
                 seen_keys.add(key)
                 all_resolved.append({
                     "categoryId": cat_id,
                     "value": name,
-                    "saveToGallery": save_to_gallery,
                 })
 
         for partition in partitions:
@@ -184,8 +163,6 @@ class PromptSelector:
             partition_formats[pid] = partition_format
             random_count = config.get('randomCount', 1)
             cycle_mode = config.get('cycleMode', False)
-            save_to_gallery = config.get('saveToGallery', True)
-
             # 收集画师名：直接选择 + 分类递归解析
             prompt_entries = []  # [(cat_id, name), ...]
             combination_entries = []  # [(output_content, prompt_keys), ...]
@@ -274,21 +251,20 @@ class PromptSelector:
                 _cycle_states[cycle_key] = (cycle_index + 1) % len(working_items)
                 if current_item[0] == 'combination':
                     formatted_results.append(current_item[1])
-                    # 组合的画师也要关联到保存的图片
+                    # 组合成员也要写入 promptString，供画廊匹配
                     for prompt_name in (current_item[2] or []):
-                        collect_prompt('', prompt_name, save_to_gallery)
-                        if save_to_gallery:
-                            pid = partition.get('id', 'default')
-                            if pid not in partition_used_prompts:
-                                partition_used_prompts[pid] = []
-                            partition_used_prompts[pid].append(prompt_name)
+                        collect_prompt('', prompt_name)
+                        pid = partition.get('id', 'default')
+                        if pid not in partition_used_prompts:
+                            partition_used_prompts[pid] = []
+                        partition_used_prompts[pid].append(prompt_name)
                 else:
                     formatted = self._apply_format(current_item[2], partition_format)
                     w_key = f"{current_item[1]}:{current_item[2]}"
                     formatted_results.append(self._apply_weight(formatted, prompt_weights.get(w_key)))
-                    collect_prompt(current_item[1], current_item[2], save_to_gallery)
+                    collect_prompt(current_item[1], current_item[2])
                     # 记录实际输出的画师名（用于自动创建组合）
-                    if save_to_gallery and current_item[0] == 'prompt':
+                    if current_item[0] == 'prompt':
                         pid = partition.get('id', 'default')
                         if pid not in partition_used_prompts:
                             partition_used_prompts[pid] = []
@@ -300,21 +276,20 @@ class PromptSelector:
                 for item in working:
                     if item[0] == 'combination':
                         formatted_results.append(item[1])
-                        # 组合的画师也要关联到保存的图片
+                        # 组合成员也要写入 promptString，供画廊匹配
                         for prompt_name in (item[2] or []):
-                            collect_prompt('', prompt_name, save_to_gallery)
-                            if save_to_gallery:
-                                pid = partition.get('id', 'default')
-                                if pid not in partition_used_prompts:
-                                    partition_used_prompts[pid] = []
-                                partition_used_prompts[pid].append(prompt_name)
+                            collect_prompt('', prompt_name)
+                            pid = partition.get('id', 'default')
+                            if pid not in partition_used_prompts:
+                                partition_used_prompts[pid] = []
+                            partition_used_prompts[pid].append(prompt_name)
                     else:
                         formatted = self._apply_format(item[2], partition_format)
                         w_key = f"{item[1]}:{item[2]}"
                         formatted_results.append(self._apply_weight(formatted, prompt_weights.get(w_key)))
-                        collect_prompt(item[1], item[2], save_to_gallery)
+                        collect_prompt(item[1], item[2])
                         # 记录实际输出的画师名（用于自动创建组合）
-                        if save_to_gallery and item[0] == 'prompt':
+                        if item[0] == 'prompt':
                             pid = partition.get('id', 'default')
                             if pid not in partition_used_prompts:
                                 partition_used_prompts[pid] = []
@@ -434,18 +409,16 @@ class SaveToGallery:
 
     @staticmethod
     def _match_prompts_from_prompt(prompt_string):
-        """从 prompt_string 中匹配已知画师名，返回 [{categoryId, name, saveToGallery}, ...]"""
+        """从 prompt_string 中匹配已知 Prompt，返回 [{categoryId, value}, ...]"""
         global _prompt_match_cache, _prompt_match_names, _prompt_match_lookup
 
         if not prompt_string or not prompt_string.strip():
             return []
 
-        prompt_storage, _, category_storage, _ = get_storage()
+        prompt_storage, _, _, _ = get_storage()
         all_prompts = prompt_storage.get_all_prompts()
         if not all_prompts:
             return []
-
-        blocked_ids = _get_blocked_category_ids(category_storage)
 
         # 先计算轻量指纹，只有 Prompt/别名集合变化时才重建查找表。
         current_names = []
@@ -492,28 +465,89 @@ class SaveToGallery:
                     for prompt in _prompt_match_lookup.get(name, []):
                         value = prompt.get("value")
                         cat_id = prompt.get("categoryId", "root")
-                        if cat_id in blocked_ids:
-                            continue
                         entry_key = f"{cat_id}:{value}"
                         if entry_key not in seen:
                             seen.add(entry_key)
                             result.append({
                                 "categoryId": cat_id,
                                 "value": value,
-                                "saveToGallery": True,
                             })
 
         return result
+
+    @classmethod
+    def _complete_prompt_metadata_async(cls, metadata_json, prompt_string, first_saved_image_path):
+        """后台完成 Prompt 匹配和缺失封面补齐，不阻塞 SaveToGallery 返回。"""
+        if not first_saved_image_path:
+            return
+        try:
+            import json
+
+            try:
+                metadata = json.loads(metadata_json) if metadata_json else {}
+            except Exception:
+                metadata = {}
+
+            all_prompts = []
+            selected_prompts = metadata.get("selected_prompts", [])
+            if isinstance(selected_prompts, list):
+                all_prompts.extend(selected_prompts)
+
+            matched = cls._match_prompts_from_prompt(prompt_string)
+            if matched:
+                all_prompts.extend(matched)
+
+            seen = set()
+            prompt_infos = []
+            for p in all_prompts:
+                value = p.get("value", "")
+                if not value:
+                    continue
+                key = f"{p.get('categoryId', 'root')}:{value}"
+                if key in seen:
+                    continue
+                seen.add(key)
+                prompt_infos.append(p)
+
+            if not prompt_infos:
+                print("[SaveToGallery] 后台匹配未找到已知 Prompt")
+                return
+
+            prompt_storage, _, _, _ = get_storage()
+            updated = 0
+            for prompt_info in prompt_infos:
+                category_id = prompt_info.get("categoryId", "root")
+                value = prompt_info.get("value", "")
+                prompt_obj = prompt_storage.get_prompt(category_id, value)
+                if prompt_obj and not prompt_obj.get("coverImageId"):
+                    prompt_storage.update_prompt(category_id, value, coverImageId=first_saved_image_path)
+                    updated += 1
+
+            print(f"[SaveToGallery] 后台匹配完成: prompts={len(prompt_infos)}, covers={updated}")
+        except Exception as e:
+            print(f"[SaveToGallery] 后台匹配失败: {e}")
+            import traceback
+            traceback.print_exc()
+
+    @classmethod
+    def _schedule_prompt_metadata_completion(cls, metadata_json, prompt_string, first_saved_image_path):
+        import threading
+        thread = threading.Thread(
+            target=cls._complete_prompt_metadata_async,
+            args=(metadata_json, prompt_string, first_saved_image_path),
+            daemon=True,
+        )
+        thread.start()
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
                 "images": ("IMAGE",),
+                "prompt_string": ("STRING", {"default": "", "forceInput": True}),
             },
             "optional": {
                 "metadata_json": ("STRING", {"default": "{}", "forceInput": True}),
-                "prompt_string": ("STRING", {"default": "", "forceInput": True}),
                 "prefix": ("STRING", {"default": "prompt_gallery/AG"}),
             },
             "hidden": {
@@ -524,59 +558,22 @@ class SaveToGallery:
 
     def save_image(self, images, metadata_json="{}", prefix="prompt_gallery/AG", prompt_string="", prompt=None, extra_pnginfo=None):
         """
-        保存图片并创建映射关系
-        支持两种输入源（合并使用，结果去重）：
+        保存图片并创建索引；Prompt 匹配和补封面异步执行，不阻塞返回。
         :param prefix: 保存路径前缀，支持 strftime 时间格式化（如 "gallery/%Y/%m/AG"）
-        :param metadata_json: 由 PromptSelector 输出的 JSON
-        :param prompt_string: 提示词字符串，自动匹配已知画师名（含别名）
+        :param metadata_json: 由 PromptSelector 输出的 JSON，用于后台补封面
+        :param prompt_string: 提示词字符串，必填并写入图片索引
         """
         import folder_paths
         import numpy as np
         from PIL import Image, PngImagePlugin
         import time
         import json
-        import os
 
-        # 解析 metadata_json
-        try:
-            metadata = json.loads(metadata_json) if metadata_json else {}
-        except:
-            metadata = {}
+        if not prompt_string or not prompt_string.strip():
+            raise ValueError("SaveToGallery 需要连接 prompt_string")
 
-        # 一次性获取所有存储实例
-        prompt_storage, mapping_storage, _, _ = get_storage()
-
-        # 收集画师来源：metadata_json + prompt_string，合并去重
-        prompt_names_from_meta = metadata.get("prompt_names", [])
-        selected_prompts = metadata.get("selected_prompts", [])
-
-        all_saveable_prompts = []
-
-        # 来源 A: metadata_json（用户显式选择，不检查 blockGallerySave）
-        if prompt_names_from_meta and selected_prompts:
-            saveable_from_meta = [a for a in selected_prompts if a.get("saveToGallery", True)]
-            all_saveable_prompts.extend(saveable_from_meta)
-
-        # 来源 B: prompt_string（含别名匹配）
-        if prompt_string and prompt_string.strip():
-            saveable_from_string = self._match_prompts_from_prompt(prompt_string)
-            if saveable_from_string:
-                all_saveable_prompts.extend(saveable_from_string)
-
-        if not all_saveable_prompts:
-            print("[SaveToGallery] 未匹配到已知画师，图片仍将保存（无关联Prompt）")
-
-        # 去重（按 categoryId:value）用于图片计数更新
-        seen = set()
-        saveable_prompts = []
-        for p in all_saveable_prompts:
-            key = f"{p.get('categoryId', 'root')}:{p.get('value', '')}"
-            if key not in seen:
-                seen.add(key)
-                saveable_prompts.append(p)
-
-        # 去重（按 value）用于映射和日志
-        saveable_names = list(dict.fromkeys(a["value"] for a in saveable_prompts))
+        # 同步阶段只保存图片和 promptString 索引；Prompt 匹配/补封面在返回后后台执行。
+        _, mapping_storage, _, _ = get_storage()
 
         # 解析 prefix：最后一个 / 分割为目录模板和文件名前缀
         prefix = prefix or "prompt_gallery/AG"
@@ -600,8 +597,6 @@ class SaveToGallery:
         # 预序列化 PNG 公共 metadata（循环内每张图内容相同）
         prompt_json = json.dumps(prompt) if prompt is not None else None
         gallery_json = json.dumps({
-            "prompt_names": saveable_names,
-            "selected_prompts": saveable_prompts,
             "promptString": prompt_string or "",
         })
         extra_pnginfo_items = []
@@ -615,12 +610,13 @@ class SaveToGallery:
         saved_count = 0
         results = []
         pending_mappings = []
+        first_saved_image_path = None
 
         for idx in range(len(images)):
             img = Image.fromarray(np.clip(255. * image_arrays[idx], 0, 255).astype(np.uint8))
 
             timestamp = int(now * 1000)
-            filename = f"{file_prefix}_{timestamp}_{idx:05}.png"
+            filename = f"{file_prefix}_{timestamp}_{idx:01}.png"
             save_path = save_dir / filename
 
             pnginfo = PngImagePlugin.PngInfo()
@@ -642,6 +638,8 @@ class SaveToGallery:
 
                 # 构建相对路径
                 image_path = f"{dir_path}/{filename}" if dir_path else filename
+                if first_saved_image_path is None:
+                    first_saved_image_path = image_path
 
                 # 构建 fileInfo
                 file_stat = save_path.stat()
@@ -656,13 +654,12 @@ class SaveToGallery:
                 # 收集映射数据，循环结束后批量写入
                 pending_mappings.append({
                     "image_path": image_path,
-                    "prompt_values": saveable_names,
                     "file_info": file_info,
                     "prompt_string": prompt_string or "",
                     "generate_prompt": prompt,
                 })
 
-                print(f"[SaveToGallery] 已保存: {filename} -> Prompt: {', '.join(saveable_names)}")
+                print(f"[SaveToGallery] 已保存: {filename}")
 
             except Exception as e:
                 print(f"[SaveToGallery] 保存图片失败: {e}")
@@ -673,16 +670,8 @@ class SaveToGallery:
         if pending_mappings:
             mapping_storage.add_mappings_batch(pending_mappings)
 
-        # 批量更新画师图片计数（一次读写完成）
-        if saved_count > 0:
-            deltas = {}
-            for prompt_info in saveable_prompts:
-                category_id = prompt_info.get("categoryId", "root")
-                value = prompt_info.get("value", "")
-                if category_id and value:
-                    key = (category_id, value)
-                    deltas[key] = deltas.get(key, 0) + saved_count
-            prompt_storage.update_image_count_batch(deltas)
+        if first_saved_image_path:
+            self._schedule_prompt_metadata_completion(metadata_json, prompt_string, first_saved_image_path)
 
         print(f"[SaveToGallery] 总共保存了 {saved_count} 张图片")
         return { "ui": { "images": results } }
@@ -749,8 +738,6 @@ class QuickSavePrompt:
                     old_value=old_value,
                     value=prompt_value,
                 )
-                # 同步更新图片映射中的旧值
-                mapping_storage.rename_prompt_in_mappings(old_value, prompt_value)
                 print(f"[QuickSavePrompt] 已更新 prompt: {prompt_name} (value: {old_value} -> {prompt_value}, 分类: {category})")
             else:
                 print(f"[QuickSavePrompt] prompt 未变化: {prompt_name} (value: {prompt_value}, 分类: {category})")
@@ -760,6 +747,18 @@ class QuickSavePrompt:
                 name=prompt_name,
                 category_id=category_id,
             )
+            try:
+                import folder_paths
+                from .routes._prompt_cover import ensure_prompt_cover
+                ensure_prompt_cover(
+                    prompt_storage,
+                    mapping_storage,
+                    category_id,
+                    prompt_value,
+                    Path(folder_paths.get_output_directory()),
+                )
+            except Exception as e:
+                print(f"[QuickSavePrompt] 自动设置封面失败: {e}")
             print(f"[QuickSavePrompt] 已创建 prompt: {prompt_name} (value: {prompt_value}, 分类: {category})")
 
         return ()

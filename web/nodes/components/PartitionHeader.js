@@ -36,19 +36,6 @@ export function PartitionHeader({ partition, onAction, onPreviewClick }) {
       );
     }
 
-    if (partition.config.saveToGallery === false) {
-      indicators.push(
-        h(
-          'span',
-          {
-            class: 'partition-rule-badge no-save',
-            title: '不保存到画廊：图片不会关联到该分区Prompt',
-          },
-          h(Icon, { name: 'ban', size: 12 }),
-        ),
-      );
-    }
-
     if (partition.config.autoCreateCombination) {
       indicators.push(
         h(

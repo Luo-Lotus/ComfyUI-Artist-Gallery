@@ -545,7 +545,6 @@ def migrate_image_schema(storage_dir: Path) -> dict:
             new_mapping = {
                 "type": "local",
                 "imagePath": mapping.get("imagePath", ""),
-                "prompts": mapping.get("prompts", []),
             }
 
             # 构建 fileInfo
@@ -585,6 +584,8 @@ def migrate_image_schema(storage_dir: Path) -> dict:
             # prompt_string 从 metadata 中提取到顶层
             if "prompt_string" in old_metadata:
                 new_mapping["promptString"] = old_metadata["prompt_string"]
+            elif mapping.get("prompts"):
+                new_mapping["promptString"] = ", ".join(mapping.get("prompts", []))
 
             migrated_mappings.append(new_mapping)
 
@@ -626,3 +627,210 @@ def migrate_image_schema(storage_dir: Path) -> dict:
             "message": f"迁移失败: {str(e)}",
             "migrated": False,
         }
+
+
+def migrate_prompt_string_image_index(storage_dir: Path) -> dict:
+    """
+    迁移到 promptString 派生关联：
+    - images*.json 中没有 promptString 但有 prompts/promptIds 时，用逗号分隔填充 promptString
+    - 移除图片记录中的 prompts/promptIds
+    - 移除 prompts*.json 中持久化的 imageCount
+    """
+    changed_files = 0
+    changed_items = 0
+
+    image_files = []
+    main_images = storage_dir / "images.json"
+    if main_images.exists():
+        image_files.append(main_images)
+    for f in sorted(storage_dir.glob("*.images.json")):
+        if f.resolve() != main_images.resolve():
+            image_files.append(f)
+
+    for file_path in image_files:
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            changed = False
+            for item in data.get("mappings", []):
+                old_values = item.get("prompts") or item.get("promptIds") or []
+                if not item.get("promptString") and old_values:
+                    item["promptString"] = ", ".join(str(v) for v in old_values if v)
+                    changed = True
+                    changed_items += 1
+                if "prompts" in item:
+                    del item["prompts"]
+                    changed = True
+                if "promptIds" in item:
+                    del item["promptIds"]
+                    changed = True
+            if changed:
+                with open(file_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                changed_files += 1
+        except Exception as e:
+            print(f"[Migration-PromptStringIndex] 处理 {file_path.name} 失败: {e}")
+
+    prompt_files = []
+    main_prompts = storage_dir / "prompts.json"
+    if main_prompts.exists():
+        prompt_files.append(main_prompts)
+    for f in sorted(storage_dir.glob("*.prompts.json")):
+        if f.resolve() != main_prompts.resolve():
+            prompt_files.append(f)
+
+    for file_path in prompt_files:
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            changed = False
+            for prompt in data.get("prompts", []):
+                if "imageCount" in prompt:
+                    del prompt["imageCount"]
+                    changed = True
+            if changed:
+                with open(file_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                changed_files += 1
+        except Exception as e:
+            print(f"[Migration-PromptStringIndex] 处理 {file_path.name} 失败: {e}")
+
+    return {
+        "success": True,
+        "message": f"promptString 图片索引迁移完成: files={changed_files}, items={changed_items}",
+        "migrated": changed_files > 0,
+    }
+
+
+def _migration_image_exists(mapping: dict, output_dir: Path | None) -> bool:
+    image_path = mapping.get("imagePath", "")
+    mapping_type = mapping.get("type", "")
+    if not image_path:
+        return False
+    if mapping_type == "remote" or image_path.startswith(("http://", "https://")):
+        return True
+    if output_dir is None:
+        return True
+    return (output_dir / image_path).exists()
+
+
+def migrate_prompt_covers_from_prompt_string(storage_dir: Path, output_dir: Path | None = None) -> dict:
+    """
+    为没有 coverImageId 的 Prompt 和组合补封面：
+    - Prompt 从 images*.json 的 promptString 按字符串包含匹配 Prompt value
+    - 组合从成员 Prompt value 匹配图片
+    - 取 fileInfo.createdAt 最大的图片作为 coverImageId
+    - 已有封面的记录不修改
+    """
+    mappings = []
+    main_images = storage_dir / "images.json"
+    image_files = []
+    if main_images.exists():
+        image_files.append(main_images)
+    for f in sorted(storage_dir.glob("*.images.json")):
+        if f.resolve() != main_images.resolve():
+            image_files.append(f)
+
+    for file_path in image_files:
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            for mapping in data.get("mappings", []):
+                prompt_string = mapping.get("promptString") or ""
+                if prompt_string and _migration_image_exists(mapping, output_dir):
+                    mappings.append(mapping)
+        except Exception as e:
+            print(f"[Migration-PromptCover] 读取 {file_path.name} 失败: {e}")
+
+    if not mappings:
+        return {
+            "success": True,
+            "message": "Prompt/组合封面迁移完成: files=0, prompts=0, combinations=0",
+            "migrated": False,
+        }
+
+    def sort_key(mapping):
+        return (mapping.get("fileInfo") or {}).get("createdAt") or 0
+
+    def latest_cover_for_values(values):
+        queries = [str(v).lower() for v in values if v]
+        if not queries:
+            return None
+        matched = []
+        for mapping in mappings:
+            prompt_string = (mapping.get("promptString") or "").lower()
+            if any(query in prompt_string for query in queries):
+                matched.append(mapping)
+        if not matched:
+            return None
+        return max(matched, key=sort_key).get("imagePath")
+
+    prompt_files = []
+    main_prompts = storage_dir / "prompts.json"
+    if main_prompts.exists():
+        prompt_files.append(main_prompts)
+    for f in sorted(storage_dir.glob("*.prompts.json")):
+        if f.resolve() != main_prompts.resolve():
+            prompt_files.append(f)
+
+    changed_files = 0
+    changed_prompts = 0
+
+    for file_path in prompt_files:
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            changed = False
+            for prompt in data.get("prompts", []):
+                if prompt.get("coverImageId"):
+                    continue
+                value = prompt.get("value")
+                if not value:
+                    continue
+                cover_path = latest_cover_for_values([value])
+                if cover_path:
+                    prompt["coverImageId"] = cover_path
+                    changed = True
+                    changed_prompts += 1
+            if changed:
+                with open(file_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                changed_files += 1
+        except Exception as e:
+            print(f"[Migration-PromptCover] 处理 {file_path.name} 失败: {e}")
+
+    combination_files = []
+    main_combinations = storage_dir / "combinations.json"
+    if main_combinations.exists():
+        combination_files.append(main_combinations)
+    for f in sorted(storage_dir.glob("*.combinations.json")):
+        if f.resolve() != main_combinations.resolve():
+            combination_files.append(f)
+
+    changed_combinations = 0
+
+    for file_path in combination_files:
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            changed = False
+            for combination in data.get("combinations", []):
+                if combination.get("coverImageId"):
+                    continue
+                cover_path = latest_cover_for_values(combination.get("prompts") or [])
+                if cover_path:
+                    combination["coverImageId"] = cover_path
+                    changed = True
+                    changed_combinations += 1
+            if changed:
+                with open(file_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                changed_files += 1
+        except Exception as e:
+            print(f"[Migration-PromptCover] 处理 {file_path.name} 失败: {e}")
+
+    return {
+        "success": True,
+        "message": f"Prompt/组合封面迁移完成: files={changed_files}, prompts={changed_prompts}, combinations={changed_combinations}",
+        "migrated": changed_files > 0,
+    }

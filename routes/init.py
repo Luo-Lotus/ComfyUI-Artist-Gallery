@@ -7,6 +7,8 @@ from aiohttp import web
 import server
 from ..storage import get_storage
 from ._utils import is_remote_path
+from ._image_index import build_prompt_string_index, first_existing_image
+from ._cover_fallback import cover_fallback_enabled
 
 
 @server.PromptServer.instance.routes.get("/prompt_gallery/covers")
@@ -15,6 +17,7 @@ async def get_covers(request):
     try:
         import folder_paths
         output_dir = folder_paths.get_output_directory()
+        enable_cover_fallback = cover_fallback_enabled()
 
         # 解析查询参数
         prompts_param = request.query.get("prompts", "").strip()
@@ -27,7 +30,6 @@ async def get_covers(request):
             return web.json_response({"covers": {}})
 
         prompt_storage, mapping_storage, _, combination_storage = get_storage()
-        prompt_mapping_index = mapping_storage.build_prompt_index()
 
         covers = {}
 
@@ -39,19 +41,18 @@ async def get_covers(request):
             for p in all_prompts:
                 key = f"{p.get('categoryId', 'root')}:{p.get('value')}"
                 prompt_index[key] = p
+            prompt_mapping_index = build_prompt_string_index(
+                mapping_storage,
+                [prompt_index[k].get("value") for k in prompt_keys if k in prompt_index],
+            )
 
             for key in prompt_keys:
                 p = prompt_index.get(key)
                 if not p:
                     continue
                 cover_path = p.get("coverImageId")
-                if not cover_path:
-                    mappings = prompt_mapping_index.get(p.get("value"), [])
-                    for m in mappings:
-                        image_path = m.get("imagePath")
-                        if is_remote_path(image_path, m.get("type", "")) or (Path(output_dir) / image_path).exists():
-                            cover_path = image_path
-                            break
+                if not cover_path and enable_cover_fallback:
+                    cover_path = first_existing_image(prompt_mapping_index.get(p.get("value"), []), output_dir)
                 if cover_path:
                     covers[key] = cover_path
 
@@ -59,13 +60,19 @@ async def get_covers(request):
         if combination_ids:
             all_combinations = combination_storage.get_all_combinations()
             comb_index = {c.get("id"): c for c in all_combinations}
+            prompt_values = []
+            for cid in combination_ids:
+                c = comb_index.get(cid)
+                if c:
+                    prompt_values.extend([p for p in c.get("prompts", []) if p])
+            prompt_mapping_index = build_prompt_string_index(mapping_storage, prompt_values)
 
             for cid in combination_ids:
                 c = comb_index.get(cid)
                 if not c:
                     continue
                 cover_path = c.get("coverImageId")
-                if not cover_path:
+                if not cover_path and enable_cover_fallback:
                     for prompt_name in c.get("prompts", []):
                         for m in prompt_mapping_index.get(prompt_name, []):
                             image_path = m.get("imagePath")
@@ -90,6 +97,7 @@ async def get_init_data(request):
     try:
         import folder_paths
         output_dir = folder_paths.get_output_directory()
+        enable_cover_fallback = cover_fallback_enabled()
 
         prompt_storage, mapping_storage, category_storage, combination_storage = get_storage()
 
@@ -98,30 +106,28 @@ async def get_init_data(request):
 
         # 2. 所有Prompt（计算 coverImagePath，复用索引消除 N+1）
         prompts_raw = prompt_storage.get_all_prompts()
-        prompt_mapping_index = mapping_storage.build_prompt_index()
+        raw_combinations = combination_storage.get_all_combinations()
+        prompt_values = [p.get("value") for p in prompts_raw if p.get("value")]
+        for comb in raw_combinations:
+            prompt_values.extend([p for p in comb.get("prompts", []) if p])
+        prompt_mapping_index = build_prompt_string_index(mapping_storage, prompt_values)
 
         prompts = []
         for prompt in prompts_raw:
             p = dict(prompt)
             cover_path = p.get("coverImageId")
-            if not cover_path:
-                mappings = prompt_mapping_index.get(p.get("value"), [])
-                for m in mappings:
-                    image_path = m.get("imagePath")
-                    if is_remote_path(image_path, m.get("type", "")) or (Path(output_dir) / image_path).exists():
-                        cover_path = image_path
-                        break
+            if not cover_path and enable_cover_fallback:
+                cover_path = first_existing_image(prompt_mapping_index.get(p.get("value"), []), output_dir)
             p["coverImagePath"] = cover_path
             prompts.append(p)
 
         # 3. 所有组合（计算 coverImagePath，复用同一个索引）
 
-        raw_combinations = combination_storage.get_all_combinations()
         combinations = []
         for comb in raw_combinations:
             comb_data = dict(comb)
             cover_path = comb.get("coverImageId")
-            if not cover_path:
+            if not cover_path and enable_cover_fallback:
                 for prompt_name in comb.get("prompts", []):
                     for m in prompt_mapping_index.get(prompt_name, []):
                         image_path = m.get("imagePath")

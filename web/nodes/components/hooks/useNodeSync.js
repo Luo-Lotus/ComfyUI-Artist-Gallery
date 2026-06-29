@@ -66,6 +66,4 @@ export function useNodeSync({
     });
     return () => cancelAnimationFrame(rafId);
   }, [updateNodeValue]);
-
-  return { updateNodeValue };
 }

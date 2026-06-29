@@ -11,7 +11,6 @@ const DEFAULT_CONFIG = {
   randomMode: false,
   randomCount: 3,
   cycleMode: false,
-  saveToGallery: true,
   autoCreateCombination: false,
 };
 
@@ -353,19 +352,6 @@ export function usePartitionState({ selectedPromptsCache, categories, combinatio
     [partitionData],
   );
 
-  // 辅助：获取某项所在的分区 ID
-  const getItemPartition = useCallback(
-    (type, key) => {
-      for (const p of partitionData.partitions) {
-        if (p.orderItems.some((item) => item.type === type && item.key === key)) {
-          return p.id;
-        }
-      }
-      return null;
-    },
-    [partitionData],
-  );
-
   return {
     partitionData,
     setPartitionData,
@@ -382,6 +368,5 @@ export function usePartitionState({ selectedPromptsCache, categories, combinatio
     setAsDefaultPartition,
     reorderPartitions,
     isItemSelected,
-    getItemPartition,
   };
 }

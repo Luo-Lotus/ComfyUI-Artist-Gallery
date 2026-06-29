@@ -28,7 +28,6 @@ const AI_SYSTEM_PROMPT = `你是一个 ComfyUI 图库图片字段提取代码生
 {
     "imagePath": "2024-01-01/image_001.png",
     "type": "local",             // 或 "remote"
-    "prompts": ["artist_name", "landscape"],
     "promptString": "artist_name, landscape",
     "generatePrompt": "{...}",   // ComfyUI 工作流 JSON 字符串，可能为空
     "fileInfo": {

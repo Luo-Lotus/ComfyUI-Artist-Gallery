@@ -64,10 +64,10 @@ _BUILTIN_FIELDS = [
     },
     {
         "id": "builtin_prompt_names",
-        "name": "匹配到的Prompt",
+        "name": "提示词",
         "extractCode": (
             "def extract_func(item):\n"
-            "    return ', '.join(item.get('prompts', []))"
+            "    return item.get('promptString', '')"
         ),
         "builtin": True,
         "groupable": True,

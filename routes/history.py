@@ -95,27 +95,22 @@ async def get_images_grouped(request):
                 if not full_path.exists():
                     continue
 
-            prompts_list = mapping.get("prompts", [])
+            prompt_string = mapping.get("promptString", "")
+            prompt_string_lower = prompt_string.lower()
 
             # 单个 prompt 过滤
-            if prompt_filter and prompt_filter not in prompts_list:
+            if prompt_filter and prompt_filter.lower() not in prompt_string_lower:
                 continue
 
             # 组合模式：交集过滤（图片必须包含所有指定 prompt）
             if combination_prompts:
-                if not all(p in prompts_list for p in combination_prompts):
+                if not all(p.lower() in prompt_string_lower for p in combination_prompts):
                     continue
 
-            # search 过滤：检查 prompts 列表或 prompt_string 中是否有匹配项
+            # search 过滤：检查 promptString 中是否有匹配项
             if search_query:
-                matched = any(
-                    search_query in p.lower()
-                    for p in prompts_list
-                )
-                if not matched:
-                    ps = mapping.get("promptString", "").lower()
-                    if search_query not in ps:
-                        continue
+                if search_query not in prompt_string_lower:
+                    continue
 
             # 自定义筛查：所有筛查项取交集
             if active_filters:
@@ -142,8 +137,8 @@ async def get_images_grouped(request):
                 "path": image_path,
                 "type": mapping.get("type", "local"),
                 "savedAt": saved_at,
-                "prompts": prompts_list,
-                "promptString": mapping.get("promptString", ""),
+                "prompts": [],
+                "promptString": prompt_string,
             })
             valid_raw_mappings.append(mapping)
 

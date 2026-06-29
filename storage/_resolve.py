@@ -9,7 +9,13 @@ from .category import CategoryStorage
 from .combination import CombinationStorage
 from .custom_filter import CustomFilterStorage
 from .image_field import ImageFieldStorage
-from .migration import migrate_prompt_data, migrate_to_prompt_schema, migrate_image_schema
+from .migration import (
+    migrate_prompt_data,
+    migrate_to_prompt_schema,
+    migrate_image_schema,
+    migrate_prompt_string_image_index,
+    migrate_prompt_covers_from_prompt_string,
+)
 
 _storage_instances = None
 _custom_filter_instance = None
@@ -109,6 +115,22 @@ def get_storage() -> Tuple[PromptStorage, ImageMappingStorage, CategoryStorage, 
             migrate_image_schema(storage_dir)
         except Exception as e:
             print(f"Warning: Failed to migrate image schema: {e}")
+
+        try:
+            migrate_prompt_string_image_index(storage_dir)
+        except Exception as e:
+            print(f"Warning: Failed to migrate promptString image index: {e}")
+
+        try:
+            output_dir = None
+            try:
+                import folder_paths
+                output_dir = Path(folder_paths.get_output_directory())
+            except Exception:
+                output_dir = None
+            migrate_prompt_covers_from_prompt_string(storage_dir, output_dir)
+        except Exception as e:
+            print(f"Warning: Failed to migrate prompt covers: {e}")
 
         prompt_storage = PromptStorage(storage_dir)
         mapping_storage = ImageMappingStorage(storage_dir)

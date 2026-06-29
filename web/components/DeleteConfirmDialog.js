@@ -17,12 +17,8 @@ function getDeleteConfig(type, target, context) {
       title: '确认删除 Prompt',
       getMessage: () => {
         const name = target?.name || target?.value || '';
-        const imageCount = target?.imageCount || 0;
         const lines = [`确定要删除 Prompt "${name}" 吗？`];
-        if (imageCount > 0) {
-          lines.push(`将清理其关联的 ${imageCount} 张图片（仅关联此 Prompt 的图片文件将被删除，共享图片仅断开关联）。`);
-        }
-        lines.push('将从所有组合中移除此 Prompt。');
+        lines.push('将从所有组合中移除此 Prompt，图片文件和图片索引不会被删除。');
         return lines;
       },
     },
@@ -33,7 +29,7 @@ function getDeleteConfig(type, target, context) {
         const name = target?.name || '';
         return [
           `确定要删除分类 "${name}" 吗？`,
-          '将递归删除所有子分类、Prompt、组合及关联图片。',
+          '将递归删除所有子分类、Prompt 和组合，图片文件和图片索引不会被删除。',
           '此操作不可撤销。',
         ];
       },
@@ -45,7 +41,7 @@ function getDeleteConfig(type, target, context) {
         const name = target?.name || '';
         return [
           `确定要删除组合 "${name}" 吗？`,
-          '不会影响成员 Prompt 和关联图片。',
+          '不会影响成员 Prompt 和匹配到的图片。',
         ];
       },
     },
@@ -55,13 +51,6 @@ function getDeleteConfig(type, target, context) {
       getMessage: () => {
         const imagePath = target?.path || target?.imagePath || '';
         const fileName = imagePath.split('/').pop();
-        const promptCount = target?.prompts?.length || 0;
-        if (context?.promptValue && promptCount > 1) {
-          return [
-            `确定要断开图片 "${fileName}" 与此 Prompt 的关联吗？`,
-            `图片还关联其他 ${promptCount - 1} 个 Prompt，文件将保留。`,
-          ];
-        }
         return [`确定要删除图片 "${fileName}" 吗？`, '图片文件将被永久删除。'];
       },
     },
@@ -71,10 +60,10 @@ function getDeleteConfig(type, target, context) {
       getMessage: () => {
         const lines = ['将批量删除以下内容：'];
         if (target?.categories?.length > 0) {
-          lines.push(`- ${target.categories.length} 个分类（含子分类、Prompt、组合及图片）`);
+          lines.push(`- ${target.categories.length} 个分类（含子分类、Prompt 和组合）`);
         }
         if (target?.prompts?.length > 0) {
-          lines.push(`- ${target.prompts.length} 个 Prompt 及关联图片`);
+          lines.push(`- ${target.prompts.length} 个 Prompt`);
         }
         if (target?.combinations?.length > 0) {
           lines.push(`- ${target.combinations.length} 个组合`);

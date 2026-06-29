@@ -128,7 +128,6 @@ class PromptStorage(SplitJsonStorage):
             "categoryId": category_id,
             "coverImageId": None,
             "createdAt": int(__import__('time').time() * 1000),
-            "imageCount": 0,
             "metadata": {
                 "description": "",
                 "tags": [],
@@ -181,7 +180,6 @@ class PromptStorage(SplitJsonStorage):
                     "categoryId": category_id,
                     "coverImageId": None,
                     "createdAt": int(__import__('time').time() * 1000),
-                    "imageCount": 0
                 }
                 if target_file:
                     new_prompt["_source_file"] = target_file
@@ -222,7 +220,6 @@ class PromptStorage(SplitJsonStorage):
                     "categoryId": cat_id,
                     "coverImageId": None,
                     "createdAt": int(_time.time() * 1000),
-                    "imageCount": 0,
                 }
                 if target_file:
                     new_prompt["_source_file"] = target_file
@@ -238,7 +235,7 @@ class PromptStorage(SplitJsonStorage):
         更新Prompt信息（使用组合键）
         :param category_id: 分类 ID
         :param old_value: Prompt值（旧值）
-        :param kwargs: 要更新的字段（value, name, alias, imageCount, categoryId, coverImageId 等）
+        :param kwargs: 要更新的字段（value, name, alias, categoryId, coverImageId 等）
         :return: 是否更新成功
         :raises ValueError: 如果新值与同分类下其他Prompt重复
         """
@@ -268,7 +265,7 @@ class PromptStorage(SplitJsonStorage):
 
             # 更新字段
             for key, val in kwargs.items():
-                if key in ["value", "name", "alias", "imageCount", "categoryId", "coverImageId"]:
+                if key in ["value", "name", "alias", "categoryId", "coverImageId"]:
                     target_prompt[key] = val
                 elif key == "metadata":
                     if not isinstance(target_prompt.get("metadata"), dict):
@@ -319,7 +316,7 @@ class PromptStorage(SplitJsonStorage):
             for prompt in data["prompts"]:
                 if prompt.get("id") == prompt_id:
                     for key, value in kwargs.items():
-                        if key in ["value", "name", "alias", "imageCount", "categoryId", "coverImageId"]:
+                        if key in ["value", "name", "alias", "categoryId", "coverImageId"]:
                             prompt[key] = value
                         elif key == "metadata":
                             if not isinstance(prompt.get("metadata"), dict):
@@ -377,21 +374,14 @@ class PromptStorage(SplitJsonStorage):
         :param value: Prompt值
         :param delta: 增量（正数增加，负数减少）
         """
-        self.update_image_count_batch({(category_id, value): delta})
+        return None
 
     def update_image_count_batch(self, deltas: dict):
         """
         批量更新图片计数（一次读写完成所有更新）
         :param deltas: {(categoryId, value): delta} 字典
         """
-        with self._lock:
-            data = self._read_data()
-            for prompt in data["prompts"]:
-                key = (prompt.get("categoryId", "root"), prompt.get("value", ""))
-                if key in deltas:
-                    current_count = prompt.get("imageCount", 0)
-                    prompt["imageCount"] = max(0, current_count + deltas[key])
-            self._write_data(data)
+        return None
 
     def update_image_count_by_id(self, prompt_id: str, delta: int = 1):
         """
@@ -399,11 +389,4 @@ class PromptStorage(SplitJsonStorage):
         :param prompt_id: Prompt ID
         :param delta: 增量（正数增加，负数减少）
         """
-        with self._lock:
-            data = self._read_data()
-            for prompt in data["prompts"]:
-                if prompt.get("id") == prompt_id:
-                    current_count = prompt.get("imageCount", 0)
-                    prompt["imageCount"] = max(0, current_count + delta)
-                    self._write_data(data)
-                    return
+        return None

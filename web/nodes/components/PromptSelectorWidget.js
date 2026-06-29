@@ -63,8 +63,6 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
     filteredPrompts,
     filteredCategories,
     filteredCombinations,
-    selectedPromptsList,
-    selectedCategoriesList,
     refreshing,
     breadcrumbPath,
     partitionData,
@@ -74,7 +72,6 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
     updatePartition,
     addItemToPartition,
     removeItemFromPartition,
-    removeItemGlobally,
     reorderPartitionItems,
     setPromptWeight,
     togglePartition,
@@ -90,8 +87,6 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
     handleCategoryChange,
     handleRefresh,
     makePromptKey,
-    parsePromptKey,
-    updateNodeValue,
     searchResults,
     coversCache,
     fetchCoversByIds,
@@ -386,7 +381,6 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
         onDblClick: handleCategoryDoubleClick,
         onContextMenu: (e) => {
           e.preventDefault();
-          const isBlocked = cat.metadata?.blockGallerySave;
           showContextMenu(e, [
             {
               icon: 'bookmark',
@@ -413,19 +407,6 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
                 }
               },
             },
-            {
-              icon: isBlocked ? 'check-circle' : 'ban',
-              label: isBlocked ? '取消禁止保存到画廊' : '禁止保存到画廊',
-              action: async () => {
-                try {
-                  await updateCategoryMetadata(cat.id, { blockGallerySave: !isBlocked });
-                  showToast(isBlocked ? '已取消禁止' : '已禁止保存到画廊', 'success');
-                  handleRefresh();
-                } catch (err) {
-                  showToast('操作失败: ' + err.message, 'error');
-                }
-              },
-            },
           ]);
         },
         title: '单击选择分类，双击进入分类',
@@ -436,15 +417,6 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
           h('span', { class: 'prompt-selector-category-name' }, [
             cat.name,
             cat.metadata?.pinned && h(Icon, { name: 'bookmark', size: 10 }),
-            cat.metadata?.blockGallerySave &&
-              h(
-                'span',
-                {
-                  class: 'prompt-selector-badge gallery-block-badge',
-                  title: '已禁止保存到画廊',
-                },
-                h(Icon, { name: 'ban', size: 11 }),
-              ),
           ]),
           parentPath && h('span', { class: 'prompt-selector-item-path' }, parentPath),
         ]),
@@ -781,8 +753,6 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
         '右键点击可复制文本、在画廊中打开',
         h('br'),
         'Shift+点击可快速选择范围内的标签',
-        h('br'),
-        '保存图片时间过长可右键数据量大的分类禁止保存到画廊',
         h('br'),
         '双击分类可以打开分类',
       ]),

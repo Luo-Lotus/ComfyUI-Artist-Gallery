@@ -6,7 +6,7 @@ from ._json_store import SplitJsonStorage
 
 
 class ImageMappingStorage(SplitJsonStorage):
-    """图片-Prompt映射关系管理"""
+    """图片索引存储。Prompt 关联由 promptString 运行时匹配推导。"""
 
     item_key = "mappings"
     file_attr = "mappings_file"
@@ -17,7 +17,6 @@ class ImageMappingStorage(SplitJsonStorage):
         self.storage_dir = storage_dir
         self.mappings_file = storage_dir / "images.json"
         self._idx_by_path = None  # imagePath -> mapping
-        self._idx_by_prompt = None  # prompt value -> [mapping, ...]
         self._ensure_storage_dir()
 
     def _ensure_storage_dir(self):
@@ -30,7 +29,6 @@ class ImageMappingStorage(SplitJsonStorage):
     def _invalidate_cache(self):
         super()._invalidate_cache()
         self._idx_by_path = None
-        self._idx_by_prompt = None
 
     def get_all_mappings(self) -> List[dict]:
         """获取所有映射关系"""
@@ -38,14 +36,14 @@ class ImageMappingStorage(SplitJsonStorage):
             data = self._read_data()
             return data.get("mappings", [])
 
-    def add_mapping(self, image_path: str, prompt_values: List[str],
+    def add_mapping(self, image_path: str, prompt_values: Optional[List[str]] = None,
                     file_info: Optional[dict] = None, prompt_string: str = "",
                     generate_prompt=None, mapping_type: str = "local",
                     target_file: Optional[str] = None):
         """
-        添加图片-Prompt映射
+        添加图片索引记录。prompt_values 仅兼容旧调用，用于 promptString 兜底。
         :param image_path: 图片相对路径或远程URL
-        :param prompt_values: 关联的Prompt值列表
+        :param prompt_values: 旧关联Prompt值列表；不再持久化为 prompts
         :param file_info: 文件信息 {createdAt, size, type, width, height}
         :param prompt_string: 提示词字符串
         :param generate_prompt: 生成时的prompt dict
@@ -57,7 +55,6 @@ class ImageMappingStorage(SplitJsonStorage):
             mapping = {
                 "type": mapping_type,
                 "imagePath": image_path,
-                "prompts": prompt_values,
             }
 
             if file_info:
@@ -65,8 +62,9 @@ class ImageMappingStorage(SplitJsonStorage):
             else:
                 mapping["fileInfo"] = {}
 
-            if prompt_string:
-                mapping["promptString"] = prompt_string
+            final_prompt_string = prompt_string or ", ".join(prompt_values or [])
+            if final_prompt_string:
+                mapping["promptString"] = final_prompt_string
 
             if generate_prompt is not None:
                 mapping["generatePrompt"] = json.dumps(generate_prompt, ensure_ascii=False) if isinstance(generate_prompt, (dict, list)) else generate_prompt
@@ -83,7 +81,7 @@ class ImageMappingStorage(SplitJsonStorage):
     def add_mappings_import(self, items: List[dict], target_file: Optional[str] = None) -> int:
         """
         导入批量添加映射（一次读写）
-        :param items: [{"image_path": str, "prompt_values": list, "file_info": dict, "mapping_type": str}, ...]
+        :param items: [{"image_path": str, "prompt_string": str, "file_info": dict, "mapping_type": str}, ...]
         :param target_file: 分离存储目标文件
         :return: 成功添加数量
         """
@@ -95,11 +93,11 @@ class ImageMappingStorage(SplitJsonStorage):
                 mapping = {
                     "type": item.get("mapping_type", "local"),
                     "imagePath": item["image_path"],
-                    "prompts": item["prompt_values"],
                     "fileInfo": item.get("file_info") or {},
                 }
-                if item.get("prompt_string"):
-                    mapping["promptString"] = item["prompt_string"]
+                prompt_string = item.get("prompt_string") or ", ".join(item.get("prompt_values") or [])
+                if prompt_string:
+                    mapping["promptString"] = prompt_string
                 if item.get("generate_prompt") is not None:
                     gp = item["generate_prompt"]
                     mapping["generatePrompt"] = json.dumps(gp, ensure_ascii=False) if isinstance(gp, (dict, list)) else gp
@@ -114,7 +112,7 @@ class ImageMappingStorage(SplitJsonStorage):
     def add_mappings_batch(self, items: List[dict]) -> int:
         """
         批量添加映射（一次读写），用于 SaveToGallery 多图保存
-        :param items: [{"image_path", "prompt_values", "file_info", "prompt_string", "generate_prompt"}, ...]
+        :param items: [{"image_path", "file_info", "prompt_string", "generate_prompt"}, ...]
         :return: 成功添加数量
         """
         with self._lock:
@@ -124,11 +122,11 @@ class ImageMappingStorage(SplitJsonStorage):
                 mapping = {
                     "type": "local",
                     "imagePath": item["image_path"],
-                    "prompts": item["prompt_values"],
                     "fileInfo": item.get("file_info") or {},
                 }
-                if item.get("prompt_string"):
-                    mapping["promptString"] = item["prompt_string"]
+                prompt_string = item.get("prompt_string") or ", ".join(item.get("prompt_values") or [])
+                if prompt_string:
+                    mapping["promptString"] = prompt_string
                 if item.get("generate_prompt") is not None:
                     gp = item["generate_prompt"]
                     mapping["generatePrompt"] = json.dumps(gp, ensure_ascii=False) if isinstance(gp, (dict, list)) else gp
@@ -139,33 +137,30 @@ class ImageMappingStorage(SplitJsonStorage):
 
     def get_mappings_by_prompt(self, prompt_value: str) -> List[dict]:
         """
-        获取指定Prompt的所有图片映射
+        获取 promptString 中包含指定Prompt值的所有图片索引。
         :param prompt_value: Prompt值
-        :return: 图片映射列表
+        :return: 图片索引列表
         """
-        with self._lock:
-            if self._idx_by_prompt is None:
-                self._build_prompt_index()
-            return list(self._idx_by_prompt.get(prompt_value, []))
+        query = (prompt_value or "").lower()
+        if not query:
+            return []
+        mappings = self.get_all_mappings()
+        return [
+            m for m in mappings
+            if query in (m.get("promptString") or "").lower()
+        ]
 
     def get_first_mapping_by_prompt(self, prompt_value: str) -> Optional[dict]:
         """获取Prompt的第一张图片映射（用于封面图）"""
-        with self._lock:
-            if self._idx_by_prompt is None:
-                self._build_prompt_index()
-            mappings = self._idx_by_prompt.get(prompt_value, [])
-            return mappings[0] if mappings else None
+        mappings = self.get_mappings_by_prompt(prompt_value)
+        return mappings[0] if mappings else None
 
     def get_mappings_by_prompt_id(self, prompt_id: str) -> List[dict]:
         """
         获取指定Prompt的所有图片映射（使用 ID，兼容旧版本）
         注意：此方法仅用于迁移期间的兼容性
         """
-        mappings = self.get_all_mappings()
-        return [
-            m for m in mappings
-            if prompt_id in m.get("promptIds", [])
-        ]
+        return self.get_mappings_by_prompt(prompt_id)
 
     def _build_path_index(self):
         """构建 imagePath 索引（懒加载）"""
@@ -175,14 +170,6 @@ class ImageMappingStorage(SplitJsonStorage):
             path = m.get("imagePath")
             if path:
                 self._idx_by_path[path] = m
-
-    def _build_prompt_index(self):
-        """构建 prompt_value -> [mapping, ...] 索引（懒加载）"""
-        data = self._read_data()
-        self._idx_by_prompt = {}
-        for m in data.get("mappings", []):
-            for value in m.get("prompts", []):
-                self._idx_by_prompt.setdefault(value, []).append(m)
 
     def get_mappings_by_image(self, image_path: str) -> Optional[dict]:
         """根据图片路径获取映射（O(1) 索引查找）"""
@@ -197,29 +184,7 @@ class ImageMappingStorage(SplitJsonStorage):
         :param prompt_value: Prompt值
         :return: 被完全移除的图片路径列表（没有其他Prompt关联的图片）
         """
-        with self._lock:
-            data = self._read_data()
-            orphan_images = []
-
-            new_mappings = []
-            for mapping in data["mappings"]:
-                prompts = mapping.get("prompts", [])
-
-                if prompt_value in prompts:
-                    prompts.remove(prompt_value)
-
-                    if prompts:
-                        mapping["prompts"] = prompts
-                        new_mappings.append(mapping)
-                    else:
-                        orphan_images.append(mapping.get("imagePath"))
-                else:
-                    new_mappings.append(mapping)
-
-            data["mappings"] = new_mappings
-            self._write_data(data)
-
-            return orphan_images
+        return []
 
     def batch_remove_prompt_links(self, prompt_values: List[str]) -> dict:
         """
@@ -227,35 +192,7 @@ class ImageMappingStorage(SplitJsonStorage):
         :param prompt_values: 要移除的 prompt value 列表
         :return: {"orphan_images": [{"path": ..., "type": ...}], "updated_paths": [...]}
         """
-        if not prompt_values:
-            return {"orphan_images": [], "updated_paths": []}
-        prompt_set = set(prompt_values)
-        with self._lock:
-            data = self._read_data()
-            orphan_images = []
-            updated_paths = []
-            new_mappings = []
-
-            for mapping in data["mappings"]:
-                prompts = list(mapping.get("prompts", []))
-                matched = prompt_set & set(prompts)
-                if matched:
-                    remaining = [p for p in prompts if p not in prompt_set]
-                    if remaining:
-                        mapping["prompts"] = remaining
-                        new_mappings.append(mapping)
-                        updated_paths.append(mapping.get("imagePath"))
-                    else:
-                        orphan_images.append({
-                            "path": mapping.get("imagePath"),
-                            "type": mapping.get("type", ""),
-                        })
-                else:
-                    new_mappings.append(mapping)
-
-            data["mappings"] = new_mappings
-            self._write_data(data)
-            return {"orphan_images": orphan_images, "updated_paths": updated_paths}
+        return {"orphan_images": [], "updated_paths": []}
 
     def delete_mapping_by_image(self, image_path: str) -> bool:
         """根据图片路径删除映射"""
@@ -272,12 +209,12 @@ class ImageMappingStorage(SplitJsonStorage):
                 return True
             return False
 
-    def update_mapping(self, image_path: str, prompt_values: List[str],
+    def update_mapping(self, image_path: str, prompt_values: Optional[List[str]] = None,
                        file_info: Optional[dict] = None, prompt_string: Optional[str] = None) -> bool:
         """
         更新图片映射
         :param image_path: 图片路径
-        :param prompt_values: 新的Prompt值列表
+        :param prompt_values: 旧接口兼容参数；不再写入 prompts
         :param file_info: 可选的文件信息更新（合并）
         :param prompt_string: 可选的prompt_string更新
         :return: 是否更新成功
@@ -287,12 +224,13 @@ class ImageMappingStorage(SplitJsonStorage):
 
             for mapping in data["mappings"]:
                 if mapping.get("imagePath") == image_path:
-                    mapping["prompts"] = prompt_values
                     if file_info is not None:
                         mapping.setdefault("fileInfo", {})
                         mapping["fileInfo"] = {**mapping["fileInfo"], **file_info}
                     if prompt_string is not None:
                         mapping["promptString"] = prompt_string
+                    elif prompt_values is not None:
+                        mapping["promptString"] = ", ".join(prompt_values)
                     self._write_data(data)
                     return True
 
@@ -300,26 +238,12 @@ class ImageMappingStorage(SplitJsonStorage):
 
     def rename_prompt_in_mappings(self, old_value: str, new_value: str) -> int:
         """
-        在所有映射中重命名Prompt
+        兼容旧接口：不再维护强映射，因此不修改图片索引。
         :param old_value: 旧值
         :param new_value: 新值
         :return: 更新的映射数量
         """
-        with self._lock:
-            data = self._read_data()
-            updated_count = 0
-
-            for mapping in data["mappings"]:
-                prompts = mapping.get("prompts", [])
-                if old_value in prompts:
-                    new_prompts = [new_value if v == old_value else v for v in prompts]
-                    mapping["prompts"] = new_prompts
-                    updated_count += 1
-
-            if updated_count > 0:
-                self._write_data(data)
-
-            return updated_count
+        return 0
 
     def get_all_mappings_for_prompt(self, prompt_value: str) -> List[dict]:
         """
@@ -331,15 +255,26 @@ class ImageMappingStorage(SplitJsonStorage):
         return [
             {**m, "matched": True}
             for m in mappings
-            if prompt_value in m.get("prompts", [])
+            if (prompt_value or "").lower() in (m.get("promptString") or "").lower()
         ]
 
     def build_prompt_index(self) -> Dict[str, List[dict]]:
         """
-        一次性构建 prompt_value → [mapping, ...] 索引。
-        用于批量查询场景，消除 N+1 问题。
+        根据 promptString 动态构建 prompt_value → [mapping, ...] 索引。
+        只对调用方传入的完整 prompt 列表更可靠；无 prompt 列表时保留空实现。
         """
-        with self._lock:
-            if self._idx_by_prompt is None:
-                self._build_prompt_index()
-            return {key: list(value) for key, value in self._idx_by_prompt.items()}
+        return {}
+
+    def build_prompt_index_for_values(self, prompt_values: List[str]) -> Dict[str, List[dict]]:
+        """为指定 prompt value 列表按 promptString 包含关系构建索引。"""
+        values = [v for v in prompt_values if v]
+        lowered = [(v, v.lower()) for v in values]
+        index: Dict[str, List[dict]] = {v: [] for v in values}
+        for mapping in self.get_all_mappings():
+            prompt_string = (mapping.get("promptString") or "").lower()
+            if not prompt_string:
+                continue
+            for value, query in lowered:
+                if query in prompt_string:
+                    index[value].append(mapping)
+        return index

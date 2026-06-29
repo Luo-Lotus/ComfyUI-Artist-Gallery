@@ -7,9 +7,20 @@ import server
 from ..storage import get_storage
 from ._utils import is_remote_path
 from ._delete_utils import delete_prompt_cascade
+from ._image_index import build_prompt_string_index, count_existing_images, image_info_from_mapping
+from ._prompt_cover import ensure_prompt_cover
+from ._cover_fallback import cover_fallback_enabled
 
 
 # ============ Prompt CRUD API ============
+
+def _prompt_image_counts(mapping_storage, prompts, output_dir):
+    values = [p.get("value") for p in prompts if p.get("value")]
+    prompt_mapping_index = build_prompt_string_index(mapping_storage, values)
+    return {
+        value: count_existing_images(mappings, output_dir)
+        for value, mappings in prompt_mapping_index.items()
+    }
 
 @server.PromptServer.instance.routes.get("/prompt_gallery/prompts")
 async def get_prompts(request):
@@ -22,8 +33,11 @@ async def get_prompts(request):
         limit = min(int(request.query.get("limit", "100")), 200)
         query = search.lower()
 
-        prompt_storage, _, _, _ = get_storage()
+        import folder_paths
+
+        prompt_storage, mapping_storage, _, _ = get_storage()
         all_prompts = prompt_storage.get_all_prompts()
+        image_counts = _prompt_image_counts(mapping_storage, all_prompts, folder_paths.get_output_directory())
 
         results = []
         for p in all_prompts:
@@ -34,7 +48,7 @@ async def get_prompts(request):
                     "value": p.get("value"),
                     "name": p.get("name"),
                     "categoryId": p.get("categoryId", "root"),
-                    "imageCount": p.get("imageCount", 0),
+                    "imageCount": image_counts.get(p.get("value"), 0),
                     "createdAt": p.get("createdAt", 0),
                 })
                 if len(results) >= limit:
@@ -54,8 +68,11 @@ async def batch_resolve_prompts(request):
         if not keys:
             return web.json_response({"prompts": {}})
 
-        prompt_storage, _, _, _ = get_storage()
+        import folder_paths
+
+        prompt_storage, mapping_storage, _, _ = get_storage()
         all_prompts = prompt_storage.get_all_prompts()
+        image_counts = _prompt_image_counts(mapping_storage, all_prompts, folder_paths.get_output_directory())
 
         # 构建 categoryId:value -> prompt 的索引
         prompt_index = {}
@@ -72,7 +89,7 @@ async def batch_resolve_prompts(request):
                     "name": p.get("name"),
                     "categoryId": p.get("categoryId", "root"),
                     "alias": p.get("alias", ""),
-                    "imageCount": p.get("imageCount", 0),
+                    "imageCount": image_counts.get(p.get("value"), 0),
                     "createdAt": p.get("createdAt", 0),
                     "metadata": p.get("metadata", {}),
                 }
@@ -91,13 +108,16 @@ async def batch_resolve(request):
         category_ids = data.get("categories", [])
         combination_ids = data.get("combinations", [])
 
-        prompt_storage, _, category_storage, combination_storage = get_storage()
+        import folder_paths
+
+        prompt_storage, mapping_storage, category_storage, combination_storage = get_storage()
 
         result = {}
 
         # 解析 prompts（支持 "categoryId:value" 和纯 "value" 两种格式）
         if prompt_keys:
             all_prompts = prompt_storage.get_all_prompts()
+            image_counts = _prompt_image_counts(mapping_storage, all_prompts, folder_paths.get_output_directory())
             prompt_index = {}
             value_index = {}  # value -> [prompt, ...]（同名 prompt 可能属于不同分类）
             for p in all_prompts:
@@ -122,7 +142,7 @@ async def batch_resolve(request):
                         "name": p.get("name"),
                         "categoryId": p.get("categoryId", "root"),
                         "alias": p.get("alias", ""),
-                        "imageCount": p.get("imageCount", 0),
+                        "imageCount": image_counts.get(p.get("value"), 0),
                         "createdAt": p.get("createdAt", 0),
                         "metadata": p.get("metadata", {}),
                     }
@@ -179,12 +199,17 @@ async def search_prompts(request):
         limit = min(int(request.query.get("limit", "50")), 100)
         query = q.lower()
         output_dir = folder_paths.get_output_directory()
+        enable_cover_fallback = cover_fallback_enabled()
 
         prompt_storage, mapping_storage, _, combination_storage = get_storage()
 
         # 搜索 Prompts
         all_prompts = prompt_storage.get_all_prompts()
-        prompt_mapping_index = mapping_storage.build_prompt_index()
+        all_combinations = combination_storage.get_all_combinations()
+        prompt_values = [p.get("value") for p in all_prompts if p.get("value")]
+        for c in all_combinations:
+            prompt_values.extend([p for p in c.get("prompts", []) if p])
+        prompt_mapping_index = build_prompt_string_index(mapping_storage, prompt_values)
 
         matched_prompts = []
         for p in all_prompts:
@@ -193,7 +218,7 @@ async def search_prompts(request):
                     or query in (p.get("alias") or "").lower()):
                 # 计算 coverImagePath
                 cover_path = p.get("coverImageId")
-                if not cover_path:
+                if not cover_path and enable_cover_fallback:
                     mappings = prompt_mapping_index.get(p.get("value"), [])
                     for m in mappings:
                         image_path = m.get("imagePath")
@@ -205,7 +230,7 @@ async def search_prompts(request):
                     "name": p.get("name"),
                     "categoryId": p.get("categoryId", "root"),
                     "coverImagePath": cover_path,
-                    "imageCount": p.get("imageCount", 0),
+                    "imageCount": count_existing_images(prompt_mapping_index.get(p.get("value"), []), output_dir),
                     "createdAt": p.get("createdAt", 0),
                     "metadata": p.get("metadata", {}),
                 })
@@ -213,14 +238,13 @@ async def search_prompts(request):
                     break
 
         # 搜索 Combinations
-        all_combinations = combination_storage.get_all_combinations()
         matched_combinations = []
         for c in all_combinations:
             if (query in (c.get("name") or "").lower()
                     or query in (c.get("outputContent") or "").lower()):
                 # 计算 coverImagePath
                 cover_path = c.get("coverImageId")
-                if not cover_path:
+                if not cover_path and enable_cover_fallback:
                     for prompt_name in c.get("prompts", []):
                         for m in prompt_mapping_index.get(prompt_name, []):
                             image_path = m.get("imagePath")
@@ -263,7 +287,8 @@ async def add_prompt(request):
         if not value:
             return web.json_response({"error": "Prompt值不能为空"}, status=400)
 
-        prompt_storage, _, category_storage, _ = get_storage()
+        import folder_paths
+        prompt_storage, mapping_storage, category_storage, _ = get_storage()
 
         # 验证分类存在
         category = category_storage.get_category_by_id(category_id)
@@ -271,6 +296,7 @@ async def add_prompt(request):
             return web.json_response({"error": "分类不存在"}, status=400)
 
         prompt = prompt_storage.add_prompt(value=value, name=name, alias=alias, category_id=category_id)
+        ensure_prompt_cover(prompt_storage, mapping_storage, category_id, value, Path(folder_paths.get_output_directory()))
 
         return web.json_response({"prompt": prompt, "success": True})
     except ValueError as e:
@@ -290,8 +316,12 @@ async def add_prompts_batch(request):
         if not prompts_data:
             return web.json_response({"error": "Prompt列表不能为空"}, status=400)
 
-        prompt_storage, _, _, _ = get_storage()
+        import folder_paths
+        prompt_storage, mapping_storage, _, _ = get_storage()
         success_prompts, failed_names = prompt_storage.add_prompts_batch(prompts_data, category_id)
+        output_dir = Path(folder_paths.get_output_directory())
+        for prompt in success_prompts:
+            ensure_prompt_cover(prompt_storage, mapping_storage, prompt.get("categoryId", category_id), prompt.get("value"), output_dir)
 
         return web.json_response({
             "success": True,
@@ -404,8 +434,6 @@ async def update_prompt_composite(request):
         if success:
             # 如果修改了值，更新所有相关映射
             updated_mappings = 0
-            if value_changed:
-                updated_mappings = mapping_storage.rename_prompt_in_mappings(old_value, new_value)
 
             # 重新查询更新后的Prompt信息
             new_category_id = kwargs.get("categoryId", category_id)
@@ -418,7 +446,6 @@ async def update_prompt_composite(request):
 
             # 如果更新了映射，添加更新数量
             if value_changed:
-                result["updatedMappings"] = updated_mappings
                 result["updatedPrompts"] = updated_prompts
 
             return web.json_response(result)
@@ -633,24 +660,12 @@ async def get_prompt_images_by_composite(request):
         for mapping in mappings:
             image_path = mapping.get("imagePath")
             if is_remote_path(image_path, mapping.get("type", "")):
-                images.append({
-                    "path": image_path,
-                    "type": "remote",
-                    "size": 0,
-                    "mtime": mapping.get("fileInfo", {}).get("createdAt", 0),
-                    "prompts": mapping.get("prompts", []),
-                })
+                images.append(image_info_from_mapping(mapping, output_dir))
                 continue
             full_path = output_dir / image_path
             if full_path.exists():
                 try:
-                    stat = full_path.stat()
-                    images.append({
-                        "path": image_path,
-                        "size": stat.st_size,
-                        "mtime": stat.st_mtime * 1000,
-                        "prompts": mapping.get("prompts", []),
-                    })
+                    images.append(image_info_from_mapping(mapping, output_dir))
                 except Exception:
                     pass
 

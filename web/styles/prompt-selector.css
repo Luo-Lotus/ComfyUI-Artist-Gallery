@@ -1206,11 +1206,6 @@
   border: 1px solid rgba(33, 150, 243, 0.5);
 }
 
-.partition-rule-badge.no-save {
-  background: rgba(244, 67, 54, 0.2);
-  border: 1px solid rgba(244, 67, 54, 0.5);
-}
-
 /* ==================== 分类标签内嵌 badge ==================== */
 .prompt-selector-tag-badge {
   display: inline-flex;
@@ -1228,10 +1223,6 @@
   color: #f9a825;
 }
 
-.prompt-selector-tag-badge.gallery-block-badge {
-  color: #e53935;
-}
-
 /* ==================== 浏览区域分类卡片 badge ==================== */
 .prompt-selector-badge {
   display: inline-flex;
@@ -1243,11 +1234,6 @@
 
 .prompt-selector-badge svg {
   display: block;
-}
-
-.prompt-selector-badge.gallery-block-badge {
-  color: #e53935;
-  opacity: 0.8;
 }
 
 /* ==================== 分类选择器（分区配置面板） ==================== */

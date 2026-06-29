@@ -94,6 +94,21 @@ def set_max_backups(storage_dir: Path, value: int) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+def get_enable_cover_fallback(storage_dir: Path) -> bool:
+    """读取运行时封面 fallback 开关，默认关闭。"""
+    data = _read_config(storage_dir)
+    return bool(data.get("enable_cover_fallback", False))
+
+
+def set_enable_cover_fallback(storage_dir: Path, enabled: bool) -> None:
+    """设置运行时封面 fallback 开关。"""
+    config_path = get_storage_config_path(storage_dir)
+    data = _read_config(storage_dir)
+    data["enable_cover_fallback"] = bool(enabled)
+    with open(config_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
 def _read_config(storage_dir: Path) -> dict:
     config_path = get_storage_config_path(storage_dir)
     try:

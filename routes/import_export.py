@@ -6,6 +6,7 @@ from pathlib import Path
 from aiohttp import web
 import server
 from ..storage import get_storage
+from ._prompt_cover import ensure_prompt_cover
 
 
 def _make_shard_targets(storage_dir: Path, separate: bool):
@@ -166,12 +167,16 @@ async def import_images_batch(request):
             if r['success']:
                 mapping_specs.append({
                     "image_path": r["imagePath"],
-                    "prompt_values": [r["value"]],
+                    "prompt_string": r["value"],
                     "file_info": r.get("fileInfo") or None,
                     "mapping_type": "local",
                 })
         if mapping_specs:
             mapping_storage.add_mappings_import(mapping_specs, target_file=shard_targets["images"])
+            output_dir_root = Path(folder_paths.get_output_directory())
+            for r in results:
+                if r['success']:
+                    ensure_prompt_cover(prompt_storage, mapping_storage, r["categoryId"], r["value"], output_dir_root)
 
         imported = sum(1 for r in results if r['success'])
         failed = len(results) - imported
@@ -297,13 +302,14 @@ async def export_prompts(request):
                 if image_path not in exported_images:
                     filename = Path(image_path).name
                     zip_path = f"images/{filename}"
-                    exported_images[image_path] = {"path": zip_path, "prompts": [value]}
+                    exported_images[image_path] = {"path": zip_path, "promptString": mapping.get("promptString", value)}
                 else:
-                    if value not in exported_images[image_path]["prompts"]:
-                        exported_images[image_path]["prompts"].append(value)
+                    existing = exported_images[image_path].get("promptString", "")
+                    if value not in existing:
+                        exported_images[image_path]["promptString"] = f"{existing}, {value}" if existing else value
 
         manifest_images = [
-            {"path": info["path"], "prompts": info["prompts"]}
+            {"path": info["path"], "promptString": info.get("promptString", "")}
             for info in exported_images.values()
         ]
 
@@ -375,7 +381,7 @@ async def export_category(request):
         export_combinations = [c for c in all_combinations if c.get("categoryId") in set(all_cat_ids)]
 
         # 批量构建Prompt → 图片映射索引
-        prompt_mapping_index = mapping_storage.build_prompt_index()
+        prompt_mapping_index = mapping_storage.build_prompt_index_for_values([p.get("value") for p in export_prompts_list if p.get("value")])
 
         # 收集所有相关图片
         exported_images = {}
@@ -389,10 +395,11 @@ async def export_category(request):
                 if image_path not in exported_images:
                     filename = Path(image_path).name
                     zip_path = f"images/{filename}"
-                    exported_images[image_path] = {"path": zip_path, "prompts": [value]}
+                    exported_images[image_path] = {"path": zip_path, "promptString": mapping.get("promptString", value)}
                 else:
-                    if value not in exported_images[image_path]["prompts"]:
-                        exported_images[image_path]["prompts"].append(value)
+                    existing = exported_images[image_path].get("promptString", "")
+                    if value not in existing:
+                        exported_images[image_path]["promptString"] = f"{existing}, {value}" if existing else value
 
         # 按拓扑顺序排列分类（父在前子在后）
         parent_map = {c["id"]: c.get("parentId") for c in export_categories}
@@ -437,7 +444,7 @@ async def export_category(request):
         ]
 
         manifest_images = [
-            {"path": info["path"], "prompts": info["prompts"]}
+            {"path": info["path"], "promptString": info.get("promptString", "")}
             for info in exported_images.values()
         ]
 
@@ -563,6 +570,7 @@ async def _import_v1(zf, manifest_data, target_category_id, prompt_storage, mapp
         img_path = img_info.get("path")
         img_type = img_info.get("type", "")
         prompt_names = img_info.get("prompts") or img_info.get("promptNames", [])
+        prompt_string = img_info.get("promptString") or ", ".join(prompt_names)
         if not img_path:
             continue
 
@@ -571,7 +579,7 @@ async def _import_v1(zf, manifest_data, target_category_id, prompt_storage, mapp
         if is_remote:
             mapping_specs.append({
                 "image_path": img_path,
-                "prompt_values": prompt_names,
+                "prompt_string": prompt_string,
                 "mapping_type": "remote",
             })
         else:
@@ -585,11 +593,14 @@ async def _import_v1(zf, manifest_data, target_category_id, prompt_storage, mapp
                 f.write(zf.read(img_path))
             mapping_specs.append({
                 "image_path": f"prompt_gallery/{new_filename}",
-                "prompt_values": prompt_names,
+                "prompt_string": prompt_string,
                 "mapping_type": "local",
             })
 
     mapping_storage.add_mappings_import(mapping_specs, target_file=shard_targets["images"])
+    output_root = output_dir.parent
+    for spec in prompt_specs:
+        ensure_prompt_cover(prompt_storage, mapping_storage, spec["categoryId"], spec["value"], output_root)
 
     return web.json_response({
         "success": True,
@@ -732,6 +743,7 @@ async def _import_v2(zf, manifest_data, target_category_id,
         img_path = img_info.get("path")
         img_type = img_info.get("type", "")
         prompt_names = img_info.get("prompts") or img_info.get("promptNames", [])
+        prompt_string = img_info.get("promptString") or ", ".join(prompt_names)
         if not img_path:
             continue
 
@@ -740,7 +752,7 @@ async def _import_v2(zf, manifest_data, target_category_id,
         if is_remote:
             mapping_specs.append({
                 "image_path": img_path,
-                "prompt_values": prompt_names,
+                "prompt_string": prompt_string,
                 "mapping_type": "remote",
             })
         else:
@@ -754,12 +766,15 @@ async def _import_v2(zf, manifest_data, target_category_id,
                 f.write(zf.read(img_path))
             mapping_specs.append({
                 "image_path": f"prompt_gallery/{new_filename}",
-                "prompt_values": prompt_names,
+                "prompt_string": prompt_string,
                 "mapping_type": "local",
             })
 
     print(f"[ImportV2] 批量导入 {len(mapping_specs)} 个图片映射...")
     mapping_storage.add_mappings_import(mapping_specs, target_file=shard_targets["images"])
+    output_root = output_dir.parent
+    for spec in prompt_specs:
+        ensure_prompt_cover(prompt_storage, mapping_storage, spec["categoryId"], spec["value"], output_root)
     print(f"[ImportV2] 导入完成! 分类={added_categories}, Prompt={len(added_prompts_list)}, 组合={added_combinations}, 图片={len(mapping_specs)}")
 
     return web.json_response({

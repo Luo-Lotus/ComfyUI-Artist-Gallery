@@ -6,15 +6,19 @@ from aiohttp import web
 import server
 from ..storage import get_storage
 from ._utils import is_remote_path
+from ._image_index import build_prompt_string_index, image_info_from_mapping
+from ._cover_fallback import cover_fallback_enabled
 
 
 # ============ 组合 CRUD API ============
 
-def _resolve_combination_cover(comb, prompt_mapping_index, output_dir):
+def _resolve_combination_cover(comb, prompt_mapping_index, output_dir, enable_cover_fallback=False):
     """Resolve cover path using explicit cover first, then first existing member prompt image."""
     cover_path = comb.get("coverImageId")
     if cover_path:
         return cover_path
+    if not enable_cover_fallback:
+        return None
 
     output_path = Path(output_dir)
     for prompt_name in comb.get("prompts", []):
@@ -25,9 +29,14 @@ def _resolve_combination_cover(comb, prompt_mapping_index, output_dir):
     return None
 
 
-def _serialize_combination_with_cover(comb, prompt_mapping_index, output_dir):
+def _serialize_combination_with_cover(comb, prompt_mapping_index, output_dir, enable_cover_fallback=False):
     comb_data = dict(comb)
-    comb_data["coverImagePath"] = _resolve_combination_cover(comb, prompt_mapping_index, output_dir)
+    comb_data["coverImagePath"] = _resolve_combination_cover(
+        comb,
+        prompt_mapping_index,
+        output_dir,
+        enable_cover_fallback,
+    )
     return comb_data
 
 
@@ -39,16 +48,20 @@ async def get_combinations(request):
 
         _, mapping_storage, _, combination_storage = get_storage()
         output_dir = folder_paths.get_output_directory()
-        prompt_mapping_index = mapping_storage.build_prompt_index()
+        enable_cover_fallback = cover_fallback_enabled()
 
         category_id = request.query.get("category")
         if category_id:
             raw_combinations = combination_storage.get_combinations_by_category(category_id)
         else:
             raw_combinations = combination_storage.get_all_combinations()
+        prompt_values = []
+        for comb in raw_combinations:
+            prompt_values.extend([p for p in comb.get("prompts", []) if p])
+        prompt_mapping_index = build_prompt_string_index(mapping_storage, prompt_values)
 
         result_combinations = [
-            _serialize_combination_with_cover(comb, prompt_mapping_index, output_dir)
+            _serialize_combination_with_cover(comb, prompt_mapping_index, output_dir, enable_cover_fallback)
             for comb in raw_combinations
         ]
 
@@ -68,11 +81,15 @@ async def get_all_combinations(request):
 
         _, mapping_storage, _, combination_storage = get_storage()
         output_dir = folder_paths.get_output_directory()
+        enable_cover_fallback = cover_fallback_enabled()
         raw_combinations = combination_storage.get_all_combinations()
-        prompt_mapping_index = mapping_storage.build_prompt_index()
+        prompt_values = []
+        for comb in raw_combinations:
+            prompt_values.extend([p for p in comb.get("prompts", []) if p])
+        prompt_mapping_index = build_prompt_string_index(mapping_storage, prompt_values)
 
         result_combinations = [
-            _serialize_combination_with_cover(comb, prompt_mapping_index, output_dir)
+            _serialize_combination_with_cover(comb, prompt_mapping_index, output_dir, enable_cover_fallback)
             for comb in raw_combinations
         ]
 
@@ -243,7 +260,7 @@ async def get_combination_images(request):
                 "totalCount": 0,
             })
 
-        prompt_mapping_index = mapping_storage.build_prompt_index()
+        prompt_mapping_index = build_prompt_string_index(mapping_storage, prompts)
 
         # 获取每个Prompt的图片路径集合
         prompt_image_sets = []
@@ -268,27 +285,23 @@ async def get_combination_images(request):
         for s in prompt_image_sets[1:]:
             common_paths = common_paths & s
 
+        mapping_by_path = {}
+        for prompt_name in prompts:
+            for mapping in prompt_mapping_index.get(prompt_name, []):
+                path = mapping.get("imagePath")
+                if path and path not in mapping_by_path:
+                    mapping_by_path[path] = mapping
+
         # 构建图片信息
         images = []
         for image_path in common_paths:
+            mapping = mapping_by_path.get(image_path, {"imagePath": image_path})
             if is_remote_path(image_path):
-                images.append({
-                    "path": image_path,
-                    "type": "remote",
-                    "size": 0,
-                    "mtime": 0,
-                    "prompts": prompts,
-                })
+                images.append(image_info_from_mapping(mapping, output_dir, prompts))
                 continue
             full_path = Path(output_dir) / image_path
             try:
-                stat = full_path.stat()
-                images.append({
-                    "path": image_path,
-                    "size": stat.st_size,
-                    "mtime": stat.st_mtime * 1000,
-                    "prompts": prompts,
-                })
+                images.append(image_info_from_mapping(mapping, output_dir, prompts))
             except Exception:
                 pass
 

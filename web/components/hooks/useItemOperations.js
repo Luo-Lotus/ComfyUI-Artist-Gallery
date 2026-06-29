@@ -63,7 +63,6 @@ export function useItemOperations({
             type: 'combination',
             item: c,
           })),
-          ...details.images.map((i) => ({ type: 'image', item: i })),
         ];
         if (allItems.length === 0) return;
 
@@ -94,16 +93,6 @@ export function useItemOperations({
                   categoryId: target.id,
                   promptKeys: it.prompts || [],
                   outputContent: it.outputContent || '',
-                }),
-              });
-            } else if (type === 'image') {
-              res = await fetch('/prompt_gallery/image/copy', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  imagePath: it.path,
-                  toPromptValue: target.value,
-                  toCategoryId: target.categoryId || 'root',
                 }),
               });
             }
@@ -140,16 +129,6 @@ export function useItemOperations({
             }),
           },
         );
-      } else if (copyItemType === 'image') {
-        response = await fetch('/prompt_gallery/image/copy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imagePath: item.path,
-            toPromptValue: target.value,
-            toCategoryId: target.categoryId || 'root',
-          }),
-        });
       } else if (copyItemType === 'combination') {
         response = await fetch('/prompt_gallery/combinations', {
           method: 'POST',
@@ -233,30 +212,6 @@ export function useItemOperations({
           }
         }
 
-        // 图片逐个移动（没有批量API）
-        for (const img of details.images) {
-          try {
-            const res = await fetch('/prompt_gallery/image/move', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                imagePath: img.path,
-                fromPromptValue: currentPrompt.value,
-                toPromptValue: target.value,
-                toCategoryId: target.categoryId || 'root',
-              }),
-            });
-            const data = await res.json();
-            if (res.ok && data.success) {
-              successCount++;
-            } else {
-              failCount++;
-            }
-          } catch {
-            failCount++;
-          }
-        }
-
         closeMoveDialog();
         resetSelection();
         await loadData();
@@ -294,17 +249,6 @@ export function useItemOperations({
             body: JSON.stringify({ categoryId: target.id }),
           },
         );
-      } else if (moveItemType === 'image') {
-        response = await fetch('/prompt_gallery/image/move', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imagePath: item.path,
-            fromPromptValue: currentPrompt.value,
-            toPromptValue: target.value,
-            toCategoryId: target.categoryId || 'root',
-          }),
-        });
       } else if (moveItemType === 'combination') {
         response = await fetch(`/prompt_gallery/combinations/${item.id}/move`, {
           method: 'POST',

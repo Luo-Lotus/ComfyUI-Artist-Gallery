@@ -7,6 +7,8 @@ import server
 from ..storage import get_storage
 from ..utils import decode_filename
 from ._utils import is_remote_path
+from ._image_index import build_prompt_string_index, count_existing_images, first_existing_image
+from ._cover_fallback import cover_fallback_enabled
 
 
 # ============ Gallery 数据 API ============
@@ -20,6 +22,7 @@ async def get_gallery_data(request):
     try:
         # 获取分类参数
         category_id = request.query.get("category", "root")
+        enable_cover_fallback = cover_fallback_enabled()
 
         prompt_storage, mapping_storage, category_storage, combination_storage = get_storage()
 
@@ -31,8 +34,10 @@ async def get_gallery_data(request):
         # 只获取该分类下的Prompt（不包含子分类）
         prompts_data = prompt_storage.get_prompts_by_category(category_id)
 
-        # 一次性构建 prompt_value → [mapping, ...] 索引，消除 N+1 查询
-        prompt_mapping_index = mapping_storage.build_prompt_index()
+        prompt_values = [p.get("value") for p in prompts_data if p.get("value")]
+        for comb in combination_storage.get_combinations_by_category(category_id):
+            prompt_values.extend([p for p in comb.get("prompts", []) if p])
+        prompt_mapping_index = build_prompt_string_index(mapping_storage, prompt_values)
 
         # 构建结果列表（只返回封面信息，不返回完整图片列表）
         result_prompts = []
@@ -41,21 +46,12 @@ async def get_gallery_data(request):
             prompt_value = prompt.get("value")
             mappings = prompt_mapping_index.get(prompt_value, [])
 
-            # 计数
-            image_count = 0
-            for mapping in mappings:
-                image_path = mapping.get("imagePath")
-                if is_remote_path(image_path, mapping.get("type", "")) or (output_dir / image_path).exists():
-                    image_count += 1
+            image_count = count_existing_images(mappings, output_dir)
 
             # 获取封面图片路径：优先用设置的封面，否则取第一张存在的映射
             cover_path = prompt.get("coverImageId")
-            if not cover_path:
-                for m in mappings:
-                    image_path = m.get("imagePath")
-                    if is_remote_path(image_path, m.get("type", "")) or (output_dir / image_path).exists():
-                        cover_path = image_path
-                        break
+            if not cover_path and enable_cover_fallback:
+                cover_path = first_existing_image(mappings, output_dir)
 
             # 构建Prompt对象（不包含 images 数组）
             result_prompt = {
@@ -80,7 +76,7 @@ async def get_gallery_data(request):
             comb_data = dict(comb)
             # 优先使用设置的封面，否则取第一个成员Prompt的第一张图
             cover_path = comb.get("coverImageId")
-            if not cover_path:
+            if not cover_path and enable_cover_fallback:
                 for prompt_value in comb.get("prompts", []):
                     for m in prompt_mapping_index.get(prompt_value, []):
                         image_path = m.get("imagePath")

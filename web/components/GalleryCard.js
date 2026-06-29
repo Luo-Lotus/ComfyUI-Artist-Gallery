@@ -173,7 +173,14 @@ export function GalleryCard({
    * 渲染空状态（无图片，仍显示覆盖信息）
    */
   const renderEmptyState = () => {
-    return h('div', { class: 'gallery-card-empty' }, [
+    return h('div', {
+      class: 'gallery-card-empty',
+      onClick: (e) => {
+        if (!selectionMode) {
+          onImageClick && onImageClick(promptIndex);
+        }
+      },
+    }, [
       h('div', { class: 'gallery-card-empty-icon' }, h(Icon, { name: 'palette', size: 32 })),
       h('div', { class: 'gallery-card-empty-text' }, '暂无图片'),
       renderOverlay(),

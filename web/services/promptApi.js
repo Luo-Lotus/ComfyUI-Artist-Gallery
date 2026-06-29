@@ -101,7 +101,7 @@ export async function setPromptCover(categoryId, value, coverImagePath) {
 }
 
 /**
- * 删除Prompt（级联清理图片和组合）
+ * 删除Prompt（清理组合成员，不删除图片）
  */
 export async function deletePromptByKey(categoryId, value) {
   return await requestJson(
@@ -116,11 +116,9 @@ export async function deletePromptByKey(categoryId, value) {
 /**
  * 删除图片
  * @param {string} imagePath - 图片路径
- * @param {string} [promptValue] - 可选：传了表示从 prompt 详情删（只断开关联），不传表示完全删除
  */
-export async function deleteImage(imagePath, promptValue) {
+export async function deleteImage(imagePath) {
   const body = { imagePath };
-  if (promptValue) body.promptValue = promptValue;
   return await requestJson('/prompt_gallery/image', {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
@@ -173,20 +171,6 @@ export async function copyPrompt(categoryId, value, targetCategoryId, newValue) 
     },
     '复制Prompt失败',
   );
-}
-
-/**
- * 复制图片到其他Prompt
- */
-export async function copyImage(imagePath, toPromptValue) {
-  return await requestJson('/prompt_gallery/image/copy', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      imagePath,
-      toPromptValue,
-    }),
-  }, '复制图片失败');
 }
 
 /**

@@ -247,11 +247,6 @@ export async function fetchInitData() {
   return await response.json();
 }
 
-export async function copyImage(imagePath, toPromptValue) {
-  const { copyImage: apiCopyImage } = await import('./services/promptApi.js');
-  return await apiCopyImage(imagePath, toPromptValue);
-}
-
 // ============ Legacy Prompt API (ID-based, for compatibility) ============
 
 export async function addPrompt(data) {
