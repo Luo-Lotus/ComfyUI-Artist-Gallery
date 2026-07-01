@@ -20,22 +20,6 @@ const MENU_ITEMS = [
 function GallerySettings() {
   const ctx = useGallery();
   const mode = ctx.cardLayoutMode;
-  const [enableCoverFallback, setEnableCoverFallback] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch('/prompt_gallery/settings/general')
-      .then((r) => r.json())
-      .then((data) => {
-        if (!cancelled && data.success) {
-          setEnableCoverFallback(!!data.enableCoverFallback);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const handleModeChange = useCallback((newMode) => {
     ctx.setCardLayoutMode(newMode);
@@ -50,25 +34,6 @@ function GallerySettings() {
     const reset = Storage.resetButtonPosition();
     showToast(reset ? '悬浮球位置已重置' : '未找到悬浮球按钮', reset ? 'success' : 'warning');
   }, []);
-
-  const handleCoverFallbackChange = useCallback(async (enabled) => {
-    setEnableCoverFallback(enabled);
-    try {
-      const data = await fetch('/prompt_gallery/settings/general', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enableCoverFallback: enabled }),
-      }).then((r) => r.json());
-      if (!data.success) {
-        throw new Error(data.error || '保存失败');
-      }
-      showToast(enabled ? '已启用封面 fallback' : '已关闭封面 fallback', 'success');
-      await ctx.loadData?.();
-    } catch (e) {
-      setEnableCoverFallback(!enabled);
-      showToast('保存设置失败', 'error');
-    }
-  }, [ctx.loadData]);
 
   return h('div', { class: 'settings-panel' }, [
     h('div', { class: 'settings-section-title' }, '图库设置'),
@@ -111,27 +76,6 @@ function GallerySettings() {
       }, [
         h(Icon, { name: 'image', size: 14 }),
         '自适应',
-      ]),
-    ]),
-    h('div', { class: 'settings-divider' }),
-    h('div', { class: 'settings-option-row' }, [
-      h('div', { class: 'settings-option-label' }, '封面 fallback'),
-      h('div', { class: 'settings-option-desc' }, 'Prompt 或组合没有显式封面时，运行时从匹配图片中临时查找封面；数据量大时建议关闭'),
-    ]),
-    h('div', { class: 'settings-radio-group' }, [
-      h('button', {
-        class: 'settings-radio-btn' + (enableCoverFallback ? ' active' : ''),
-        onClick: () => handleCoverFallbackChange(true),
-      }, [
-        h(Icon, { name: 'check-circle', size: 14 }),
-        '启用',
-      ]),
-      h('button', {
-        class: 'settings-radio-btn' + (!enableCoverFallback ? ' active' : ''),
-        onClick: () => handleCoverFallbackChange(false),
-      }, [
-        h(Icon, { name: 'x-circle', size: 14 }),
-        '关闭',
       ]),
     ]),
     h('div', { class: 'settings-divider' }),

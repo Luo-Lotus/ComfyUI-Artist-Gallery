@@ -80,14 +80,6 @@ export async function fetchPrompt(categoryId, value) {
   );
 }
 
-export async function fetchPromptImages(value) {
-  return await requestJson(
-    `/prompt_gallery/prompt_images?value=${encodeURIComponent(value)}`,
-    {},
-    '获取Prompt图片失败',
-  );
-}
-
 export async function setPromptCover(categoryId, value, coverImagePath) {
   return await requestJson(
     `/prompt_gallery/prompts/${encodeURIComponent(categoryId)}/${encodeURIComponent(value)}`,

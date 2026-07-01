@@ -296,6 +296,35 @@ class PromptStorage(SplitJsonStorage):
                 self._write_data(data)
             return moved
 
+    def set_cover_batch(self, updates_by_value: Dict[str, str]) -> int:
+        """
+        批量回填 coverImageId（一次锁 + 一次读写），供封面回填迁移使用。
+        :param updates_by_value: {prompt_value: coverImagePath}
+        :return: 实际更新的 prompt 数量
+
+        线程安全：与其它写入串行化（同一 _lock）。只更新 coverImageId 为空的 prompt，
+        按 value 匹配（跨分类），避免覆盖用户已设置的封面。
+        注意：_lock 不可重入，本方法只使用裸 _read_data/_write_data，不得调用其它加锁方法。
+        """
+        if not updates_by_value:
+            return 0
+        with self._lock:
+            data = self._read_data()
+            changed = 0
+            for prompt in data["prompts"]:
+                if prompt.get("coverImageId"):
+                    continue
+                value = prompt.get("value")
+                if not value:
+                    continue
+                cover = updates_by_value.get(value)
+                if cover:
+                    prompt["coverImageId"] = cover
+                    changed += 1
+            if changed:
+                self._write_data(data)
+            return changed
+
     def update_prompt_by_id(self, prompt_id: str, **kwargs) -> bool:
         """
         更新Prompt信息（使用 ID，兼容旧版本）

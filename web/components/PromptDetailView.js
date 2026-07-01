@@ -74,6 +74,7 @@ export function PromptDetailView() {
       onDeleteSuccess: handleDeleteSuccess,
       cardSize: ctx.cardSize,
       cardLayoutMode: ctx.cardLayoutMode,
+      onGroupedData: ctx.setCurrentPromptGroups,
       openLightbox: ctx.openLightbox,
       imageFields: ctx.imageFields,
       groupByField: ctx.groupByField,

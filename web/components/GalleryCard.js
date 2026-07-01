@@ -29,7 +29,7 @@ export function GalleryCard({
 }) {
   const [copied, setCopied] = useState(false);
   const isFav = favorites.has(prompt.value);
-  const hasImages = prompt.imageCount > 0;
+  const hasImages = !!prompt.coverImagePath;
   const { showContextMenu } = useContextMenu();
 
   // 生成选择键（用于多选）
@@ -131,11 +131,6 @@ export function GalleryCard({
             { class: 'gallery-card-value-tag', title: value },
             value,
           ),
-        h(
-          'span',
-          { class: 'gallery-card-count-tag' },
-          `${prompt.imageCount}张`,
-        ),
       ]),
     ]);
   };

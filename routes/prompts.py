@@ -5,22 +5,11 @@ from pathlib import Path
 from aiohttp import web
 import server
 from ..storage import get_storage
-from ._utils import is_remote_path
 from ._delete_utils import delete_prompt_cascade
-from ._image_index import build_prompt_string_index, count_existing_images, image_info_from_mapping
 from ._prompt_cover import ensure_prompt_cover
-from ._cover_fallback import cover_fallback_enabled
 
 
 # ============ Prompt CRUD API ============
-
-def _prompt_image_counts(mapping_storage, prompts, output_dir):
-    values = [p.get("value") for p in prompts if p.get("value")]
-    prompt_mapping_index = build_prompt_string_index(mapping_storage, values)
-    return {
-        value: count_existing_images(mappings, output_dir)
-        for value, mappings in prompt_mapping_index.items()
-    }
 
 @server.PromptServer.instance.routes.get("/prompt_gallery/prompts")
 async def get_prompts(request):
@@ -33,11 +22,8 @@ async def get_prompts(request):
         limit = min(int(request.query.get("limit", "100")), 200)
         query = search.lower()
 
-        import folder_paths
-
-        prompt_storage, mapping_storage, _, _ = get_storage()
+        prompt_storage, _, _, _ = get_storage()
         all_prompts = prompt_storage.get_all_prompts()
-        image_counts = _prompt_image_counts(mapping_storage, all_prompts, folder_paths.get_output_directory())
 
         results = []
         for p in all_prompts:
@@ -48,7 +34,6 @@ async def get_prompts(request):
                     "value": p.get("value"),
                     "name": p.get("name"),
                     "categoryId": p.get("categoryId", "root"),
-                    "imageCount": image_counts.get(p.get("value"), 0),
                     "createdAt": p.get("createdAt", 0),
                 })
                 if len(results) >= limit:
@@ -68,11 +53,8 @@ async def batch_resolve_prompts(request):
         if not keys:
             return web.json_response({"prompts": {}})
 
-        import folder_paths
-
-        prompt_storage, mapping_storage, _, _ = get_storage()
+        prompt_storage, _, _, _ = get_storage()
         all_prompts = prompt_storage.get_all_prompts()
-        image_counts = _prompt_image_counts(mapping_storage, all_prompts, folder_paths.get_output_directory())
 
         # 构建 categoryId:value -> prompt 的索引
         prompt_index = {}
@@ -89,7 +71,6 @@ async def batch_resolve_prompts(request):
                     "name": p.get("name"),
                     "categoryId": p.get("categoryId", "root"),
                     "alias": p.get("alias", ""),
-                    "imageCount": image_counts.get(p.get("value"), 0),
                     "createdAt": p.get("createdAt", 0),
                     "metadata": p.get("metadata", {}),
                 }
@@ -108,16 +89,13 @@ async def batch_resolve(request):
         category_ids = data.get("categories", [])
         combination_ids = data.get("combinations", [])
 
-        import folder_paths
-
-        prompt_storage, mapping_storage, category_storage, combination_storage = get_storage()
+        prompt_storage, _, category_storage, combination_storage = get_storage()
 
         result = {}
 
         # 解析 prompts（支持 "categoryId:value" 和纯 "value" 两种格式）
         if prompt_keys:
             all_prompts = prompt_storage.get_all_prompts()
-            image_counts = _prompt_image_counts(mapping_storage, all_prompts, folder_paths.get_output_directory())
             prompt_index = {}
             value_index = {}  # value -> [prompt, ...]（同名 prompt 可能属于不同分类）
             for p in all_prompts:
@@ -142,7 +120,6 @@ async def batch_resolve(request):
                         "name": p.get("name"),
                         "categoryId": p.get("categoryId", "root"),
                         "alias": p.get("alias", ""),
-                        "imageCount": image_counts.get(p.get("value"), 0),
                         "createdAt": p.get("createdAt", 0),
                         "metadata": p.get("metadata", {}),
                     }
@@ -189,77 +166,47 @@ async def batch_resolve(request):
 async def search_prompts(request):
     """跨分类搜索 Prompt 和 Combination"""
     try:
-        import folder_paths
-        from pathlib import Path as P
-
         q = request.query.get("q", "").strip()
         if not q:
             return web.json_response({"prompts": [], "combinations": [], "totalCount": 0})
 
         limit = min(int(request.query.get("limit", "50")), 100)
         query = q.lower()
-        output_dir = folder_paths.get_output_directory()
-        enable_cover_fallback = cover_fallback_enabled()
 
-        prompt_storage, mapping_storage, _, combination_storage = get_storage()
+        prompt_storage, _, _, combination_storage = get_storage()
 
-        # 搜索 Prompts
+        # 搜索 Prompts（封面只取持久化 coverImageId）
         all_prompts = prompt_storage.get_all_prompts()
         all_combinations = combination_storage.get_all_combinations()
-        prompt_values = [p.get("value") for p in all_prompts if p.get("value")]
-        for c in all_combinations:
-            prompt_values.extend([p for p in c.get("prompts", []) if p])
-        prompt_mapping_index = build_prompt_string_index(mapping_storage, prompt_values)
 
         matched_prompts = []
         for p in all_prompts:
             if (query in (p.get("value") or "").lower()
                     or query in (p.get("name") or "").lower()
                     or query in (p.get("alias") or "").lower()):
-                # 计算 coverImagePath
-                cover_path = p.get("coverImageId")
-                if not cover_path and enable_cover_fallback:
-                    mappings = prompt_mapping_index.get(p.get("value"), [])
-                    for m in mappings:
-                        image_path = m.get("imagePath")
-                        if is_remote_path(image_path, m.get("type", "")) or (P(output_dir) / image_path).exists():
-                            cover_path = image_path
-                            break
                 matched_prompts.append({
                     "value": p.get("value"),
                     "name": p.get("name"),
                     "categoryId": p.get("categoryId", "root"),
-                    "coverImagePath": cover_path,
-                    "imageCount": count_existing_images(prompt_mapping_index.get(p.get("value"), []), output_dir),
+                    "coverImagePath": p.get("coverImageId"),
                     "createdAt": p.get("createdAt", 0),
                     "metadata": p.get("metadata", {}),
                 })
                 if len(matched_prompts) >= limit:
                     break
 
-        # 搜索 Combinations
+        # 搜索 Combinations（封面只取持久化 coverImageId）
         matched_combinations = []
         for c in all_combinations:
             if (query in (c.get("name") or "").lower()
                     or query in (c.get("outputContent") or "").lower()):
-                # 计算 coverImagePath
-                cover_path = c.get("coverImageId")
-                if not cover_path and enable_cover_fallback:
-                    for prompt_name in c.get("prompts", []):
-                        for m in prompt_mapping_index.get(prompt_name, []):
-                            image_path = m.get("imagePath")
-                            if is_remote_path(image_path, m.get("type", "")) or (P(output_dir) / image_path).exists():
-                                cover_path = image_path
-                                break
-                        if cover_path:
-                            break
                 matched_combinations.append({
                     "id": c.get("id"),
                     "name": c.get("name"),
                     "categoryId": c.get("categoryId", "root"),
                     "prompts": c.get("prompts", []),
                     "outputContent": c.get("outputContent", ""),
-                    "coverImagePath": cover_path,
+                    "coverImagePath": c.get("coverImageId"),
                     "metadata": c.get("metadata", {}),
                 })
                 if len(matched_combinations) >= limit:
@@ -637,44 +584,3 @@ async def copy_prompt(request):
         })
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
-
-
-# ============ Prompt Images API (detail view) ============
-
-@server.PromptServer.instance.routes.get("/prompt_gallery/prompt_images")
-async def get_prompt_images_by_composite(request):
-    """获取Prompt的全部图片（详情视图用，使用 query 参数避免路由冲突）"""
-    try:
-        import folder_paths
-
-        output_dir = Path(folder_paths.get_output_directory())
-        value = request.query.get("value", "")
-
-        if not value:
-            return web.json_response({"error": "缺少Prompt值"}, status=400)
-
-        _, mapping_storage, _, _ = get_storage()
-        mappings = mapping_storage.get_mappings_by_prompt(value)
-
-        images = []
-        for mapping in mappings:
-            image_path = mapping.get("imagePath")
-            if is_remote_path(image_path, mapping.get("type", "")):
-                images.append(image_info_from_mapping(mapping, output_dir))
-                continue
-            full_path = output_dir / image_path
-            if full_path.exists():
-                try:
-                    images.append(image_info_from_mapping(mapping, output_dir))
-                except Exception:
-                    pass
-
-        images.sort(key=lambda x: x["path"].lower())
-
-        return web.json_response({
-            "success": True,
-            "images": images,
-            "totalCount": len(images),
-        })
-    except Exception as e:
-        return web.json_response({"success": False, "error": str(e)}, status=500)

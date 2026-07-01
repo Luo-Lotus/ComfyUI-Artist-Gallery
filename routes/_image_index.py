@@ -14,17 +14,6 @@ def build_prompt_string_index(mapping_storage, prompt_values):
     return mapping_storage.build_prompt_index_for_values(prompt_values)
 
 
-def first_existing_image(mappings, output_dir):
-    for mapping in mappings:
-        if image_exists(mapping, output_dir):
-            return mapping.get("imagePath")
-    return None
-
-
-def count_existing_images(mappings, output_dir):
-    return sum(1 for mapping in mappings if image_exists(mapping, output_dir))
-
-
 def image_info_from_mapping(mapping, output_dir, prompts=None):
     image_path = mapping.get("imagePath")
     mapping_type = mapping.get("type", "local")

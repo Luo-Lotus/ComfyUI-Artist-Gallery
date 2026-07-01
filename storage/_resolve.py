@@ -92,6 +92,107 @@ def _resolve_storage_dir() -> Path:
     return new_storage_dir
 
 
+# 启动迁移版本号：新增/修改迁移时 +1，旧标记会被判定为过期而重跑一次。
+# 用标记文件保证这些“只需运行一次”的迁移不会在每次启动都重新解析全部数据。
+_STARTUP_MIGRATION_VERSION = 1
+
+
+def _run_startup_migrations(storage_dir: Path) -> None:
+    """
+    启动时执行的一次性数据迁移。
+
+    设计要点：
+    1. 所有迁移都是同步的，会阻塞事件循环，因此这里只放轻量、必要的迁移。
+    2. 用版本标记文件保证只运行一次，避免每次启动都重新 parse 数百 MB 的分片数据。
+    3. ⚠️ 绝不在此同步运行 migrate_prompt_covers_from_prompt_string：
+       该迁移若用旧实现会对每个无封面的 Prompt 在全部图片映射中做子串匹配，
+       复杂度 O(prompts × mappings)。当数据量大时（如 30 万 Prompt × 10 万映射）
+       会在事件循环里同步阻塞数十分钟甚至更久，导致 ComfyUI 页面一直卡死、
+       所有请求（含 /）一直挂起。封面回填改由 _maybe_launch_cover_backfill 在后台
+       daemon 线程用 ahocorasick 高性能完成（O(总文本长度)，不阻塞页面）。
+    """
+    import time as _time
+
+    marker = storage_dir / ".migration_version"
+    try:
+        if marker.exists():
+            with open(marker, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+            if content and int(content) >= _STARTUP_MIGRATION_VERSION:
+                print(f"[prompt_gallery] 启动迁移已跳过（标记版本 {content}）")
+                return
+    except Exception:
+        pass
+
+    def _run(name, fn):
+        t0 = _time.time()
+        try:
+            fn(storage_dir)
+            print(f"[prompt_gallery] 迁移 {name} 完成（{_time.time() - t0:.2f}s）")
+        except Exception as e:
+            print(f"[prompt_gallery] 迁移 {name} 失败（{_time.time() - t0:.2f}s）: {e}")
+
+    _run("to_prompt_schema", migrate_to_prompt_schema)
+    _run("image_schema", migrate_image_schema)
+    _run("prompt_string_image_index", migrate_prompt_string_image_index)
+
+    try:
+        with open(marker, "w", encoding="utf-8") as f:
+            f.write(str(_STARTUP_MIGRATION_VERSION))
+    except Exception as e:
+        print(f"[prompt_gallery] 写入迁移标记失败: {e}")
+
+
+# 封面回填版本号：仅用于一次性补齐无封面 Prompt 的 coverImageId。
+# 与 _STARTUP_MIGRATION_VERSION 相互独立。bump 时旧标记会触发重跑。
+_COVER_BACKFILL_VERSION = 1
+
+
+def _maybe_launch_cover_backfill(prompt_storage, mapping_storage, combination_storage, storage_dir: Path) -> None:
+    """
+    首次启动时在后台 daemon 线程里跑一次高性能封面回填（ahocorasick）。
+
+    设计要点：
+    - 不阻塞 get_storage() / 事件循环（页面加载不受影响）。
+    - 用 .cover_backfill_version 标记保证只跑一次；失败不写标记、下次启动重试。
+    - 回填通过 PromptStorage.set_cover_batch 一次锁读写完成，与并发编辑串行、不覆盖已设封面。
+    - 不调用 clear_all_caches()：set_cover_batch→_write_data→_invalidate_cache 已在锁内
+      失效 prompt 缓存，后续请求自然读到新封面。
+    """
+    marker = storage_dir / ".cover_backfill_version"
+    try:
+        if marker.exists():
+            with open(marker, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+            if content and int(content) >= _COVER_BACKFILL_VERSION:
+                return
+    except Exception:
+        pass
+
+    def _worker():
+        try:
+            import folder_paths
+            output_dir = Path(folder_paths.get_output_directory())
+        except Exception:
+            output_dir = None
+        try:
+            print("[prompt_gallery] 封面回填开始（后台线程，首次启动仅一次）")
+            result = migrate_prompt_covers_from_prompt_string(storage_dir, output_dir)
+            print(f"[prompt_gallery] 封面回填完成: {result.get('message')}")
+            try:
+                with open(marker, "w", encoding="utf-8") as f:
+                    f.write(str(_COVER_BACKFILL_VERSION))
+            except Exception as e:
+                print(f"[prompt_gallery] 写入封面回填标记失败: {e}")
+        except Exception as e:
+            import traceback
+            print(f"[prompt_gallery] 封面回填失败（将在下次启动重试）: {e}")
+            traceback.print_exc()
+
+    t = threading.Thread(target=_worker, name="pg-cover-backfill", daemon=True)
+    t.start()
+
+
 def get_storage() -> Tuple[PromptStorage, ImageMappingStorage, CategoryStorage, CombinationStorage]:
     """获取存储实例（懒加载单例，首次调用时初始化，后续返回缓存实例）"""
     global _storage_instances
@@ -105,32 +206,8 @@ def get_storage() -> Tuple[PromptStorage, ImageMappingStorage, CategoryStorage, 
 
         storage_dir = _resolve_storage_dir()
 
-        # 迁移只在首次初始化时运行
-        try:
-            migrate_to_prompt_schema(storage_dir)
-        except Exception as e:
-            print(f"Warning: Failed to migrate to prompt schema: {e}")
-
-        try:
-            migrate_image_schema(storage_dir)
-        except Exception as e:
-            print(f"Warning: Failed to migrate image schema: {e}")
-
-        try:
-            migrate_prompt_string_image_index(storage_dir)
-        except Exception as e:
-            print(f"Warning: Failed to migrate promptString image index: {e}")
-
-        try:
-            output_dir = None
-            try:
-                import folder_paths
-                output_dir = Path(folder_paths.get_output_directory())
-            except Exception:
-                output_dir = None
-            migrate_prompt_covers_from_prompt_string(storage_dir, output_dir)
-        except Exception as e:
-            print(f"Warning: Failed to migrate prompt covers: {e}")
+        # 启动迁移（带版本标记，只跑一次；排除了会导致卡死的 cover 迁移）
+        _run_startup_migrations(storage_dir)
 
         prompt_storage = PromptStorage(storage_dir)
         mapping_storage = ImageMappingStorage(storage_dir)
@@ -144,6 +221,10 @@ def get_storage() -> Tuple[PromptStorage, ImageMappingStorage, CategoryStorage, 
             print(f"Warning: Failed to migrate prompt data: {e}")
 
         _storage_instances = (prompt_storage, mapping_storage, category_storage, combination_storage)
+
+        # 首次启动在后台线程补齐无封面 Prompt 的 coverImageId（不阻塞，标记文件保证只跑一次）。
+        _maybe_launch_cover_backfill(prompt_storage, mapping_storage, combination_storage, storage_dir)
+
         return _storage_instances
 
 

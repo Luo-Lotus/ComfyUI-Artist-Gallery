@@ -51,7 +51,7 @@ export function useFilteredPrompts(data, searchQuery, sortBy, sortOrder, showFav
       if (sortBy === 'name') {
         comparison = a.value.localeCompare(b.value, 'zh-CN');
       } else if (sortBy === 'count' || sortBy === 'image_count') {
-        comparison = a.imageCount - b.imageCount;
+        comparison = (a.imageCount || 0) - (b.imageCount || 0);
       } else if (sortBy === 'time' || sortBy === 'created_at') {
         comparison = (a.maxTime || 0) - (b.maxTime || 0);
       }

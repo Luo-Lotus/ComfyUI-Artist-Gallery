@@ -32,8 +32,16 @@ class SplitJsonStorage:
         if primary.exists():
             sources.append(primary)
         for f in sorted(self.storage_dir.glob(self.glob_pattern)):
-            if f.resolve() != primary.resolve() and f.name not in disabled:
-                sources.append(f)
+            if f.resolve() == primary.resolve():
+                continue
+            if f.name in disabled:
+                continue
+            # comfy_output*.images.json 是系统外导入、仅历史视图用的文件，
+            # 与 prompt 无关，不参与 prompt 关联/封面等解析；
+            # 跳过以避免每次读取都 parse 这类超大分片。历史视图按需单独读取。
+            if f.name.startswith("comfy_output"):
+                continue
+            sources.append(f)
         return sources
 
     def _has_split_files(self) -> bool:

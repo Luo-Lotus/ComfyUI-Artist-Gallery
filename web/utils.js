@@ -229,11 +229,6 @@ export async function copyPrompt(categoryId, value, targetCategoryId, newValue) 
   return await apiCopyPrompt(categoryId, value, targetCategoryId, newValue);
 }
 
-export async function fetchPromptImages(value) {
-  const { fetchPromptImages: apiFetchPromptImages } = await import('./services/promptApi.js');
-  return await apiFetchPromptImages(value);
-}
-
 export async function setPromptCover(categoryId, value, coverImagePath) {
   const { setPromptCover: apiSetPromptCover } = await import('./services/promptApi.js');
   return await apiSetPromptCover(categoryId, value, coverImagePath);
@@ -369,15 +364,6 @@ export async function moveCombination(id, targetCategoryId) {
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || '移动组合失败');
-  }
-  return await response.json();
-}
-
-export async function fetchCombinationImages(id) {
-  const response = await fetch(`/prompt_gallery/combinations/${encodeURIComponent(id)}/images`);
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '获取组合图片失败');
   }
   return await response.json();
 }

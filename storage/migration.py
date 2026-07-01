@@ -714,8 +714,9 @@ def _migration_image_exists(mapping: dict, output_dir: Path | None) -> bool:
     return (output_dir / image_path).exists()
 
 
-def migrate_prompt_covers_from_prompt_string(storage_dir: Path, output_dir: Path | None = None) -> dict:
+def _migrate_covers_legacy(storage_dir: Path, output_dir: Path | None = None) -> dict:
     """
+    [legacy] O(P×M) 封面回填——仅在 ahocorasick 不可用时作为兜底。
     为没有 coverImageId 的 Prompt 和组合补封面：
     - Prompt 从 images*.json 的 promptString 按字符串包含匹配 Prompt value
     - 组合从成员 Prompt value 匹配图片
@@ -833,4 +834,137 @@ def migrate_prompt_covers_from_prompt_string(storage_dir: Path, output_dir: Path
         "success": True,
         "message": f"Prompt/组合封面迁移完成: files={changed_files}, prompts={changed_prompts}, combinations={changed_combinations}",
         "migrated": changed_files > 0,
+    }
+
+
+def _collect_cover_image_mappings(storage_dir: Path, output_dir: Path | None) -> list:
+    """读取 images*.json 中的映射（排除 comfy_output*.images.json 与不存在/无 promptString 的图片）。"""
+    main_images = storage_dir / "images.json"
+    image_files = []
+    if main_images.exists():
+        image_files.append(main_images)
+    for f in sorted(storage_dir.glob("*.images.json")):
+        if f.resolve() == main_images.resolve():
+            continue
+        if f.name.startswith("comfy_output"):  # 与 storage glob 一致：忽略系统外导入文件
+            continue
+        image_files.append(f)
+
+    mappings = []
+    for file_path in image_files:
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            for mapping in data.get("mappings", []):
+                if (mapping.get("promptString") or "") and _migration_image_exists(mapping, output_dir):
+                    mappings.append(mapping)
+        except Exception as e:
+            print(f"[Migration-PromptCover] 读取 {file_path.name} 失败: {e}")
+    return mappings
+
+
+def _collect_coverless_prompt_values(storage_dir: Path) -> set:
+    """收集所有没有 coverImageId 的 prompt value（去重）。"""
+    values = set()
+    main_prompts = storage_dir / "prompts.json"
+    prompt_files = []
+    if main_prompts.exists():
+        prompt_files.append(main_prompts)
+    for f in sorted(storage_dir.glob("*.prompts.json")):
+        if f.resolve() != main_prompts.resolve():
+            prompt_files.append(f)
+    for file_path in prompt_files:
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            for prompt in data.get("prompts", []):
+                if prompt.get("coverImageId"):
+                    continue
+                value = prompt.get("value")
+                if value:
+                    values.add(value)
+        except Exception as e:
+            print(f"[Migration-PromptCover] 读取 {file_path.name} 失败: {e}")
+    return values
+
+
+def migrate_prompt_covers_from_prompt_string(storage_dir: Path, output_dir: Path | None = None) -> dict:
+    """
+    为没有 coverImageId 的 Prompt 和组合补封面（高性能版）。
+
+    用 ahocorasick 在所有图片 promptString 上单次扫描，匹配「无封面 prompt value」，
+    取 fileInfo.createdAt 最大的图片作为 coverImageId，经 PromptStorage.set_cover_batch
+    一次写回；组合从成员 value 取最新封面。复杂度 O(总文本长度)，较旧 O(P×M) 实现快数万倍。
+    已有封面的记录不修改；ahocorasick 不可用时回退到 _migrate_covers_legacy。
+    """
+    try:
+        import ahocorasick
+    except ImportError:
+        print("[Migration-PromptCover] ahocorasick 不可用，回退到 O(P×M) 实现")
+        return _migrate_covers_legacy(storage_dir, output_dir)
+
+    mappings = _collect_cover_image_mappings(storage_dir, output_dir)
+    coverless_values = _collect_coverless_prompt_values(storage_dir)
+
+    if not mappings or not coverless_values:
+        return {
+            "success": True,
+            "message": f"Prompt/组合封面迁移完成: prompts=0, combinations=0 (mappings={len(mappings)}, coverless={len(coverless_values)})",
+            "migrated": False,
+        }
+
+    # 1. 用无封面 value 建自动机（小写、长度>=2，避免单字符误匹配几乎每条 promptString）
+    automaton = ahocorasick.Automaton()
+    for value in coverless_values:
+        v_low = value.lower()
+        if len(v_low) >= 2:
+            automaton.add_word(v_low, value)
+    automaton.make_automaton()
+
+    # 2. 单次扫描所有映射，按 createdAt 跟踪每个 value 的最新封面
+    def sort_key(m):
+        return (m.get("fileInfo") or {}).get("createdAt") or 0
+
+    best_by_value: dict = {}
+    for mapping in mappings:
+        ps = (mapping.get("promptString") or "").lower()
+        if not ps:
+            continue
+        seen_here = set()
+        for _end, value in automaton.iter(ps):
+            if value in seen_here:
+                continue
+            seen_here.add(value)
+            cur = best_by_value.get(value)
+            if cur is None or sort_key(mapping) > sort_key(cur):
+                best_by_value[value] = mapping
+
+    covers_by_value = {v: m.get("imagePath") for v, m in best_by_value.items() if m.get("imagePath")}
+
+    # 3. 经 storage 一次写回 prompt 封面（线程安全、与并发编辑串行）
+    from ._resolve import get_storage
+    prompt_storage, _, _, combination_storage = get_storage()
+    changed_prompts = prompt_storage.set_cover_batch(covers_by_value) if covers_by_value else 0
+
+    # 4. 组合（数量少）：取成员 value 中最新封面
+    changed_combinations = 0
+    if covers_by_value:
+        for comb in combination_storage.get_all_combinations():
+            if comb.get("coverImageId"):
+                continue
+            best = None
+            for member in comb.get("prompts", []) or []:
+                m = best_by_value.get(member)
+                if m is None:
+                    continue
+                if best is None or sort_key(m) > sort_key(best):
+                    best = m
+            if best and best.get("imagePath"):
+                combination_storage.update_combination(comb.get("id"), coverImageId=best.get("imagePath"))
+                changed_combinations += 1
+
+    return {
+        "success": True,
+        "message": f"Prompt/组合封面迁移完成: prompts={changed_prompts}, combinations={changed_combinations}",
+        "migrated": changed_prompts > 0 or changed_combinations > 0,
     }

@@ -135,6 +135,7 @@ export function ImageGroupView({
   customFilters = null,
   includeComfyOutput = false,
   onDataLoaded,
+  onGroupedData,
   getContextMenuItems,
   showContextMenu,
   selectionMode = false,
@@ -211,14 +212,18 @@ export function ImageGroupView({
           setVisibleRange({ start: 0, end: 0 });
           setCurrentGroupIndex(0);
           if (onDataLoaded) onDataLoaded(result.totalImages);
+          if (onGroupedData) onGroupedData(result.groups || []);
+        } else {
+          if (onGroupedData) onGroupedData([]);
         }
       } catch (err) {
         showToast('加载图片失败: ' + err.message, 'error');
+        if (onGroupedData) onGroupedData([]);
       } finally {
         setLoading(false);
       }
     },
-    [promptFilter, promptFilters, customFilters, includeComfyOutput, groupByField, onDataLoaded],
+    [promptFilter, promptFilters, customFilters, includeComfyOutput, groupByField, onDataLoaded, onGroupedData],
   );
 
   // 首次挂载、filter 变化或 searchQuery 变化时加载（search 增加 300ms debounce）
@@ -247,6 +252,17 @@ export function ImageGroupView({
     const { start, end } = visibleRange;
     return groups.slice(start, end + 1);
   }, [groups, visibleRange]);
+
+  // 视口内全部图片（打平）+ 每组起始偏移，供 Lightbox 索引用；提到 useMemo 避免逐项重算
+  const allVisibleImages = useMemo(
+    () => visibleGroups.flatMap((g) => g.images || []),
+    [visibleGroups],
+  );
+  const groupOffsets = useMemo(() => {
+    const offsets = [0];
+    for (const g of visibleGroups) offsets.push(offsets[offsets.length - 1] + (g.images?.length || 0));
+    return offsets;
+  }, [visibleGroups]);
 
   const groupCountMap = useMemo(() => {
     const map = {};
@@ -320,11 +336,7 @@ export function ImageGroupView({
   // ============ 图片渲染 ============
   const renderImageItem = useCallback(
     (img, imgIndex, groupIndex) => {
-      let flatIndex = 0;
-      for (let i = 0; i < groupIndex; i++) flatIndex += visibleGroups[i].images.length;
-      flatIndex += imgIndex;
-
-      const allVisibleImages = visibleGroups.flatMap((g) => g.images);
+      const flatIndex = groupOffsets[groupIndex] + imgIndex;
       const imgKey = `image:${img.path}`;
       const isSelected = selectedItems && selectedItems.has(imgKey);
 
@@ -374,7 +386,7 @@ export function ImageGroupView({
         }),
       );
     },
-    [visibleGroups, selectionMode, selectedItems, onSelectItem, openLightbox, lightboxName, getContextMenuItems, showContextMenu, handleDeleteAndReload, cardLayoutMode],
+    [allVisibleImages, groupOffsets, selectionMode, selectedItems, onSelectItem, openLightbox, lightboxName, getContextMenuItems, showContextMenu, handleDeleteAndReload, cardLayoutMode],
   );
 
   // ============ Loading / Empty ============

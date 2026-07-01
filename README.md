@@ -18,7 +18,7 @@
 - **随机/循环模式** - 每个分区可独立配置随机抽取或循环输出
 - **分类浏览** - 按分类层级浏览Prompt，支持面包屑导航
 - **组合系统** - 将多个Prompt组合为一个选择单元，支持封面图和自动创建
-- **封面图系统** - 每个Prompt和组合支持设置封面图，图库列表延迟加载图片详情
+- **封面图系统** - 每个 Prompt 和组合支持设置封面图（`coverImageId`）；列表期只读封面、不做匹配，首次启动在后台一次性回填历史 Prompt 封面，图片详情按需延迟加载
 - **自动创建组合** - 保存图片时可自动根据选中Prompt创建组合（每个分区独立配置，可指定保存到的分类）
 - **自动扫描** - 自动检测 ComfyUI output 目录中匹配命名规则的图片
 - **拖拽操作** - 支持将Prompt和分类拖拽到不同分区
@@ -55,6 +55,22 @@ git clone <repository-url> prompt_gallery
 ```
 
 然后重启 ComfyUI。
+
+### 安装 Python 依赖
+
+本插件依赖 `pyahocorasick`（用于首次启动时在后台高性能回填历史 Prompt 的封面图）。未安装时插件仍可运行，但会自动回退到慢速实现。
+
+- 便携版（`ComfyUI_windows_portable`）：
+
+```bash
+./python_embeded/python.exe -m pip install -r custom_nodes/prompt-gallery/requirements.txt
+```
+
+- 普通环境：
+
+```bash
+pip install -r custom_nodes/prompt-gallery/requirements.txt
+```
 
 ### 验证安装
 
@@ -616,9 +632,13 @@ Lightbox（全屏图片查看器）支持编辑模式，点击图片上方的"�
 
 ### 性能优化
 
-- 图库列表 API 仅返回 `coverImagePath` + `imageCount`（不返回完整图片数组）
-- Prompt图片懒加载（进入详情时才请求）
-- 封面图预览直接使用 `coverImagePath`（无API调用）
+- 列表期接口（`/data`、`/init`、`/batch_resolve`、`/search` 等）只读持久化 `coverImageId`，**不做任何 prompt×mapping 匹配**，避免大数据量下 O(P×M) 卡死事件循环
+- 图片数量改由详情页 `/prompt_images` 返回的图片列表推导，列表 API 不再返回 `imageCount`
+- 图库列表 API 仅返回 `coverImagePath`（不返回完整图片数组）
+- Prompt 图片懒加载（进入详情时才请求）
+- 封面图预览直接使用 `coverImagePath`（无 API 调用）
+- 首次启动在后台 daemon 线程用 `ahocorasick` 一次性高性能回填历史 Prompt 封面（O(总文本长度)，不阻塞页面），`.cover_backfill_version` 标记保证只跑一次
+- 解析映射时忽略 `comfy_output*.images.json`（系统外导入、仅历史视图用），避免每次读取 parse 超大文件
 - `/init` 端点一次性返回分类+Prompt+组合
 - `batchResolve` 端点批量解析混合实体键
 - `useFilteredPrompts` 使用 `useMemo` 优化过滤排序

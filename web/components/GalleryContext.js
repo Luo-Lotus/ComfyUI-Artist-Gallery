@@ -9,7 +9,6 @@ import {
   createCombination as createCombinationApi,
   updateCombination as updateCombinationApi,
   moveCombination as moveCombinationApi,
-  fetchCombinationImages,
   fetchGalleryData,
   exportPrompts,
   exportCategory,
@@ -50,7 +49,8 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
     Storage.saveTheme(newTheme);
   }, []);
   const [viewMode, setViewMode] = useState('gallery');
-  const [currentPrompt, setCurrentPrompt] = useState(null);
+  const [rawCurrentPrompt, setCurrentPrompt] = useState(null);
+  const [currentPromptGroups, setCurrentPromptGroups] = useState(null);
   const [imageSearchQuery, setImageSearchQuery] = useState('');
   const [imageSortBy, setImageSortBy] = useState('name');
   const [imageSortOrder, setImageSortOrder] = useState('asc');
@@ -106,7 +106,8 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
   const [showCombinationDialog, setShowCombinationDialog] = useState(false);
   const [combinationDialogMode, setCombinationDialogMode] = useState('add');
   const [editingCombination, setEditingCombination] = useState(null);
-  const [viewModeCombination, setViewModeCombination] = useState(null);
+  const [rawViewModeCombination, setViewModeCombination] = useState(null);
+  const [combinationGroups, setCombinationGroups] = useState(null);
   const [showCombinationDeleteConfirm, setShowCombinationDeleteConfirm] = useState(false);
   const [combinationToDelete, setCombinationToDelete] = useState(null);
 
@@ -133,6 +134,30 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
     setImageSearchQuery('');
     setImageTotalCount(0);
   }, []);
+
+  // ============ 从 ImageGroupView 上抛的分组数据派生扁平图片列表 ============
+
+  const flatPromptImages = useMemo(
+    () => (currentPromptGroups || []).flatMap((g) => g.images || []),
+    [currentPromptGroups],
+  );
+
+  const flatCombinationImages = useMemo(
+    () => (combinationGroups || []).flatMap((g) => g.images || []),
+    [combinationGroups],
+  );
+
+  // 保持 currentPrompt / viewModeCombination 带有 images 字段，供既有的
+  // filteredPromptImages / useSelection / handleSelectAllInView 等消费者免改
+  const currentPrompt = useMemo(
+    () => rawCurrentPrompt ? { ...rawCurrentPrompt, images: flatPromptImages } : null,
+    [rawCurrentPrompt, flatPromptImages],
+  );
+
+  const viewModeCombination = useMemo(
+    () => rawViewModeCombination ? { ...rawViewModeCombination, images: flatCombinationImages } : null,
+    [rawViewModeCombination, flatCombinationImages],
+  );
 
   // 分类管理
   const categoryMgr = useCategoryManager({
@@ -207,7 +232,7 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
   // ============ 计算值 ============
 
   const filteredPromptImages = useMemo(() => {
-    let images = [...(currentPrompt?.images || [])];
+    let images = [...flatPromptImages];
     if (imageSearchQuery) {
       const q = imageSearchQuery.toLowerCase();
       images = images.filter((img) => {
@@ -225,10 +250,10 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
       return imageSortOrder === 'asc' ? cmp : -cmp;
     });
     return images;
-  }, [currentPrompt?.images, imageSearchQuery, imageSortBy, imageSortOrder]);
+  }, [flatPromptImages, imageSearchQuery, imageSortBy, imageSortOrder]);
 
   const filteredCombinationImages = useMemo(() => {
-    let images = [...(viewModeCombination?.images || [])];
+    let images = [...flatCombinationImages];
     if (imageSearchQuery) {
       const q = imageSearchQuery.toLowerCase();
       images = images.filter((img) => {
@@ -246,7 +271,7 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
       return imageSortOrder === 'asc' ? cmp : -cmp;
     });
     return images;
-  }, [viewModeCombination?.images, imageSearchQuery, imageSortBy, imageSortOrder]);
+  }, [flatCombinationImages, imageSearchQuery, imageSortBy, imageSortOrder]);
 
   const galleryOrderedKeys = useMemo(() => {
     const keys = [];
@@ -302,21 +327,13 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
   );
 
   const handleCardClick = useCallback(
-    async (promptIndex) => {
+    (promptIndex) => {
       const prompt = filteredPrompts[promptIndex];
       setCurrentPrompt(prompt);
+      setCurrentPromptGroups(null);
       setViewMode('prompt');
-      if (!prompt.images || prompt.images.length === 0) {
-        try {
-          const res = await fetch(`/prompt_gallery/prompt_images?value=${encodeURIComponent(prompt.value)}`);
-          const result = await res.json();
-          if (result.success && result.images) {
-            setCurrentPrompt((prev) => (prev === prompt ? { ...prev, images: result.images } : prev));
-          }
-        } catch (err) {
-          console.error('Failed to load prompt images:', err);
-        }
-      }
+      // 图片数据由 PromptDetailView → ImageGroupView fetch /images_grouped 后
+      // 通过 onGroupedData 上抛到 currentPromptGroups，再经 flatPromptImages 派生到 currentPrompt.images
     },
     [filteredPrompts],
   );
@@ -370,19 +387,12 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
   }, [promptToDelete, loadData, categoryMgr]);
 
   // 组合事件
-  const handleCombinationClick = useCallback(async (combination) => {
-    try {
-      const result = await fetchCombinationImages(combination.id);
-      if (result.success) {
-        setViewModeCombination({
-          ...combination,
-          images: result.images,
-        });
-        setViewMode('combination');
-      }
-    } catch (err) {
-      showToast('加载组合图片失败: ' + err.message, 'error');
-    }
+  const handleCombinationClick = useCallback((combination) => {
+    setViewModeCombination(combination);
+    setCombinationGroups(null);
+    setViewMode('combination');
+    // 图片数据由 CombinationDetailView → ImageGroupView fetch /images_grouped 后
+    // 通过 onGroupedData 上抛到 combinationGroups，再经 flatCombinationImages 派生到 viewModeCombination.images
   }, []);
 
   const handleCombinationEdit = useCallback((combination) => {
@@ -648,15 +658,10 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
 
   // 组合详情回调
   const handleCombinationDeleteImageSuccess = useCallback(async () => {
-    if (!viewModeCombination) return;
-    const result = await fetchCombinationImages(viewModeCombination.id);
-    if (result.success) {
-      setViewModeCombination({
-        ...viewModeCombination,
-        images: result.images,
-      });
-    }
-  }, [viewModeCombination]);
+    await loadData();
+    // 图片刷新由 ImageGroupView 自己的 reloadData() 完成（删除回调链已触发，
+    // 会重新 fetch /images_grouped 并经由 onGroupedData 上抛到 combinationGroups）
+  }, [loadData]);
 
   const handleCombinationSetCoverSuccess = useCallback((imagePath) => {
     setViewModeCombination((prev) => ({
@@ -769,24 +774,8 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
         const prompt = result.prompts?.find((a) => a.value === nav.promptName && a.categoryId === targetCategoryId);
         if (prompt) {
           setCurrentPrompt(prompt);
+          setCurrentPromptGroups(null);
           setViewMode('prompt');
-          if (!prompt.images || prompt.images.length === 0) {
-            fetch(`/prompt_gallery/prompt_images?value=${encodeURIComponent(prompt.value)}`)
-              .then((res) => res.json())
-              .then((imgResult) => {
-                if (imgResult.success && imgResult.images) {
-                  setCurrentPrompt((prev) =>
-                    prev?.value === prompt.value
-                      ? {
-                          ...prev,
-                          images: imgResult.images,
-                        }
-                      : prev,
-                  );
-                }
-              })
-              .catch((err) => console.error('Failed to load prompt images:', err));
-          }
         }
       } else if (nav.type === 'combination' && nav.combinationId) {
         const combination = result.combinations?.find((c) => c.id === nav.combinationId);
@@ -809,6 +798,8 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
       setCurrentPrompt,
       viewModeCombination,
       setViewModeCombination,
+      setCurrentPromptGroups,
+      setCombinationGroups,
       currentCategory,
       navigateToGallery,
       navigateToHistory,

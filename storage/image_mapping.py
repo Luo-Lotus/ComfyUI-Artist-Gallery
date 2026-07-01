@@ -36,6 +36,26 @@ class ImageMappingStorage(SplitJsonStorage):
             data = self._read_data()
             return data.get("mappings", [])
 
+    def get_comfy_output_mappings(self) -> List[dict]:
+        """
+        读取 comfy_output*.images.json 中的映射（系统外导入、仅历史视图用）。
+
+        这些文件在 _glob_source_files 中被排除，不参与 prompt 关联/封面解析，
+        因此不会被 get_all_mappings / _read_data 读到。历史视图通过此方法按需读取，
+        独立于 _cache，每次现读（避免常驻数百 MB 缓存）。
+        """
+        results = []
+        for f in sorted(self.storage_dir.glob("comfy_output*.images.json")):
+            try:
+                with open(f, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+                for m in data.get(self.item_key, []):
+                    m["_source_file"] = str(f)
+                    results.append(m)
+            except Exception as e:
+                print(f"[ImageMapping] 读取 {f.name} 失败: {e}")
+        return results
+
     def add_mapping(self, image_path: str, prompt_values: Optional[List[str]] = None,
                     file_info: Optional[dict] = None, prompt_string: str = "",
                     generate_prompt=None, mapping_type: str = "local",

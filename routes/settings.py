@@ -15,8 +15,6 @@ from ..storage._config import (
     toggle_disabled_files,
     get_max_backups,
     set_max_backups,
-    get_enable_cover_fallback,
-    set_enable_cover_fallback,
 )
 from ..storage._resolve import clear_all_caches, _resolve_storage_dir
 from ..storage.backup import BackupManager
@@ -161,33 +159,6 @@ async def update_max_backups(request):
         storage_dir = _resolve_storage_dir()
         set_max_backups(storage_dir, value)
         return web.json_response({"success": True, "maxBackups": max(1, min(20, value))})
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
-
-
-@server.PromptServer.instance.routes.get("/prompt_gallery/settings/general")
-async def get_general_settings(request):
-    try:
-        storage_dir = _resolve_storage_dir()
-        return web.json_response({
-            "success": True,
-            "enableCoverFallback": get_enable_cover_fallback(storage_dir),
-        })
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
-
-
-@server.PromptServer.instance.routes.post("/prompt_gallery/settings/general")
-async def update_general_settings(request):
-    try:
-        data = await request.json()
-        storage_dir = _resolve_storage_dir()
-        if "enableCoverFallback" in data:
-            set_enable_cover_fallback(storage_dir, bool(data.get("enableCoverFallback")))
-        return web.json_response({
-            "success": True,
-            "enableCoverFallback": get_enable_cover_fallback(storage_dir),
-        })
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 

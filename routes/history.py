@@ -63,12 +63,10 @@ async def get_images_grouped(request):
         _, mapping_storage, _, _ = get_storage()
         mappings = mapping_storage.get_all_mappings()
 
-        # 未显式请求时，排除 comfy_output.images.json 中的图片
-        if not include_comfy_output:
-            mappings = [
-                m for m in mappings
-                if "comfy_output.images.json" not in m.get("_source_file", "")
-            ]
+        # comfy_output*.images.json 已在 storage glob 中排除（与 prompt 无关、不参与关联解析）。
+        # 历史视图仅在显式请求时按需追加这些系统外导入的图片。
+        if include_comfy_output:
+            mappings = mappings + mapping_storage.get_comfy_output_mappings()
 
         # 预编译自定义字段分组函数（如果需要）
         group_extract_fn = None
@@ -126,17 +124,31 @@ async def get_images_grouped(request):
                 if skip:
                     continue
 
-            saved_at = mapping.get("fileInfo", {}).get("createdAt", 0)
-            if not saved_at and not remote:
+            file_info = mapping.get("fileInfo", {})
+            saved_at = file_info.get("createdAt", 0)
+            size = file_info.get("size", 0)
+            # 本地文件缺 createdAt 或 size 时 stat 一次补齐两者（避免二次 stat）
+            stat = None
+            if not remote and (not saved_at or not size):
                 try:
-                    saved_at = int(full_path.stat().st_mtime * 1000)
+                    stat = full_path.stat()
                 except Exception:
-                    continue
+                    if not saved_at:
+                        continue  # 无法确定时间戳则跳过（与原逻辑一致）
+                    stat = None
+            if stat is not None:
+                if not saved_at:
+                    saved_at = int(stat.st_mtime * 1000)
+                if not size:
+                    size = stat.st_size
 
             valid_items.append({
                 "path": image_path,
                 "type": mapping.get("type", "local"),
                 "savedAt": saved_at,
+                # mtime 与 savedAt 同值，供前端按时间排序/选择使用（对齐旧 /prompt_images 字段）
+                "mtime": saved_at,
+                "size": size,
                 "prompts": [],
                 "promptString": prompt_string,
             })
