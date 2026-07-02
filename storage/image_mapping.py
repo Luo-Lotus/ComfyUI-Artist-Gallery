@@ -229,6 +229,56 @@ class ImageMappingStorage(SplitJsonStorage):
                 return True
             return False
 
+    def cleanup_missing_local_mappings(self, output_dir: Path, sample_limit: int = 20) -> dict:
+        """
+        删除本地文件已不存在的图片映射。远程图片映射不会被处理。
+        :return: {"removed": int, "scanned": int, "samples": [imagePath, ...], "bySource": {filename: count}}
+        """
+        def is_remote(mapping: dict) -> bool:
+            image_path = mapping.get("imagePath") or ""
+            mapping_type = mapping.get("type", "")
+            return mapping_type == "remote" or image_path.startswith("http://") or image_path.startswith("https://")
+
+        with self._lock:
+            data = self._read_data()
+            mappings = data.get("mappings", [])
+            kept = []
+            removed = 0
+            scanned = 0
+            samples = []
+            by_source = {}
+
+            for mapping in mappings:
+                image_path = mapping.get("imagePath") or ""
+                source_file = mapping.get("_source_file") or str(self.primary_file)
+
+                if is_remote(mapping):
+                    kept.append(mapping)
+                    continue
+
+                scanned += 1
+                exists = bool(image_path) and (Path(output_dir) / image_path).exists()
+                if exists:
+                    kept.append(mapping)
+                    continue
+
+                removed += 1
+                source_name = Path(source_file).name
+                by_source[source_name] = by_source.get(source_name, 0) + 1
+                if len(samples) < sample_limit:
+                    samples.append(image_path or "(empty imagePath)")
+
+            if removed:
+                data["mappings"] = kept
+                self._write_data(data)
+
+            return {
+                "removed": removed,
+                "scanned": scanned,
+                "samples": samples,
+                "bySource": by_source,
+            }
+
     def update_mapping(self, image_path: str, prompt_values: Optional[List[str]] = None,
                        file_info: Optional[dict] = None, prompt_string: Optional[str] = None) -> bool:
         """

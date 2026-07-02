@@ -20,6 +20,7 @@ const MENU_ITEMS = [
 function GallerySettings() {
   const ctx = useGallery();
   const mode = ctx.cardLayoutMode;
+  const [cleaningGhostImages, setCleaningGhostImages] = useState(false);
 
   const handleModeChange = useCallback((newMode) => {
     ctx.setCardLayoutMode(newMode);
@@ -34,6 +35,30 @@ function GallerySettings() {
     const reset = Storage.resetButtonPosition();
     showToast(reset ? '悬浮球位置已重置' : '未找到悬浮球按钮', reset ? 'success' : 'warning');
   }, []);
+
+  const handleCleanupGhostImages = useCallback(async () => {
+    if (cleaningGhostImages) return;
+    if (!confirm('确定要清理幽灵图片映射吗？\n会移除图片文件已不存在的本地映射记录，不会删除任何真实图片文件。')) return;
+
+    setCleaningGhostImages(true);
+    try {
+      const res = await fetch('/prompt_gallery/settings/cleanup_ghost_images', {
+        method: 'POST',
+      }).then(r => r.json());
+
+      if (res.success) {
+        const removed = res.removed || 0;
+        showToast(removed > 0 ? `已清理 ${removed} 条幽灵图片映射` : '没有发现幽灵图片映射', removed > 0 ? 'success' : 'info');
+        await ctx.loadData?.();
+      } else {
+        showToast(res.error || '清理失败', 'error');
+      }
+    } catch (e) {
+      showToast('清理失败', 'error');
+    } finally {
+      setCleaningGhostImages(false);
+    }
+  }, [cleaningGhostImages, ctx.loadData]);
 
   return h('div', { class: 'settings-panel' }, [
     h('div', { class: 'settings-section-title' }, '图库设置'),
@@ -89,6 +114,23 @@ function GallerySettings() {
     }, [
       h(Icon, { name: 'refresh-cw', size: 14 }),
       '重置悬浮球位置',
+    ]),
+    h('div', { class: 'settings-divider' }),
+    h('div', { class: 'settings-option-row' }, [
+      h('div', { class: 'settings-option-label' }, '图片索引维护'),
+      h('div', { class: 'settings-option-desc' }, '移除索引中存在但本地文件已不存在的图片映射'),
+    ]),
+    h('button', {
+      class: 'settings-radio-btn settings-danger-btn',
+      onClick: handleCleanupGhostImages,
+      disabled: cleaningGhostImages,
+    }, [
+      h(Icon, {
+        name: cleaningGhostImages ? 'loader' : 'unlink',
+        size: 14,
+        class: cleaningGhostImages ? 'spin' : '',
+      }),
+      cleaningGhostImages ? '清理中...' : '清理幽灵图片映射',
     ]),
   ]);
 }

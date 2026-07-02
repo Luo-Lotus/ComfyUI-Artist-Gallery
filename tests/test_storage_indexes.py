@@ -73,6 +73,47 @@ def test_image_mapping_prompt_index_invalidates_after_write(tmp_path):
     assert [m["imagePath"] for m in prompt_index["b"]] == ["one.png", "two.png"]
 
 
+def test_cleanup_missing_local_image_mappings_preserves_existing_remote_and_shards(tmp_path):
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    (output_dir / "prompt_gallery").mkdir()
+    (output_dir / "prompt_gallery" / "kept.png").write_bytes(b"ok")
+    (output_dir / "prompt_gallery" / "shard-kept.png").write_bytes(b"ok")
+
+    write_json(tmp_path / "images.json", {
+        "mappings": [
+            {"imagePath": "prompt_gallery/kept.png", "type": "local"},
+            {"imagePath": "prompt_gallery/missing.png", "type": "local"},
+            {"imagePath": "https://example.com/remote.png", "type": "remote"},
+        ],
+    })
+    write_json(tmp_path / "extra.images.json", {
+        "mappings": [
+            {"imagePath": "prompt_gallery/shard-kept.png", "type": "local"},
+            {"imagePath": "prompt_gallery/shard-missing.png", "type": "local"},
+        ],
+    })
+
+    storage = ImageMappingStorage(tmp_path)
+    result = storage.cleanup_missing_local_mappings(output_dir)
+
+    assert result["removed"] == 2
+    assert result["scanned"] == 4
+    assert result["bySource"] == {"images.json": 1, "extra.images.json": 1}
+    assert [m["imagePath"] for m in storage.get_all_mappings()] == [
+        "prompt_gallery/kept.png",
+        "https://example.com/remote.png",
+        "prompt_gallery/shard-kept.png",
+    ]
+    assert json.loads((tmp_path / "images.json").read_text(encoding="utf-8"))["mappings"] == [
+        {"imagePath": "prompt_gallery/kept.png", "type": "local"},
+        {"imagePath": "https://example.com/remote.png", "type": "remote"},
+    ]
+    assert json.loads((tmp_path / "extra.images.json").read_text(encoding="utf-8"))["mappings"] == [
+        {"imagePath": "prompt_gallery/shard-kept.png", "type": "local"},
+    ]
+
+
 def test_batch_move_updates_indexes(tmp_path):
     prompts = PromptStorage(tmp_path)
     prompts.add_prompt("a", category_id="root")

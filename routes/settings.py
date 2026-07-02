@@ -16,7 +16,7 @@ from ..storage._config import (
     get_max_backups,
     set_max_backups,
 )
-from ..storage._resolve import clear_all_caches, _resolve_storage_dir
+from ..storage._resolve import clear_all_caches, _resolve_storage_dir, get_storage
 from ..storage.backup import BackupManager
 
 MAIN_FILES = {"prompts.json", "categories.json", "combinations.json", "images.json"}
@@ -159,6 +159,24 @@ async def update_max_backups(request):
         storage_dir = _resolve_storage_dir()
         set_max_backups(storage_dir, value)
         return web.json_response({"success": True, "maxBackups": max(1, min(20, value))})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+@server.PromptServer.instance.routes.post("/prompt_gallery/settings/cleanup_ghost_images")
+async def cleanup_ghost_image_mappings(request):
+    """清理图片文件已不存在的本地图片映射。"""
+    try:
+        import folder_paths
+
+        output_dir = Path(folder_paths.get_output_directory())
+        _, mapping_storage, _, _ = get_storage()
+        result = mapping_storage.cleanup_missing_local_mappings(output_dir)
+
+        return web.json_response({
+            "success": True,
+            **result,
+        })
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
