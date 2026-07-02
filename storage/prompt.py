@@ -325,6 +325,29 @@ class PromptStorage(SplitJsonStorage):
                 self._write_data(data)
             return changed
 
+    def set_cover_batch_by_key(self, updates_by_key: Dict[tuple, str]) -> int:
+        """
+        批量回填 coverImageId（按 categoryId + value 精确匹配）。
+        :param updates_by_key: {(categoryId, value): coverImagePath}
+        :return: 实际更新的 prompt 数量
+        """
+        if not updates_by_key:
+            return 0
+        with self._lock:
+            data = self._read_data()
+            changed = 0
+            for prompt in data["prompts"]:
+                if prompt.get("coverImageId"):
+                    continue
+                key = (prompt.get("categoryId", "root"), prompt.get("value", ""))
+                cover = updates_by_key.get(key)
+                if cover:
+                    prompt["coverImageId"] = cover
+                    changed += 1
+            if changed:
+                self._write_data(data)
+            return changed
+
     def update_prompt_by_id(self, prompt_id: str, **kwargs) -> bool:
         """
         更新Prompt信息（使用 ID，兼容旧版本）

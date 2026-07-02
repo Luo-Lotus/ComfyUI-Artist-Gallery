@@ -476,65 +476,43 @@ class SaveToGallery:
         return result
 
     @classmethod
-    def _complete_prompt_metadata_async(cls, metadata_json, prompt_string, first_saved_image_path):
-        """后台完成 Prompt 匹配和缺失封面补齐，不阻塞 SaveToGallery 返回。"""
-        if not first_saved_image_path:
-            return
+    def _complete_save_async(cls, pending_mappings, prompt_string, first_saved_image_path):
+        """后台写入图片映射，并完成 Prompt 匹配和缺失封面补齐。"""
         try:
-            import json
+            prompt_storage, mapping_storage, _, _ = get_storage()
 
-            try:
-                metadata = json.loads(metadata_json) if metadata_json else {}
-            except Exception:
-                metadata = {}
+            if pending_mappings:
+                mapping_storage.add_mappings_batch(pending_mappings)
 
-            all_prompts = []
-            selected_prompts = metadata.get("selected_prompts", [])
-            if isinstance(selected_prompts, list):
-                all_prompts.extend(selected_prompts)
+            if not first_saved_image_path:
+                return
 
             matched = cls._match_prompts_from_prompt(prompt_string)
-            if matched:
-                all_prompts.extend(matched)
-
-            seen = set()
-            prompt_infos = []
-            for p in all_prompts:
+            updates_by_key = {}
+            for p in matched:
                 value = p.get("value", "")
                 if not value:
                     continue
-                key = f"{p.get('categoryId', 'root')}:{value}"
-                if key in seen:
-                    continue
-                seen.add(key)
-                prompt_infos.append(p)
+                updates_by_key[(p.get("categoryId", "root"), value)] = first_saved_image_path
 
-            if not prompt_infos:
+            if not updates_by_key:
                 print("[SaveToGallery] 后台匹配未找到已知 Prompt")
                 return
 
-            prompt_storage, _, _, _ = get_storage()
-            updated = 0
-            for prompt_info in prompt_infos:
-                category_id = prompt_info.get("categoryId", "root")
-                value = prompt_info.get("value", "")
-                prompt_obj = prompt_storage.get_prompt(category_id, value)
-                if prompt_obj and not prompt_obj.get("coverImageId"):
-                    prompt_storage.update_prompt(category_id, value, coverImageId=first_saved_image_path)
-                    updated += 1
+            updated = prompt_storage.set_cover_batch_by_key(updates_by_key)
 
-            print(f"[SaveToGallery] 后台匹配完成: prompts={len(prompt_infos)}, covers={updated}")
+            print(f"[SaveToGallery] 后台保存完成: mappings={len(pending_mappings)}, prompts={len(updates_by_key)}, covers={updated}")
         except Exception as e:
-            print(f"[SaveToGallery] 后台匹配失败: {e}")
+            print(f"[SaveToGallery] 后台保存失败: {e}")
             import traceback
             traceback.print_exc()
 
     @classmethod
-    def _schedule_prompt_metadata_completion(cls, metadata_json, prompt_string, first_saved_image_path):
+    def _schedule_save_completion(cls, pending_mappings, prompt_string, first_saved_image_path):
         import threading
         thread = threading.Thread(
-            target=cls._complete_prompt_metadata_async,
-            args=(metadata_json, prompt_string, first_saved_image_path),
+            target=cls._complete_save_async,
+            args=(pending_mappings, prompt_string, first_saved_image_path),
             daemon=True,
         )
         thread.start()
@@ -547,7 +525,6 @@ class SaveToGallery:
                 "prompt_string": ("STRING", {"default": "", "forceInput": True}),
             },
             "optional": {
-                "metadata_json": ("STRING", {"default": "{}", "forceInput": True}),
                 "prefix": ("STRING", {"default": "prompt_gallery/AG"}),
             },
             "hidden": {
@@ -556,11 +533,10 @@ class SaveToGallery:
             }
         }
 
-    def save_image(self, images, metadata_json="{}", prefix="prompt_gallery/AG", prompt_string="", prompt=None, extra_pnginfo=None):
+    def save_image(self, images, prompt_string="", prefix="prompt_gallery/AG", prompt=None, extra_pnginfo=None):
         """
-        保存图片并创建索引；Prompt 匹配和补封面异步执行，不阻塞返回。
+        保存图片；图片索引写入、Prompt 匹配和补封面异步执行，不阻塞返回。
         :param prefix: 保存路径前缀，支持 strftime 时间格式化（如 "gallery/%Y/%m/AG"）
-        :param metadata_json: 由 PromptSelector 输出的 JSON，用于后台补封面
         :param prompt_string: 提示词字符串，必填并写入图片索引
         """
         import folder_paths
@@ -571,9 +547,6 @@ class SaveToGallery:
 
         if not prompt_string or not prompt_string.strip():
             raise ValueError("SaveToGallery 需要连接 prompt_string")
-
-        # 同步阶段只保存图片和 promptString 索引；Prompt 匹配/补封面在返回后后台执行。
-        _, mapping_storage, _, _ = get_storage()
 
         # 解析 prefix：最后一个 / 分割为目录模板和文件名前缀
         prefix = prefix or "prompt_gallery/AG"
@@ -666,14 +639,10 @@ class SaveToGallery:
                 import traceback
                 traceback.print_exc()
 
-        # 批量写入映射关系（一次读写，而非每张图各一次）
         if pending_mappings:
-            mapping_storage.add_mappings_batch(pending_mappings)
+            self._schedule_save_completion(pending_mappings, prompt_string, first_saved_image_path)
 
-        if first_saved_image_path:
-            self._schedule_prompt_metadata_completion(metadata_json, prompt_string, first_saved_image_path)
-
-        print(f"[SaveToGallery] 总共保存了 {saved_count} 张图片")
+        print(f"[SaveToGallery] 总共保存了 {saved_count} 张图片，映射写入已转后台")
         return { "ui": { "images": results } }
 
 

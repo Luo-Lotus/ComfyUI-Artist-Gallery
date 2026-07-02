@@ -23,7 +23,7 @@
 - **自动扫描** - 自动检测 ComfyUI output 目录中匹配命名规则的图片
 - **拖拽操作** - 支持将Prompt和分类拖拽到不同分区
 - **格式模板** - 自定义输出格式，支持 `{content}` 和 `{random(min,max,step)}` 变量
-- **图片保存** - 将生成的图片保存到画廊并关联Prompt信息，支持通过 `metadata_json` 或 `prompt_string` 两种方式关联Prompt；即使未匹配到任何Prompt也会保存图片
+- **图片保存** - 将生成的图片保存到画廊并关联Prompt信息，通过 `prompt_string` 自动匹配已知Prompt；即使未匹配到任何Prompt也会保存图片
 - **快速保存Prompt** - 将工作流中的文本直接保存为新的Prompt条目，支持自动更新已有的同名Prompt
 - **从分类读取Prompt** - 按分类批量读取Prompt内容，支持选取所有、取最新/最旧N个、随机取N个等模式
 - **分类画廊控制** - 分类支持"禁止保存到画廊"设置，该分类及其子分类下的Prompt不参与 `prompt_string` 自动匹配
@@ -130,12 +130,10 @@ pip install -r custom_nodes/prompt-gallery/requirements.txt
 - **类型**: 输出节点
 - **输入**:
     - `images`: ComfyUI 图片张量
-    - `metadata_json`: Prompt元数据 JSON（可连接 PromptSelector 的输出，优先级高）
     - `filename_prefix`: 文件名前缀（默认 `AG`）
     - `prompt_string`: 提示词字符串（自动匹配已知Prompt名，无需连接 PromptSelector）
 - **输出**: 图片保存到 `output/prompt_gallery/` 目录
 - **说明**:
-    - 两者都提供时，优先使用 `metadata_json`
     - `prompt_string` 模式会自动从提示词中匹配已知Prompt名（不区分大小写，循环子串匹配），支持带格式前缀的名称（如 `@mike`、`(sarah:1.2)` 等）
     - 即使未匹配到任何Prompt，图片也会保存（关联的Prompt列表为空）
     - 设置了"禁止保存到画廊"的分类及其子分类下的Prompt不参与匹配
@@ -216,22 +214,10 @@ pip install -r custom_nodes/prompt-gallery/requirements.txt
 
 支持两种方式关联Prompt：
 
-**方式一：通过Prompt选择器（推荐）**
-
-1. 在工作流中添加 **保存到画廊** 节点
-2. 将图片生成节点的输出连接到 `images` 输入
-3. 将Prompt选择节点的 `metadata_json` 输出连接到 `metadata_json` 输入
-4. 图片将保存到 `output/prompt_gallery/` 并自动关联Prompt信息
-5. 如果分区启用了自动创建组合，保存时会自动创建组合
-
-**方式二：通过提示词字符串**
-
 1. 在工作流中添加 **保存到画廊** 节点
 2. 将图片生成节点的输出连接到 `images` 输入
 3. 将包含Prompt名称的文本连接到 `prompt_string` 输入（无需连接Prompt选择器）
 4. 插件会自动从提示词中匹配已知Prompt名，并关联到保存的图片
-
-> 两种方式可同时使用，同时提供时优先使用 `metadata_json`。
 
 ### 快速保存Prompt
 
