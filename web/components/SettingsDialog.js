@@ -81,7 +81,7 @@ function GallerySettings() {
     h('div', { class: 'settings-divider' }),
     h('div', { class: 'settings-option-row' }, [
       h('div', { class: 'settings-option-label' }, '悬浮球位置'),
-      h('div', { class: 'settings-option-desc' }, '将画廊悬浮球恢复到右下角默认位置'),
+      h('div', { class: 'settings-option-desc' }, '将画廊悬浮球恢复到右侧默认位置'),
     ]),
     h('button', {
       class: 'settings-radio-btn',

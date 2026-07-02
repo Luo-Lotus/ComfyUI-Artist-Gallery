@@ -25,6 +25,9 @@ document.head.appendChild(styleLink);
 const { GalleryModal } = await import('./components/GalleryModal.js');
 const { ToastContainer } = await import('./components/Toast.js');
 
+const FLOATING_BUTTON_RIGHT = 0;
+const FLOATING_BUTTON_DEFAULT_TOP = 160;
+
 // ============ 注册扩展 ============
 app.registerExtension({
   name: 'PromptGallery.GalleryButton',
@@ -36,17 +39,26 @@ app.registerExtension({
     floatingButton.innerHTML = '🎨';
     document.body.appendChild(floatingButton);
 
-    // 加载保存的位置
-    function loadButtonPosition() {
-      const pos = Storage.getButtonPosition();
-      if (pos) {
-        floatingButton.style.left = pos.left + 'px';
-        floatingButton.style.top = pos.top + 'px';
-        floatingButton.style.right = 'auto';
-        floatingButton.style.bottom = 'auto';
-      }
+    function clampButtonTop(top) {
+      const maxTop = Math.max(0, window.innerHeight - (floatingButton.offsetHeight || 46));
+      return Math.max(0, Math.min(top, maxTop));
     }
-    loadButtonPosition();
+
+    function dockButtonToRight(top = FLOATING_BUTTON_DEFAULT_TOP) {
+      floatingButton.style.left = 'auto';
+      floatingButton.style.right = `${FLOATING_BUTTON_RIGHT}px`;
+      floatingButton.style.top = `${clampButtonTop(top)}px`;
+      floatingButton.style.bottom = 'auto';
+    }
+
+    // 加载保存的位置。旧版本保存的 left 会被忽略，自动迁移为右侧吸附。
+    const savedPosition = Storage.getButtonPosition();
+    dockButtonToRight(savedPosition?.top ?? FLOATING_BUTTON_DEFAULT_TOP);
+
+    window.addEventListener('resize', () => {
+      const savedTop = Storage.getButtonPosition()?.top ?? floatingButton.offsetTop;
+      dockButtonToRight(savedTop);
+    });
 
     // 创建模态框容器
     const modalContainer = document.createElement('div');
@@ -92,13 +104,13 @@ app.registerExtension({
     };
 
     // 创建拖动功能
-    const draggable = new Draggable(floatingButton, (hasMoved) => {
-      Storage.saveButtonPosition(floatingButton.offsetLeft, floatingButton.offsetTop);
+    new Draggable(floatingButton, (hasMoved) => {
+      Storage.saveButtonPosition(floatingButton.offsetTop);
       if (!hasMoved) {
         isModalOpen = true;
         renderModal();
       }
-    });
+    }, { axis: 'y', right: FLOATING_BUTTON_RIGHT });
 
     // ESC 键关闭模态框
     document.addEventListener('keydown', (e) => {

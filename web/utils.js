@@ -21,23 +21,26 @@ export const Storage = {
   getButtonPosition() {
     try {
       const saved = localStorage.getItem('prompt-gallery-btn-pos');
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      return typeof parsed?.top === 'number' ? { top: parsed.top } : null;
     } catch (e) {
       console.error('Failed to load button position:', e);
       return null;
     }
   },
-  saveButtonPosition(left, top) {
-    localStorage.setItem('prompt-gallery-btn-pos', JSON.stringify({ left, top }));
+  saveButtonPosition(top) {
+    localStorage.setItem('prompt-gallery-btn-pos', JSON.stringify({ top }));
   },
   resetButtonPosition() {
     localStorage.removeItem('prompt-gallery-btn-pos');
     const btn = document.getElementById('prompt-gallery-floating-btn');
     if (!btn) return false;
+    const maxTop = Math.max(0, window.innerHeight - (btn.offsetHeight || 46));
     btn.style.left = 'auto';
-    btn.style.top = 'auto';
-    btn.style.right = '30px';
-    btn.style.bottom = '100px';
+    btn.style.top = `${Math.min(160, maxTop)}px`;
+    btn.style.right = '0';
+    btn.style.bottom = 'auto';
     return true;
   },
   getFavorites() {

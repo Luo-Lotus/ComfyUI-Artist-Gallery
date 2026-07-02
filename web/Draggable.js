@@ -2,9 +2,14 @@
  * 拖动功能类
  */
 export class Draggable {
-  constructor(element, onDragEnd = null) {
+  constructor(element, onDragEnd = null, options = {}) {
     this.element = element;
     this.onDragEnd = onDragEnd;
+    this.options = {
+      axis: 'free',
+      right: 16,
+      ...options,
+    };
     this.isDragging = false;
     this.hasMoved = false;
     this.startX = 0;
@@ -29,6 +34,8 @@ export class Draggable {
     this.initialY = this.element.offsetTop;
     this.element.style.cursor = 'grabbing';
     this.element.style.transition = 'none';
+    this.element.classList.add('dragging');
+    e.preventDefault();
   }
 
   handleMouseMove(e) {
@@ -41,10 +48,15 @@ export class Draggable {
     const newX = this.initialX + dx;
     const newY = this.initialY + dy;
     const maxX = window.innerWidth - this.element.offsetWidth;
-    const maxY = window.innerHeight - this.element.offsetHeight;
-    this.element.style.left = Math.max(0, Math.min(newX, maxX)) + 'px';
+    const maxY = window.innerHeight - (this.element.offsetHeight || 46);
+    if (this.options.axis !== 'y') {
+      this.element.style.left = Math.max(0, Math.min(newX, maxX)) + 'px';
+      this.element.style.right = 'auto';
+    } else {
+      this.element.style.left = 'auto';
+      this.element.style.right = `${this.options.right}px`;
+    }
     this.element.style.top = Math.max(0, Math.min(newY, maxY)) + 'px';
-    this.element.style.right = 'auto';
     this.element.style.bottom = 'auto';
   }
 
@@ -52,7 +64,8 @@ export class Draggable {
     if (!this.isDragging) return;
     this.isDragging = false;
     this.element.style.cursor = 'move';
-    this.element.style.transition = 'box-shadow 0.2s, transform 0.1s';
+    this.element.style.transition = 'box-shadow 0.2s, opacity 0.2s, transform 0.1s';
+    this.element.classList.remove('dragging');
     if (this.onDragEnd) {
       this.onDragEnd(this.hasMoved);
     }
