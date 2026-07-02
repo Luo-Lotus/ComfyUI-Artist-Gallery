@@ -98,8 +98,6 @@ async def get_images_grouped(request):
 
             if not remote:
                 full_path = output_dir / image_path
-                if not full_path.exists():
-                    continue
 
             prompt_string = mapping.get("promptString", "")
             prompt_string_lower = prompt_string.lower()
