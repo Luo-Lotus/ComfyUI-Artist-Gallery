@@ -373,7 +373,7 @@ export async function moveCombination(id, targetCategoryId) {
 export async function fetchGroupedImages({ prompt, prompts, search, filters, includeComfyOutput, groupBy } = {}) {
   const params = new URLSearchParams();
   if (prompt) params.set('prompt', prompt);
-  if (prompts && prompts.length > 0) params.set('prompts', prompts.join(','));
+  if (prompts && prompts.length > 0) params.set('prompts_json', JSON.stringify(prompts));
   if (search) params.set('search', search);
   if (filters && filters.length > 0) params.set('filters', JSON.stringify(filters));
   if (includeComfyOutput) params.set('include_comfy_output', '1');

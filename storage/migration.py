@@ -888,20 +888,35 @@ def _collect_coverless_prompt_values(storage_dir: Path) -> set:
     return values
 
 
-def migrate_prompt_covers_from_prompt_string(storage_dir: Path, output_dir: Path | None = None) -> dict:
+def migrate_prompt_covers_from_prompt_string(
+    storage_dir: Path,
+    output_dir: Path | None = None,
+    *,
+    allow_legacy_fallback: bool = True,
+    prompt_storage=None,
+    combination_storage=None,
+) -> dict:
     """
     为没有 coverImageId 的 Prompt 和组合补封面（高性能版）。
 
     用 ahocorasick 在所有图片 promptString 上单次扫描，匹配「无封面 prompt value」，
     取 fileInfo.createdAt 最大的图片作为 coverImageId，经 PromptStorage.set_cover_batch
     一次写回；组合从成员 value 取最新封面。复杂度 O(总文本长度)，较旧 O(P×M) 实现快数万倍。
-    已有封面的记录不修改；ahocorasick 不可用时回退到 _migrate_covers_legacy。
+    已有封面的记录不修改。ahocorasick 不可用时，手动调用默认回退到 legacy；
+    启动后台回填会关闭 fallback，避免大数据环境偷偷跑 O(P×M)。
     """
     try:
         import ahocorasick
     except ImportError:
-        print("[Migration-PromptCover] ahocorasick 不可用，回退到 O(P×M) 实现")
-        return _migrate_covers_legacy(storage_dir, output_dir)
+        if allow_legacy_fallback:
+            print("[Migration-PromptCover] ahocorasick 不可用，回退到 O(P×M) 实现")
+            return _migrate_covers_legacy(storage_dir, output_dir)
+        return {
+            "success": True,
+            "message": "Prompt/组合封面迁移已跳过: 缺少 pyahocorasick，请安装 requirements.txt 后重启",
+            "migrated": False,
+            "skipped": True,
+        }
 
     mappings = _collect_cover_image_mappings(storage_dir, output_dir)
     coverless_values = _collect_coverless_prompt_values(storage_dir)
@@ -941,9 +956,14 @@ def migrate_prompt_covers_from_prompt_string(storage_dir: Path, output_dir: Path
 
     covers_by_value = {v: m.get("imagePath") for v, m in best_by_value.items() if m.get("imagePath")}
 
-    # 3. 经 storage 一次写回 prompt 封面（线程安全、与并发编辑串行）
-    from ._resolve import get_storage
-    prompt_storage, _, _, combination_storage = get_storage()
+    # 3. 写回封面。后台启动路径会传入 singleton storage，保证锁/缓存一致；
+    # 手动迁移和测试路径默认按 storage_dir 创建独立 storage。
+    if prompt_storage is None:
+        from .prompt import PromptStorage
+        prompt_storage = PromptStorage(storage_dir)
+    if combination_storage is None:
+        from .combination import CombinationStorage
+        combination_storage = CombinationStorage(storage_dir)
     changed_prompts = prompt_storage.set_cover_batch(covers_by_value) if covers_by_value else 0
 
     # 4. 组合（数量少）：取成员 value 中最新封面

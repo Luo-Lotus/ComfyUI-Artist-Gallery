@@ -31,14 +31,22 @@ async def get_images_grouped(request):
 
         prompt_filter = request.query.get("prompt", "").strip()
         prompts_param = request.query.get("prompts", "").strip()
+        prompts_json_param = request.query.get("prompts_json", "").strip()
         search_query = request.query.get("search", "").strip().lower()
         filters_param = request.query.get("filters", "").strip()
         include_comfy_output = request.query.get("include_comfy_output", "").strip() == "1"
         group_by = request.query.get("group_by", "").strip()
 
-        # 组合模式：多个 prompt 取交集
+        # 组合模式：多个 prompt 取交集。优先使用 JSON，避免 prompt value 中的逗号被拆坏。
         combination_prompts = None
-        if prompts_param:
+        if prompts_json_param:
+            try:
+                parsed_prompts = json.loads(prompts_json_param)
+                if isinstance(parsed_prompts, list):
+                    combination_prompts = [str(p).strip() for p in parsed_prompts if str(p).strip()]
+            except json.JSONDecodeError:
+                combination_prompts = []
+        elif prompts_param:
             combination_prompts = [p.strip() for p in prompts_param.split(",") if p.strip()]
 
         # 自定义筛查：解析 filters JSON 参数

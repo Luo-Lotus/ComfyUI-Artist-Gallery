@@ -124,17 +124,25 @@ def _run_startup_migrations(storage_dir: Path) -> None:
     except Exception:
         pass
 
+    migration_ok = True
+
     def _run(name, fn):
         t0 = _time.time()
         try:
             fn(storage_dir)
             print(f"[prompt_gallery] 迁移 {name} 完成（{_time.time() - t0:.2f}s）")
+            return True
         except Exception as e:
             print(f"[prompt_gallery] 迁移 {name} 失败（{_time.time() - t0:.2f}s）: {e}")
+            return False
 
-    _run("to_prompt_schema", migrate_to_prompt_schema)
-    _run("image_schema", migrate_image_schema)
-    _run("prompt_string_image_index", migrate_prompt_string_image_index)
+    migration_ok = _run("to_prompt_schema", migrate_to_prompt_schema) and migration_ok
+    migration_ok = _run("image_schema", migrate_image_schema) and migration_ok
+    migration_ok = _run("prompt_string_image_index", migrate_prompt_string_image_index) and migration_ok
+
+    if not migration_ok:
+        print("[prompt_gallery] 启动迁移未全部成功，跳过迁移标记写入，下次启动将重试")
+        return
 
     try:
         with open(marker, "w", encoding="utf-8") as f:
@@ -155,9 +163,8 @@ def _maybe_launch_cover_backfill(prompt_storage, mapping_storage, combination_st
     设计要点：
     - 不阻塞 get_storage() / 事件循环（页面加载不受影响）。
     - 用 .cover_backfill_version 标记保证只跑一次；失败不写标记、下次启动重试。
-    - 回填通过 PromptStorage.set_cover_batch 一次锁读写完成，与并发编辑串行、不覆盖已设封面。
-    - 不调用 clear_all_caches()：set_cover_batch→_write_data→_invalidate_cache 已在锁内
-      失效 prompt 缓存，后续请求自然读到新封面。
+    - 回填只补空 coverImageId，不覆盖已设封面；完成后清理当前单例缓存，
+      避免列表接口读到后台写入前的旧缓存。
     """
     marker = storage_dir / ".cover_backfill_version"
     try:
@@ -177,8 +184,18 @@ def _maybe_launch_cover_backfill(prompt_storage, mapping_storage, combination_st
             output_dir = None
         try:
             print("[prompt_gallery] 封面回填开始（后台线程，首次启动仅一次）")
-            result = migrate_prompt_covers_from_prompt_string(storage_dir, output_dir)
+            result = migrate_prompt_covers_from_prompt_string(
+                storage_dir,
+                output_dir,
+                allow_legacy_fallback=False,
+                prompt_storage=prompt_storage,
+                combination_storage=combination_storage,
+            )
             print(f"[prompt_gallery] 封面回填完成: {result.get('message')}")
+            if result.get("skipped"):
+                return
+            if result.get("migrated"):
+                clear_all_caches()
             try:
                 with open(marker, "w", encoding="utf-8") as f:
                     f.write(str(_COVER_BACKFILL_VERSION))

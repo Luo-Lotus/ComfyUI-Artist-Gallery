@@ -466,7 +466,7 @@ prompt_gallery/
 | POST   | `/prompt_gallery/prompts/{categoryId}/{value}/copy` | 复制Prompt到其他分类           |
 | POST   | `/prompt_gallery/prompts/{id}/move`                 | 移动Prompt到其他分类           |
 | GET    | `/prompt_gallery/prompt/{id}/images`                | 获取Prompt图片列表             |
-| GET    | `/prompt_gallery/prompt_images`                     | 获取Prompt图片（?value= 查询） |
+| GET    | `/prompt_gallery/images_grouped`                    | 获取分组图片（支持 `prompt` 查询） |
 
 ### 分类管理
 
@@ -490,7 +490,6 @@ prompt_gallery/
 | DELETE | `/prompt_gallery/combinations/{id}`           | 删除组合                               |
 | POST   | `/prompt_gallery/combinations/{id}/duplicate` | 复制组合                               |
 | POST   | `/prompt_gallery/combinations/{id}/move`      | 移动组合                               |
-| GET    | `/prompt_gallery/combinations/{id}/images`    | 获取组合图片（交集）                   |
 | DELETE | `/prompt_gallery/combinations/batch`          | 批量删除组合                           |
 
 ### 图片操作
@@ -500,8 +499,8 @@ prompt_gallery/
 | GET    | `/prompt_gallery/image/info`            | 获取图片详细信息     |
 | POST   | `/prompt_gallery/save`                  | 保存图片到画廊       |
 | DELETE | `/prompt_gallery/image`                 | 删除单张图片         |
-| POST   | `/prompt_gallery/image/move`            | 移动图片到其他Prompt |
-| POST   | `/prompt_gallery/image/copy`            | 复制图片到其他Prompt |
+| POST   | `/prompt_gallery/image/move`            | 已废弃：图片不再移动到其他Prompt |
+| POST   | `/prompt_gallery/image/copy`            | 已废弃：图片不再复制到其他Prompt |
 | POST   | `/prompt_gallery/restore_from_metadata` | 从PNG元数据恢复映射  |
 
 ### 历史视图
@@ -633,7 +632,7 @@ Lightbox（全屏图片查看器）支持编辑模式，点击图片上方的"�
 ### 性能优化
 
 - 列表期接口（`/data`、`/init`、`/batch_resolve`、`/search` 等）只读持久化 `coverImageId`，**不做任何 prompt×mapping 匹配**，避免大数据量下 O(P×M) 卡死事件循环
-- 图片数量改由详情页 `/prompt_images` 返回的图片列表推导，列表 API 不再返回 `imageCount`
+- 图片数量改由详情页 `/images_grouped` 返回的图片列表推导，列表 API 不再返回 `imageCount`
 - 图库列表 API 仅返回 `coverImagePath`（不返回完整图片数组）
 - Prompt 图片懒加载（进入详情时才请求）
 - 封面图预览直接使用 `coverImagePath`（无 API 调用）
