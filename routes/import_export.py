@@ -6,7 +6,7 @@ from pathlib import Path
 from aiohttp import web
 import server
 from ..storage import get_storage
-from ._prompt_cover import ensure_prompt_cover
+from ..storage.import_cover import apply_import_covers
 
 
 def _make_shard_targets(storage_dir: Path, separate: bool):
@@ -122,7 +122,7 @@ async def import_images_batch(request):
                         return {'filename': filename, 'success': False, 'error': '图片保存失败'}
 
                     # 构建 file_info
-                    file_info = {}
+                    file_info = {"createdAt": timestamp}
                     if metadata:
                         if "width" in metadata:
                             file_info["width"] = metadata["width"]
@@ -173,10 +173,12 @@ async def import_images_batch(request):
                 })
         if mapping_specs:
             mapping_storage.add_mappings_import(mapping_specs, target_file=shard_targets["images"])
-            output_dir_root = Path(folder_paths.get_output_directory())
-            for r in results:
-                if r['success']:
-                    ensure_prompt_cover(prompt_storage, mapping_storage, r["categoryId"], r["value"], output_dir_root)
+            cover_prompt_specs = [
+                {"categoryId": r["categoryId"], "value": r["value"]}
+                for r in results
+                if r["success"] and r.get("value")
+            ]
+            apply_import_covers(prompt_storage, None, cover_prompt_specs, mapping_specs)
 
         imported = sum(1 for r in results if r['success'])
         failed = len(results) - imported
@@ -574,18 +576,19 @@ async def _import_v1(zf, manifest_data, target_category_id, prompt_storage, mapp
         if not img_path:
             continue
 
+        timestamp = int(time.time() * 1000)
         is_remote = img_type == "remote" or img_path.startswith("http://") or img_path.startswith("https://")
 
         if is_remote:
             mapping_specs.append({
                 "image_path": img_path,
                 "prompt_string": prompt_string,
+                "file_info": {"createdAt": timestamp},
                 "mapping_type": "remote",
             })
         else:
             if img_path not in zf.namelist():
                 continue
-            timestamp = int(time.time() * 1000)
             rand_num = random.randint(0, 99999)
             new_filename = f"AG_{timestamp}_{rand_num:05d}.png"
             new_path = output_dir / new_filename
@@ -594,13 +597,12 @@ async def _import_v1(zf, manifest_data, target_category_id, prompt_storage, mapp
             mapping_specs.append({
                 "image_path": f"prompt_gallery/{new_filename}",
                 "prompt_string": prompt_string,
+                "file_info": {"createdAt": timestamp},
                 "mapping_type": "local",
             })
 
     mapping_storage.add_mappings_import(mapping_specs, target_file=shard_targets["images"])
-    output_root = output_dir.parent
-    for spec in prompt_specs:
-        ensure_prompt_cover(prompt_storage, mapping_storage, spec["categoryId"], spec["value"], output_root)
+    apply_import_covers(prompt_storage, None, prompt_specs, mapping_specs)
 
     return web.json_response({
         "success": True,
@@ -717,6 +719,7 @@ async def _import_v2(zf, manifest_data, target_category_id,
 
     # C. 导入组合（数量通常很少，保持逐条）
     added_combinations = 0
+    added_combinations_list = []
     for comb_info in manifest_data.get("combinations", []):
         name = comb_info.get("name", "").strip()
         if not name:
@@ -726,7 +729,7 @@ async def _import_v2(zf, manifest_data, target_category_id,
         prompt_keys = comb_info.get("prompts") or comb_info.get("promptKeys", [])
         output_content = comb_info.get("outputContent", "")
         try:
-            combination_storage.add_combination(
+            combination = combination_storage.add_combination(
                 name=name,
                 category_id=new_cat_id,
                 prompts=prompt_keys,
@@ -734,6 +737,7 @@ async def _import_v2(zf, manifest_data, target_category_id,
                 target_file=shard_targets["combinations"],
             )
             added_combinations += 1
+            added_combinations_list.append(combination)
         except Exception:
             pass
 
@@ -747,18 +751,19 @@ async def _import_v2(zf, manifest_data, target_category_id,
         if not img_path:
             continue
 
+        timestamp = int(time.time() * 1000)
         is_remote = img_type == "remote" or img_path.startswith("http://") or img_path.startswith("https://")
 
         if is_remote:
             mapping_specs.append({
                 "image_path": img_path,
                 "prompt_string": prompt_string,
+                "file_info": {"createdAt": timestamp},
                 "mapping_type": "remote",
             })
         else:
             if img_path not in zf.namelist():
                 continue
-            timestamp = int(time.time() * 1000)
             rand_num = random.randint(0, 99999)
             new_filename = f"AG_{timestamp}_{rand_num:05d}.png"
             new_path = output_dir / new_filename
@@ -767,14 +772,21 @@ async def _import_v2(zf, manifest_data, target_category_id,
             mapping_specs.append({
                 "image_path": f"prompt_gallery/{new_filename}",
                 "prompt_string": prompt_string,
+                "file_info": {"createdAt": timestamp},
                 "mapping_type": "local",
             })
 
     print(f"[ImportV2] 批量导入 {len(mapping_specs)} 个图片映射...")
     mapping_storage.add_mappings_import(mapping_specs, target_file=shard_targets["images"])
-    output_root = output_dir.parent
-    for spec in prompt_specs:
-        ensure_prompt_cover(prompt_storage, mapping_storage, spec["categoryId"], spec["value"], output_root)
+    cover_result = apply_import_covers(
+        prompt_storage,
+        combination_storage,
+        prompt_specs,
+        mapping_specs,
+        added_combinations_list,
+    )
+    if cover_result["prompts"] or cover_result["combinations"]:
+        print(f"[ImportV2] 封面补齐: Prompt={cover_result['prompts']}, 组合={cover_result['combinations']}")
     print(f"[ImportV2] 导入完成! 分类={added_categories}, Prompt={len(added_prompts_list)}, 组合={added_combinations}, 图片={len(mapping_specs)}")
 
     return web.json_response({

@@ -110,6 +110,27 @@ class CombinationStorage(SplitJsonStorage):
                     return c
             return None
 
+    def set_cover_batch(self, updates_by_id: dict) -> int:
+        """
+        批量回填组合 coverImageId（按组合 ID 精确匹配）。
+        只更新当前没有封面的组合，避免覆盖用户手动设置。
+        """
+        if not updates_by_id:
+            return 0
+        with self._lock:
+            data = self._read_data()
+            changed = 0
+            for combination in data["combinations"]:
+                if combination.get("coverImageId"):
+                    continue
+                cover = updates_by_id.get(combination.get("id"))
+                if cover:
+                    combination["coverImageId"] = cover
+                    changed += 1
+            if changed:
+                self._write_data(data)
+            return changed
+
     def delete_combination(self, combination_id: str) -> bool:
         """删除组合"""
         with self._lock:
