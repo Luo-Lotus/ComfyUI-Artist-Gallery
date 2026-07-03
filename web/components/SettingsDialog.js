@@ -21,6 +21,7 @@ function GallerySettings() {
   const ctx = useGallery();
   const mode = ctx.cardLayoutMode;
   const [cleaningGhostImages, setCleaningGhostImages] = useState(false);
+  const [backfillingCovers, setBackfillingCovers] = useState(false);
 
   const handleModeChange = useCallback((newMode) => {
     ctx.setCardLayoutMode(newMode);
@@ -59,6 +60,34 @@ function GallerySettings() {
       setCleaningGhostImages(false);
     }
   }, [cleaningGhostImages, ctx.loadData]);
+
+  const handleBackfillCovers = useCallback(async () => {
+    if (backfillingCovers) return;
+    if (!confirm('确定要自动匹配封面吗？\n会扫描图片索引，为没有封面的 Prompt 和组合补齐封面，不会覆盖已有封面。')) return;
+
+    setBackfillingCovers(true);
+    try {
+      const res = await fetch('/prompt_gallery/settings/backfill_covers', {
+        method: 'POST',
+      }).then(r => r.json());
+
+      if (res.success) {
+        if (res.skipped) {
+          showToast(res.message || '缺少依赖，已跳过', 'warning');
+        } else {
+          const message = res.message || `已补齐 ${res.prompts || 0} 个 Prompt、${res.combinations || 0} 个组合封面`;
+          showToast(message, res.migrated ? 'success' : 'info');
+          await ctx.loadData?.();
+        }
+      } else {
+        showToast(res.error || '自动匹配封面失败', 'error');
+      }
+    } catch (e) {
+      showToast('自动匹配封面失败', 'error');
+    } finally {
+      setBackfillingCovers(false);
+    }
+  }, [backfillingCovers, ctx.loadData]);
 
   return h('div', { class: 'settings-panel' }, [
     h('div', { class: 'settings-section-title' }, '图库设置'),
@@ -114,6 +143,23 @@ function GallerySettings() {
     }, [
       h(Icon, { name: 'refresh-cw', size: 14 }),
       '重置悬浮球位置',
+    ]),
+    h('div', { class: 'settings-divider' }),
+    h('div', { class: 'settings-option-row' }, [
+      h('div', { class: 'settings-option-label' }, '自动匹配封面'),
+      h('div', { class: 'settings-option-desc' }, '扫描图片索引，为没有封面的 Prompt 和组合补齐封面'),
+    ]),
+    h('button', {
+      class: 'settings-radio-btn',
+      onClick: handleBackfillCovers,
+      disabled: backfillingCovers,
+    }, [
+      h(Icon, {
+        name: backfillingCovers ? 'loader' : 'image',
+        size: 14,
+        class: backfillingCovers ? 'spin' : '',
+      }),
+      backfillingCovers ? '匹配中...' : '自动匹配封面',
     ]),
     h('div', { class: 'settings-divider' }),
     h('div', { class: 'settings-option-row' }, [

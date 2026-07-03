@@ -3,6 +3,7 @@ import json
 from storage.category import CategoryStorage
 from storage.combination import CombinationStorage
 from storage.image_mapping import ImageMappingStorage
+from storage.import_cover import apply_import_covers
 from storage.migration import migrate_prompt_covers_from_prompt_string, migrate_prompt_string_image_index
 from storage.prompt import PromptStorage
 
@@ -202,3 +203,32 @@ def test_prompt_cover_migration_uses_latest_matching_prompt_string_image(tmp_pat
         {"name": "manual", "prompts": ["gamma"], "coverImageId": "comb-manual.png"},
         {"name": "missing", "prompts": ["missing"], "coverImageId": None},
     ]
+
+
+def test_apply_import_covers_updates_prompt_and_combination_without_global_scan(tmp_path):
+    prompt_storage = PromptStorage(tmp_path)
+    combination_storage = CombinationStorage(tmp_path)
+    prompt_storage.add_prompt("alpha", category_id="root")
+    prompt_storage.add_prompt("beta", category_id="root")
+    prompt_storage.add_prompt("manual", category_id="root")
+    prompt_storage.update_prompt("root", "manual", coverImageId="manual.png")
+    combo = combination_storage.add_combination("combo", "root", ["alpha", "beta"])
+
+    prompt_specs = [
+        {"categoryId": "root", "value": "alpha"},
+        {"categoryId": "root", "value": "beta"},
+        {"categoryId": "root", "value": "manual"},
+    ]
+    mapping_specs = [
+        {"image_path": "old.png", "prompt_string": "alpha", "file_info": {"createdAt": 100}},
+        {"image_path": "new.png", "prompt_string": "alpha, beta", "file_info": {"createdAt": 200}},
+        {"image_path": "manual-new.png", "prompt_string": "manual", "file_info": {"createdAt": 300}},
+    ]
+
+    result = apply_import_covers(prompt_storage, combination_storage, prompt_specs, mapping_specs, [combo])
+
+    assert result == {"prompts": 2, "combinations": 1}
+    assert prompt_storage.get_prompt("root", "alpha")["coverImageId"] == "new.png"
+    assert prompt_storage.get_prompt("root", "beta")["coverImageId"] == "new.png"
+    assert prompt_storage.get_prompt("root", "manual")["coverImageId"] == "manual.png"
+    assert combination_storage.get_combination_by_id(combo["id"])["coverImageId"] == "new.png"
