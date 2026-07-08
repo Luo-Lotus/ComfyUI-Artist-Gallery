@@ -151,39 +151,34 @@ class PromptStorage:
         :return: 新创建的Prompt对象
         :raises ValueError: 如果同一分类下 value 已存在
         """
-        # 先检查同一分类下 value 是否已存在（不持有锁）
-        data = self._read_data()
-        existing_values_in_category = {
-            a.get("value") for a in data.get("prompts", [])
-            if a.get("categoryId") == category_id
-        }
-        if value in existing_values_in_category:
-            raise ValueError(f"分类 '{category_id}' 下Prompt值 '{value}' 已存在")
-
-        # 如果未提供 name，使用 value
-        if not name:
-            name = value
-
-        new_prompt = {
-            "value": value,
-            "name": name,
-            "alias": alias,
-            "categoryId": category_id,
-            "coverImageId": None,
-            "createdAt": int(__import__('time').time() * 1000),
-            "imageCount": 0,
-            "metadata": {
-                "description": "",
-                "tags": [],
-                "customFields": {}
-            }
-        }
-        if target_file:
-            new_prompt["_source_file"] = target_file
-
-        # 获取锁并写入
         with self._lock:
             data = self._read_data()
+            existing_values_in_category = {
+                a.get("value") for a in data.get("prompts", [])
+                if a.get("categoryId") == category_id
+            }
+            if value in existing_values_in_category:
+                raise ValueError(f"分类 '{category_id}' 下Prompt值 '{value}' 已存在")
+
+            if not name:
+                name = value
+
+            new_prompt = {
+                "value": value,
+                "name": name,
+                "alias": alias,
+                "categoryId": category_id,
+                "coverImageId": None,
+                "createdAt": int(__import__('time').time() * 1000),
+                "metadata": {
+                    "description": "",
+                    "tags": [],
+                    "customFields": {}
+                }
+            }
+            if target_file:
+                new_prompt["_source_file"] = target_file
+
             data["prompts"].append(new_prompt)
             self._write_data(data)
 
@@ -202,7 +197,10 @@ class PromptStorage:
             failed_values = []
 
             data = self._read_data()
-            existing_values = {a.get("value") for a in data["prompts"]}
+            existing_values = {
+                a.get("value") for a in data["prompts"]
+                if a.get("categoryId") == category_id
+            }
 
             for prompt_data in prompts_data:
                 value = prompt_data.get("value", "").strip()
@@ -224,7 +222,6 @@ class PromptStorage:
                     "categoryId": category_id,
                     "coverImageId": None,
                     "createdAt": int(__import__('time').time() * 1000),
-                    "imageCount": 0
                 }
                 if target_file:
                     new_prompt["_source_file"] = target_file
@@ -233,7 +230,8 @@ class PromptStorage:
                 success_prompts.append(new_prompt)
                 existing_values.add(value)
 
-            self._write_data(data)
+            if success_prompts:
+                self._write_data(data)
             return success_prompts, failed_values
 
     def add_prompts_import(self, items: List[dict], target_file: Optional[str] = None) -> Tuple[List[dict], List[str]]:
@@ -265,7 +263,6 @@ class PromptStorage:
                     "categoryId": cat_id,
                     "coverImageId": None,
                     "createdAt": int(_time.time() * 1000),
-                    "imageCount": 0,
                 }
                 if target_file:
                     new_prompt["_source_file"] = target_file
@@ -281,7 +278,7 @@ class PromptStorage:
         更新Prompt信息（使用组合键）
         :param category_id: 分类 ID
         :param old_value: Prompt值（旧值）
-        :param kwargs: 要更新的字段（value, name, alias, imageCount, categoryId, coverImageId 等）
+        :param kwargs: 要更新的字段（value, name, alias, categoryId, coverImageId 等）
         :return: 是否更新成功
         :raises ValueError: 如果新值与同分类下其他Prompt重复
         """
@@ -311,7 +308,7 @@ class PromptStorage:
 
             # 更新字段
             for key, val in kwargs.items():
-                if key in ["value", "name", "alias", "imageCount", "categoryId", "coverImageId"]:
+                if key in ["value", "name", "alias", "categoryId", "coverImageId"]:
                     target_prompt[key] = val
                 elif key == "metadata":
                     if not isinstance(target_prompt.get("metadata"), dict):
@@ -341,7 +338,7 @@ class PromptStorage:
             for prompt in data["prompts"]:
                 if prompt.get("id") == prompt_id:
                     for key, value in kwargs.items():
-                        if key in ["value", "name", "alias", "imageCount", "categoryId", "coverImageId"]:
+                        if key in ["value", "name", "alias", "categoryId", "coverImageId"]:
                             prompt[key] = value
                         elif key == "metadata":
                             if not isinstance(prompt.get("metadata"), dict):
@@ -392,40 +389,46 @@ class PromptStorage:
                 self._write_data(data)
             return deleted
 
-    def update_image_count(self, category_id: str, value: str, delta: int = 1):
+    def batch_move_to_categories(self, moves: list) -> List[dict]:
         """
-        更新Prompt的图片数量（使用组合键）
-        :param category_id: 分类 ID
-        :param value: Prompt值
-        :param delta: 增量（正数增加，负数减少）
+        批量移动 Prompt 到目标分类（一次锁和一次写入）。
+        :param moves: [(old_category_id, value, new_category_id), ...]
+        :return: 被移动的 Prompt 列表
         """
-        self.update_image_count_batch({(category_id, value): delta})
+        if not moves:
+            return []
 
-    def update_image_count_batch(self, deltas: dict):
-        """
-        批量更新图片计数（一次读写完成所有更新）
-        :param deltas: {(categoryId, value): delta} 字典
-        """
+        move_map = {
+            (old_category_id, value): new_category_id
+            for old_category_id, value, new_category_id in moves
+            if old_category_id and value and new_category_id
+        }
+        if not move_map:
+            return []
+
         with self._lock:
             data = self._read_data()
-            for prompt in data["prompts"]:
-                key = (prompt.get("categoryId", "root"), prompt.get("value", ""))
-                if key in deltas:
-                    current_count = prompt.get("imageCount", 0)
-                    prompt["imageCount"] = max(0, current_count + deltas[key])
-            self._write_data(data)
+            existing_keys = {
+                (prompt.get("categoryId", "root"), prompt.get("value", ""))
+                for prompt in data["prompts"]
+            }
+            moved = []
 
-    def update_image_count_by_id(self, prompt_id: str, delta: int = 1):
-        """
-        更新Prompt的图片数量（使用 ID，兼容旧版本）
-        :param prompt_id: Prompt ID
-        :param delta: 增量（正数增加，负数减少）
-        """
-        with self._lock:
-            data = self._read_data()
             for prompt in data["prompts"]:
-                if prompt.get("id") == prompt_id:
-                    current_count = prompt.get("imageCount", 0)
-                    prompt["imageCount"] = max(0, current_count + delta)
-                    self._write_data(data)
-                    return
+                old_key = (prompt.get("categoryId", "root"), prompt.get("value", ""))
+                new_category_id = move_map.get(old_key)
+                if not new_category_id:
+                    continue
+
+                new_key = (new_category_id, prompt.get("value", ""))
+                if new_key in existing_keys and new_key != old_key:
+                    continue
+
+                existing_keys.discard(old_key)
+                prompt["categoryId"] = new_category_id
+                existing_keys.add(new_key)
+                moved.append(prompt)
+
+            if moved:
+                self._write_data(data)
+            return moved

@@ -317,6 +317,32 @@ class ImageMappingStorage:
                 return True
             return False
 
+    def batch_delete_by_images(self, image_paths: List[str]) -> List[dict]:
+        """
+        批量根据图片路径删除映射（一次锁和一次写入）。
+        :return: 被删除的映射列表
+        """
+        path_set = {path for path in image_paths if path}
+        if not path_set:
+            return []
+
+        with self._lock:
+            data = self._read_data()
+            removed = []
+            kept = []
+
+            for mapping in data["mappings"]:
+                if mapping.get("imagePath") in path_set:
+                    removed.append(mapping)
+                else:
+                    kept.append(mapping)
+
+            if removed:
+                data["mappings"] = kept
+                self._write_data(data)
+
+            return removed
+
     def update_mapping(self, image_path: str, prompt_values: List[str],
                        file_info: Optional[dict] = None, prompt_string: Optional[str] = None) -> bool:
         """

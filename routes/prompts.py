@@ -5,9 +5,17 @@ from pathlib import Path
 from aiohttp import web
 import server
 from ..storage import get_storage
-from ..storage.backup import BackupManager
 from ._utils import is_remote_path
 from ._delete_utils import delete_prompt_cascade
+
+
+def _build_image_count_index(mapping_storage) -> dict:
+    """按 prompt value 统计映射数量；imageCount 不再持久化到 Prompt。"""
+    index = {}
+    for mapping in mapping_storage.get_all_mappings():
+        for value in mapping.get("prompts", []) or []:
+            index[value] = index.get(value, 0) + 1
+    return index
 
 
 # ============ Prompt CRUD API ============
@@ -23,8 +31,9 @@ async def get_prompts(request):
         limit = min(int(request.query.get("limit", "100")), 200)
         query = search.lower()
 
-        prompt_storage, _, _, _ = get_storage()
+        prompt_storage, mapping_storage, _, _ = get_storage()
         all_prompts = prompt_storage.get_all_prompts()
+        image_counts = _build_image_count_index(mapping_storage)
 
         results = []
         for p in all_prompts:
@@ -35,7 +44,7 @@ async def get_prompts(request):
                     "value": p.get("value"),
                     "name": p.get("name"),
                     "categoryId": p.get("categoryId", "root"),
-                    "imageCount": p.get("imageCount", 0),
+                    "imageCount": image_counts.get(p.get("value"), 0),
                     "createdAt": p.get("createdAt", 0),
                 })
                 if len(results) >= limit:
@@ -55,8 +64,9 @@ async def batch_resolve_prompts(request):
         if not keys:
             return web.json_response({"prompts": {}})
 
-        prompt_storage, _, _, _ = get_storage()
+        prompt_storage, mapping_storage, _, _ = get_storage()
         all_prompts = prompt_storage.get_all_prompts()
+        image_counts = _build_image_count_index(mapping_storage)
 
         # 构建 categoryId:value -> prompt 的索引
         prompt_index = {}
@@ -73,7 +83,7 @@ async def batch_resolve_prompts(request):
                     "name": p.get("name"),
                     "categoryId": p.get("categoryId", "root"),
                     "alias": p.get("alias", ""),
-                    "imageCount": p.get("imageCount", 0),
+                    "imageCount": image_counts.get(p.get("value"), 0),
                     "createdAt": p.get("createdAt", 0),
                     "metadata": p.get("metadata", {}),
                 }
@@ -92,13 +102,14 @@ async def batch_resolve(request):
         category_ids = data.get("categories", [])
         combination_ids = data.get("combinations", [])
 
-        prompt_storage, _, category_storage, combination_storage = get_storage()
+        prompt_storage, mapping_storage, category_storage, combination_storage = get_storage()
 
         result = {}
 
         # 解析 prompts（支持 "categoryId:value" 和纯 "value" 两种格式）
         if prompt_keys:
             all_prompts = prompt_storage.get_all_prompts()
+            image_counts = _build_image_count_index(mapping_storage)
             prompt_index = {}
             value_index = {}  # value -> [prompt, ...]（同名 prompt 可能属于不同分类）
             for p in all_prompts:
@@ -123,7 +134,7 @@ async def batch_resolve(request):
                         "name": p.get("name"),
                         "categoryId": p.get("categoryId", "root"),
                         "alias": p.get("alias", ""),
-                        "imageCount": p.get("imageCount", 0),
+                        "imageCount": image_counts.get(p.get("value"), 0),
                         "createdAt": p.get("createdAt", 0),
                         "metadata": p.get("metadata", {}),
                     }
@@ -186,6 +197,7 @@ async def search_prompts(request):
         # 搜索 Prompts
         all_prompts = prompt_storage.get_all_prompts()
         prompt_mapping_index = mapping_storage.build_prompt_index()
+        image_counts = {value: len(mappings) for value, mappings in prompt_mapping_index.items()}
 
         matched_prompts = []
         for p in all_prompts:
@@ -206,7 +218,7 @@ async def search_prompts(request):
                     "name": p.get("name"),
                     "categoryId": p.get("categoryId", "root"),
                     "coverImagePath": cover_path,
-                    "imageCount": p.get("imageCount", 0),
+                    "imageCount": image_counts.get(p.get("value"), 0),
                     "createdAt": p.get("createdAt", 0),
                     "metadata": p.get("metadata", {}),
                 })
@@ -435,7 +447,7 @@ async def update_prompt_composite(request):
 
 @server.PromptServer.instance.routes.delete(r"/prompt_gallery/prompts/{category_id}/{value:[\s\S]+}")
 async def delete_prompt_composite(request):
-    """删除Prompt（级联清理图片和组合）"""
+    """删除Prompt（不清理图片映射和组合成员）"""
     try:
         category_id = request.match_info['category_id']
         value = request.match_info['value']
@@ -445,10 +457,6 @@ async def delete_prompt_composite(request):
         prompt = prompt_storage.get_prompt(category_id, value)
         if not prompt:
             return web.json_response({"error": "Prompt不存在"}, status=404)
-
-        # 备份
-        storage_dir = Path(prompt_storage.storage_dir)
-        BackupManager(storage_dir).create_backup()
 
         result = delete_prompt_cascade(
             category_id, value,

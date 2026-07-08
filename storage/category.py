@@ -126,29 +126,26 @@ class CategoryStorage:
         """添加分类"""
         import time
 
-        # 检查name唯一性
-        data = self._read_data()
-        existing_names = {c.get("name") for c in data.get("categories", [])}
-        if name in existing_names:
-            raise ValueError(f"分类名称 '{name}' 已存在")
-
-        # 获取当前最大order值
-        siblings = [c for c in data["categories"] if c.get("parentId") == parent_id]
-        max_order = max([c.get("order", 0) for c in siblings], default=-1)
-
-        new_category = {
-            "id": str(uuid.uuid4()),
-            "name": name,
-            "parentId": parent_id,
-            "order": max_order + 1,
-            "createdAt": int(time.time() * 1000),
-            "metadata": {}
-        }
-        if target_file:
-            new_category["_source_file"] = target_file
-
         with self._lock:
             data = self._read_data()
+            existing_names = {c.get("name") for c in data.get("categories", [])}
+            if name in existing_names:
+                raise ValueError(f"分类名称 '{name}' 已存在")
+
+            siblings = [c for c in data["categories"] if c.get("parentId") == parent_id]
+            max_order = max([c.get("order", 0) for c in siblings], default=-1)
+
+            new_category = {
+                "id": str(uuid.uuid4()),
+                "name": name,
+                "parentId": parent_id,
+                "order": max_order + 1,
+                "createdAt": int(time.time() * 1000),
+                "metadata": {}
+            }
+            if target_file:
+                new_category["_source_file"] = target_file
+
             data["categories"].append(new_category)
             self._write_data(data)
             return new_category
@@ -269,3 +266,30 @@ class CategoryStorage:
             if deleted > 0:
                 self._write_data(data)
             return deleted
+
+    def batch_move(self, moves: List[dict]) -> List[dict]:
+        """
+        批量移动分类（一次锁和一次写入）。
+        :param moves: [{"id": str, "parentId": str}, ...]
+        :return: 被移动的分类列表
+        """
+        move_map = {
+            item.get("id"): item.get("parentId", "root")
+            for item in moves
+            if item.get("id")
+        }
+        if not move_map:
+            return []
+
+        with self._lock:
+            data = self._read_data()
+            moved = []
+            for cat in data["categories"]:
+                cat_id = cat.get("id")
+                if cat_id in move_map:
+                    cat["parentId"] = move_map[cat_id]
+                    moved.append(cat)
+
+            if moved:
+                self._write_data(data)
+            return moved

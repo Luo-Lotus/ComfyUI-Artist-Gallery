@@ -6,7 +6,6 @@ from pathlib import Path
 from aiohttp import web
 import server
 from ..storage import get_storage
-from ..storage.backup import BackupManager
 from ._utils import is_remote_path
 from ._delete_utils import remove_image_prompt_link, delete_image_completely
 
@@ -139,7 +138,7 @@ async def save_to_gallery(request):
             file_info["height"] = metadata["height"]
 
         # 创建映射关系
-        prompt_storage, mapping_storage, _, _ = get_storage()
+        _, mapping_storage, _, _ = get_storage()
         mapping = mapping_storage.add_mapping(
             image_path=image_path,
             prompt_values=prompt_values,
@@ -147,10 +146,6 @@ async def save_to_gallery(request):
             prompt_string=metadata.get("promptString", ""),
             mapping_type="local",
         )
-
-        # 更新Prompt的图片计数
-        for prompt_id in prompt_values:
-            prompt_storage.update_image_count(prompt_id, 1)
 
         return web.json_response({
             "success": True,
@@ -177,7 +172,7 @@ async def restore_from_metadata(request):
         gallery_dir = output_dir / "prompt_gallery"
 
         # 预先获取存储实例（循环内复用）
-        prompt_storage, mapping_storage, _, _ = get_storage()
+        _, mapping_storage, _, _ = get_storage()
 
         restored_count = 0
         errors = []
@@ -207,10 +202,6 @@ async def restore_from_metadata(request):
                                 file_info={"width": img.width, "height": img.height},
                                 mapping_type="local",
                             )
-
-                            # 更新Prompt的图片计数
-                            for prompt_id in prompt_ids:
-                                prompt_storage.update_image_count(prompt_id, 1)
 
                             restored_count += 1
                             print(f"[Restore] 恢复映射: {filename} -> PromptID: {prompt_ids}")
@@ -252,20 +243,11 @@ async def delete_image(request):
         if not image_path:
             return web.json_response({"error": "缺少imagePath参数"}, status=400)
 
-        prompt_storage, mapping_storage, _, _ = get_storage()
-
-        # 备份
-        storage_dir = Path(prompt_storage.storage_dir)
-        BackupManager(storage_dir).create_backup()
+        _, mapping_storage, _, _ = get_storage()
 
         if prompt_value:
             # 从 prompt 详情删图片：只断开该 prompt 的关联
             result = remove_image_prompt_link(image_path, prompt_value, mapping_storage)
-            # 更新 prompt 的 imageCount
-            all_prompts = prompt_storage.get_all_prompts()
-            for p in all_prompts:
-                if p.get("value") == prompt_value:
-                    prompt_storage.update_image_count(p.get("categoryId"), prompt_value, -1)
             return web.json_response({
                 "success": True,
                 "message": "图片已删除" if result["file_deleted"] else "已断开关联",
@@ -274,7 +256,7 @@ async def delete_image(request):
             })
         else:
             # 从历史视图删图片：完全删除
-            result = delete_image_completely(image_path, mapping_storage, prompt_storage)
+            result = delete_image_completely(image_path, mapping_storage, None)
             return web.json_response({
                 "success": True,
                 "message": "图片已删除",
@@ -328,17 +310,6 @@ async def move_image(request):
         success = mapping_storage.update_mapping(image_path, prompt_values)
 
         if success:
-            # 更新图片计数：使用组合键
-            from_prompt = None
-            for a in prompt_storage.get_all_prompts():
-                if a.get("value") == from_prompt_value:
-                    from_prompt = a
-                    break
-
-            if from_prompt:
-                prompt_storage.update_image_count(from_prompt.get("categoryId", "root"), from_prompt_value, -1)
-            prompt_storage.update_image_count(to_category_id, to_prompt_value, 1)
-
             return web.json_response({
                 "success": True,
                 "message": f"已移动图片到Prompt '{to_prompt.get('name', to_prompt.get('value'))}'"
@@ -391,9 +362,6 @@ async def copy_image(request):
         success = mapping_storage.update_mapping(image_path, prompt_values)
 
         if success:
-            # 更新目标Prompt图片计数
-            prompt_storage.update_image_count(to_category_id, to_prompt_value, 1)
-
             return web.json_response({
                 "success": True,
                 "message": f"已复制图片到Prompt '{to_prompt.get('name', to_prompt.get('value'))}'"

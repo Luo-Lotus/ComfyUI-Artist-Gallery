@@ -3,7 +3,6 @@
 所有删除逻辑的统一实现，路由层只做薄封装。
 """
 from pathlib import Path
-from typing import List
 
 from ._utils import is_remote_path
 
@@ -62,7 +61,7 @@ def remove_image_prompt_link(image_path: str, prompt_value: str,
 def delete_image_completely(image_path: str, mapping_storage, prompt_storage) -> dict:
     """
     完全删除一张图片（历史视图场景）。
-    删文件 + 删映射 + 更新所有关联 prompt 的 imageCount。
+    删文件 + 删映射。
     """
     result = {"file_deleted": False, "affected_prompts": []}
 
@@ -78,18 +77,32 @@ def delete_image_completely(image_path: str, mapping_storage, prompt_storage) ->
     # 删映射
     mapping_storage.delete_mapping_by_image(image_path)
 
-    # 更新关联 prompt 的 imageCount
-    all_prompts = prompt_storage.get_all_prompts()
-    deltas = {}
-    for pv in prompt_values:
-        for p in all_prompts:
-            if p.get("value") == pv:
-                key = (p.get("categoryId", "root"), pv)
-                deltas[key] = deltas.get(key, 0) - 1
-                result["affected_prompts"].append(pv)
+    result["affected_prompts"] = list(prompt_values or [])
 
-    if deltas:
-        prompt_storage.update_image_count_batch(deltas)
+    return result
+
+
+def delete_images_completely_batch(image_paths: list, mapping_storage, prompt_storage) -> dict:
+    """
+    批量完全删除图片（历史视图场景）。
+    删文件 + 批量删映射。
+    """
+    result = {"deleted_files": [], "affected_prompts": []}
+    unique_paths = list(dict.fromkeys(path for path in image_paths if path))
+    if not unique_paths:
+        return result
+
+    removed_mappings = mapping_storage.batch_delete_by_images(unique_paths)
+    if not removed_mappings:
+        return result
+
+    for mapping in removed_mappings:
+        image_path = mapping.get("imagePath", "")
+        if delete_image_file(image_path, mapping.get("type", "")):
+            result["deleted_files"].append(image_path)
+
+        for prompt_value in mapping.get("prompts", []) or []:
+            result["affected_prompts"].append(prompt_value)
 
     return result
 
@@ -98,10 +111,8 @@ def delete_prompt_cascade(category_id: str, value: str,
                            prompt_storage, mapping_storage,
                            combination_storage) -> dict:
     """
-    级联删除一个 prompt：
-    1. 遍历所有映射，对该 prompt 关联的图片调用 remove_image_prompt_link
-    2. 从所有组合中移除该 prompt
-    3. 删除 prompt 记录
+    删除一个 prompt。
+    Prompt 与图片/组合已改为弱关联，删除 Prompt 不再清理图片映射或组合成员。
     """
     result = {
         "deleted_files": [],
@@ -109,21 +120,6 @@ def delete_prompt_cascade(category_id: str, value: str,
         "affected_combinations": 0,
     }
 
-    # 获取该 prompt 关联的所有图片映射
-    mappings = mapping_storage.get_mappings_by_prompt(value)
-
-    for mapping in mappings:
-        image_path = mapping.get("imagePath", "")
-        link_result = remove_image_prompt_link(image_path, value, mapping_storage)
-        if link_result["file_deleted"]:
-            result["deleted_files"].append(image_path)
-        elif not link_result["orphan"]:
-            result["disassociated_images"].append(image_path)
-
-    # 从组合中移除
-    result["affected_combinations"] = combination_storage.remove_prompt_from_all(value)
-
-    # 删除 prompt 记录
     prompt_storage.delete_prompt(category_id, value)
 
     return result
@@ -133,7 +129,8 @@ def batch_delete_prompts_cascade(prompt_keys: list,
                                   prompt_storage, mapping_storage,
                                   combination_storage) -> dict:
     """
-    批量级联删除多个 prompt（高效版本，一次锁完成所有存储操作）。
+    批量删除多个 prompt。
+    Prompt 与图片/组合已改为弱关联，这里只删除 Prompt 记录。
     :param prompt_keys: [(categoryId, value), ...]
     """
     result = {
@@ -143,21 +140,6 @@ def batch_delete_prompts_cascade(prompt_keys: list,
     if not prompt_keys:
         return result
 
-    prompt_values = [value for _, value in prompt_keys]
-
-    # 1. 批量从映射中移除 prompt 关联（一次锁）
-    link_result = mapping_storage.batch_remove_prompt_links(prompt_values)
-    for item in link_result["orphan_images"]:
-        path = item["path"]
-        if path:
-            delete_image_file(path, item.get("type", ""))
-            result["deleted_files"].append(path)
-    result["disassociated_images"] = [p for p in link_result["updated_paths"] if p]
-
-    # 2. 批量从组合中移除 prompt（一次锁）
-    combination_storage.batch_remove_prompts_from_all(prompt_values)
-
-    # 3. 批量删除 prompt 记录（一次锁）
     prompt_storage.batch_delete_prompts(prompt_keys)
 
     return result
@@ -167,11 +149,13 @@ def delete_category_cascade(category_id: str,
                              prompt_storage, mapping_storage,
                              category_storage, combination_storage) -> dict:
     """
-    级联删除分类：
+    删除分类：
     1. 递归收集所有子分类 ID
-    2. 收集所有分类下的组合，批量删除
-    3. 收集所有分类下的 prompt，逐个调用 delete_prompt_cascade
-    4. 从叶到根删除分类记录
+    2. 删除这些分类下的组合记录
+    3. 删除这些分类下的 prompt 记录
+    4. 删除分类记录
+
+    不再清理图片映射，也不再从其他组合中移除 Prompt 成员。
     """
     result = {
         "deleted_categories": [],
@@ -202,14 +186,9 @@ def delete_category_cascade(category_id: str,
 
     if prompts_to_delete:
         prompt_keys = [(p["categoryId"], p["value"]) for p in prompts_to_delete]
-        prompt_result = batch_delete_prompts_cascade(
-            prompt_keys,
-            prompt_storage, mapping_storage, combination_storage,
-        )
+        prompt_storage.batch_delete_prompts(prompt_keys)
         for p in prompts_to_delete:
             result["deleted_prompts"].append(p.get("name", p["value"]))
-        result["deleted_files"].extend(prompt_result["deleted_files"])
-        result["disassociated_images"].extend(prompt_result["disassociated_images"])
 
     # 4. 批量删除分类记录（一次写入）
     try:

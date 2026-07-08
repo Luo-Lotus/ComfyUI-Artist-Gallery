@@ -14,6 +14,7 @@ Prompt Gallery Node - ComfyUI 节点定义
 import json
 import re
 import random
+import threading
 from pathlib import Path
 from .storage import get_storage
 from .utils import decode_filename
@@ -29,6 +30,7 @@ _prompt_match_cache = None           # 按长度降序的名称列表
 _prompt_match_names = None           # frozenset 指纹
 _blocked_category_cache = None       # 被禁止保存到画廊的分类 ID 集合
 _blocked_category_fingerprint = None # 分类数据指纹
+_quick_save_prompt_lock = threading.Lock()
 
 
 def _get_blocked_category_ids(category_storage):
@@ -74,10 +76,10 @@ class PromptGallery:
             print("[PromptGallery] 数据已刷新 - 请在画廊中查看")
         elif action == "统计信息":
             try:
-                prompt_storage, _, _, _ = get_storage()
+                prompt_storage, mapping_storage, _, _ = get_storage()
                 prompts = prompt_storage.get_all_prompts()
                 total_prompts = len(prompts)
-                total_images = sum(a.get("imageCount", 0) for a in prompts)
+                total_images = len(mapping_storage.get_all_mappings())
                 print(f"[PromptGallery] 统计: {total_prompts} 个画师, {total_images} 张图片")
             except Exception as e:
                 print(f"[PromptGallery] 获取统计信息失败: {e}")
@@ -532,7 +534,7 @@ class SaveToGallery:
             metadata = {}
 
         # 一次性获取所有存储实例
-        prompt_storage, mapping_storage, _, _ = get_storage()
+        _, mapping_storage, _, _ = get_storage()
 
         # 收集画师来源：metadata_json + prompt_string，合并去重
         prompt_names_from_meta = metadata.get("prompt_names", [])
@@ -554,7 +556,7 @@ class SaveToGallery:
         if not all_saveable_prompts:
             print("[SaveToGallery] 未匹配到已知画师，图片仍将保存（无关联Prompt）")
 
-        # 去重（按 categoryId:value）用于图片计数更新
+        # 去重（按 categoryId:value）
         seen = set()
         saveable_prompts = []
         for p in all_saveable_prompts:
@@ -661,17 +663,6 @@ class SaveToGallery:
         if pending_mappings:
             mapping_storage.add_mappings_batch(pending_mappings)
 
-        # 批量更新画师图片计数（一次读写完成）
-        if saved_count > 0:
-            deltas = {}
-            for prompt_info in saveable_prompts:
-                category_id = prompt_info.get("categoryId", "root")
-                value = prompt_info.get("value", "")
-                if category_id and value:
-                    key = (category_id, value)
-                    deltas[key] = deltas.get(key, 0) + saved_count
-            prompt_storage.update_image_count_batch(deltas)
-
         print(f"[SaveToGallery] 总共保存了 {saved_count} 张图片")
         return { "ui": { "images": results } }
 
@@ -700,6 +691,53 @@ class QuickSavePrompt:
             }
         }
 
+    @staticmethod
+    def _save_prompt_worker(prompt_name, category, prompt_value):
+        try:
+            with _quick_save_prompt_lock:
+                prompt_storage, mapping_storage, category_storage, _ = get_storage()
+
+                # 根据分类名称查找分类 ID
+                categories = category_storage.get_all_categories()
+                category_id = "root"
+                for cat in categories:
+                    if cat["name"] == category:
+                        category_id = cat["id"]
+                        break
+
+                # 检查同分类下是否已有同名 prompt
+                existing = None
+                for p in prompt_storage.get_all_prompts():
+                    if p.get("categoryId") == category_id and p.get("name") == prompt_name:
+                        existing = p
+                        break
+
+                if existing:
+                    old_value = existing["value"]
+                    if old_value != prompt_value:
+                        prompt_storage.update_prompt(
+                            category_id=category_id,
+                            old_value=old_value,
+                            value=prompt_value,
+                        )
+                        # 兼容旧版本映射；当前 promptString 派生关系下通常是 no-op。
+                        mapping_storage.rename_prompt_in_mappings(old_value, prompt_value)
+                        print(f"[QuickSavePrompt] 已更新 prompt: {prompt_name} (value: {old_value} -> {prompt_value}, 分类: {category})")
+                    else:
+                        print(f"[QuickSavePrompt] prompt 未变化: {prompt_name} (value: {prompt_value}, 分类: {category})")
+                else:
+                    prompt_storage.add_prompt(
+                        value=prompt_value,
+                        name=prompt_name,
+                        category_id=category_id,
+                    )
+                    print(f"[QuickSavePrompt] 已创建 prompt: {prompt_name} (value: {prompt_value}, 分类: {category})")
+
+        except Exception as e:
+            print(f"[QuickSavePrompt] 后台保存失败: {e}")
+            import traceback
+            traceback.print_exc()
+
     def save_prompt(self, prompt_name, category, prompt_value):
         if not prompt_name or not prompt_name.strip():
             print("[QuickSavePrompt] 错误: 请填写 prompt 名称")
@@ -712,43 +750,14 @@ class QuickSavePrompt:
         prompt_name = prompt_name.strip()
         prompt_value = prompt_value.strip()
 
-        prompt_storage, mapping_storage, category_storage, _ = get_storage()
-
-        # 根据分类名称查找分类 ID
-        categories = category_storage.get_all_categories()
-        category_id = "root"
-        for cat in categories:
-            if cat["name"] == category:
-                category_id = cat["id"]
-                break
-
-        # 检查同分类下是否已有同名 prompt
-        existing = None
-        for p in prompt_storage.get_all_prompts():
-            if p.get("categoryId") == category_id and p.get("name") == prompt_name:
-                existing = p
-                break
-
-        if existing:
-            old_value = existing["value"]
-            if old_value != prompt_value:
-                prompt_storage.update_prompt(
-                    category_id=category_id,
-                    old_value=old_value,
-                    value=prompt_value,
-                )
-                # 同步更新图片映射中的旧值
-                mapping_storage.rename_prompt_in_mappings(old_value, prompt_value)
-                print(f"[QuickSavePrompt] 已更新 prompt: {prompt_name} (value: {old_value} -> {prompt_value}, 分类: {category})")
-            else:
-                print(f"[QuickSavePrompt] prompt 未变化: {prompt_name} (value: {prompt_value}, 分类: {category})")
-        else:
-            prompt_storage.add_prompt(
-                value=prompt_value,
-                name=prompt_name,
-                category_id=category_id,
-            )
-            print(f"[QuickSavePrompt] 已创建 prompt: {prompt_name} (value: {prompt_value}, 分类: {category})")
+        thread = threading.Thread(
+            target=self._save_prompt_worker,
+            args=(prompt_name, category, prompt_value),
+            name="pg-quick-save-prompt",
+            daemon=True,
+        )
+        thread.start()
+        print(f"[QuickSavePrompt] 已提交后台保存任务: {prompt_name} (分类: {category})")
 
         return ()
 
@@ -821,4 +830,3 @@ class PromptCategoryReader:
         key = "name" if property == "name" else "value"
         result = separator.join(p.get(key, "") for p in filtered)
         return (result,)
-

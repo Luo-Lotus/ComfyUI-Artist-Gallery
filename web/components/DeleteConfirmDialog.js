@@ -17,13 +17,7 @@ function getDeleteConfig(type, target, context) {
       title: '确认删除 Prompt',
       getMessage: () => {
         const name = target?.name || target?.value || '';
-        const imageCount = target?.imageCount || 0;
-        const lines = [`确定要删除 Prompt "${name}" 吗？`];
-        if (imageCount > 0) {
-          lines.push(`将清理其关联的 ${imageCount} 张图片（仅关联此 Prompt 的图片文件将被删除，共享图片仅断开关联）。`);
-        }
-        lines.push('将从所有组合中移除此 Prompt。');
-        return lines;
+        return [`确定要删除 Prompt "${name}" 吗？`];
       },
     },
     category: {
@@ -33,7 +27,7 @@ function getDeleteConfig(type, target, context) {
         const name = target?.name || '';
         return [
           `确定要删除分类 "${name}" 吗？`,
-          '将递归删除所有子分类、Prompt、组合及关联图片。',
+          '将递归删除所有子分类、分类下的 Prompt 和组合。',
           '此操作不可撤销。',
         ];
       },
@@ -71,10 +65,10 @@ function getDeleteConfig(type, target, context) {
       getMessage: () => {
         const lines = ['将批量删除以下内容：'];
         if (target?.categories?.length > 0) {
-          lines.push(`- ${target.categories.length} 个分类（含子分类、Prompt、组合及图片）`);
+          lines.push(`- ${target.categories.length} 个分类（含子分类、分类下的 Prompt 和组合）`);
         }
         if (target?.prompts?.length > 0) {
-          lines.push(`- ${target.prompts.length} 个 Prompt 及关联图片`);
+          lines.push(`- ${target.prompts.length} 个 Prompt`);
         }
         if (target?.combinations?.length > 0) {
           lines.push(`- ${target.combinations.length} 个组合`);

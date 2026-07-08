@@ -1,13 +1,10 @@
 """
 Batch 操作端点
 """
-from pathlib import Path
 from aiohttp import web
 import server
 from ..storage import get_storage
-from ..storage.backup import BackupManager
-from ._utils import is_remote_path
-from ._delete_utils import delete_category_cascade, delete_prompt_cascade, batch_delete_prompts_cascade, remove_image_prompt_link, delete_image_completely
+from ._delete_utils import delete_category_cascade, batch_delete_prompts_cascade, delete_images_completely_batch
 
 
 # ============ Batch Operations API ============
@@ -33,10 +30,6 @@ async def batch_delete(request):
 
         prompt_storage, mapping_storage, category_storage, combination_storage = get_storage()
 
-        # 备份
-        storage_dir = Path(prompt_storage.storage_dir)
-        BackupManager(storage_dir).create_backup()
-
         result = {
             "deleted_categories": [],
             "deleted_prompts": [],
@@ -46,9 +39,12 @@ async def batch_delete(request):
             "errors": [],
         }
 
-        # 删除分类（级联）
+        # 删除分类
+        deleted_category_set = set()
         for cat_id in category_ids:
             try:
+                if cat_id in deleted_category_set:
+                    continue
                 category = category_storage.get_category_by_id(cat_id)
                 if not category:
                     result["errors"].append(f"分类 {cat_id} 不存在")
@@ -63,10 +59,11 @@ async def batch_delete(request):
                 result["deleted_files"].extend(cat_result["deleted_files"])
                 result["disassociated_images"].extend(cat_result["disassociated_images"])
                 result["deleted_combinations"] += cat_result["deleted_combinations"]
+                deleted_category_set.update(cat_result["deleted_categories"])
             except Exception as e:
                 result["errors"].append(f"删除分类 {cat_id} 失败: {str(e)}")
 
-        # 删除 Prompt（批量级联）
+        # 删除 Prompt
         if prompts:
             # 先验证并收集有效的 prompt keys
             valid_keys = []
@@ -76,6 +73,8 @@ async def batch_delete(request):
                 if not category_id or not value:
                     result["errors"].append(f"无效的 Prompt 数据: {prompt_data}")
                     continue
+                if category_id in deleted_category_set:
+                    continue
                 prompt = prompt_storage.get_prompt(category_id, value)
                 if not prompt:
                     result["errors"].append(f"Prompt {value} 不存在")
@@ -83,7 +82,6 @@ async def batch_delete(request):
                 valid_keys.append((category_id, value))
                 result["deleted_prompts"].append(prompt.get("name", value))
 
-            # 批量级联删除（3 次锁操作代替 N*M 次）
             if valid_keys:
                 prompt_result = batch_delete_prompts_cascade(
                     valid_keys,
@@ -109,15 +107,18 @@ async def batch_delete(request):
             if valid_ids:
                 result["deleted_combinations"] += combination_storage.batch_delete(valid_ids)
 
-        # 删除图片
+        # 删除图片（显式图片删除仍然删除文件和映射，但批量写 images.json）
+        image_paths = []
         for img_data in images:
+            image_path = img_data.get("path")
+            if image_path:
+                image_paths.append(image_path)
+        if image_paths:
             try:
-                image_path = img_data.get("path")
-                if not image_path:
-                    continue
-                img_result = delete_image_completely(image_path, mapping_storage, prompt_storage)
-                if img_result["file_deleted"]:
-                    result["deleted_files"].append(image_path)
+                img_result = delete_images_completely_batch(
+                    image_paths, mapping_storage, prompt_storage
+                )
+                result["deleted_files"].extend(img_result["deleted_files"])
             except Exception as e:
                 result["errors"].append(f"删除图片失败: {str(e)}")
 
@@ -165,65 +166,95 @@ async def batch_move(request):
         errors = []
 
         # 移动分类
+        valid_category_move_map = {}
+        if categories:
+            all_categories = category_storage.get_all_categories()
+            category_index = {cat.get("id"): cat for cat in all_categories}
+            pending_parent_by_id = {}
+
+            def check_cycle(parent_id, target_id):
+                seen = {target_id}
+                while parent_id and parent_id != "root":
+                    if parent_id in seen:
+                        return True
+                    seen.add(parent_id)
+                    if parent_id in pending_parent_by_id:
+                        parent_id = pending_parent_by_id[parent_id]
+                        continue
+                    parent = category_index.get(parent_id)
+                    if not parent:
+                        return False
+                    parent_id = parent.get("parentId")
+                return False
+
         for cat_data in categories:
             try:
                 cat_id = cat_data.get("id")
                 new_parent_id = cat_data.get("newParentId", "root")
 
-                # 验证目标分类存在
-                if new_parent_id != "root":
-                    target_cat = category_storage.get_category_by_id(new_parent_id)
-                    if not target_cat:
-                        errors.append(f"目标分类 {new_parent_id} 不存在")
-                        continue
+                if cat_id not in category_index:
+                    errors.append(f"分类 {cat_id} 不存在")
+                    continue
 
-                # 检查是否会形成循环
-                def check_cycle(parent_id, target_id):
-                    if parent_id == target_id:
-                        return True
-                    cat = category_storage.get_category_by_id(parent_id)
-                    if not cat or not cat.get("parentId"):
-                        return False
-                    return check_cycle(cat["parentId"], target_id)
+                if new_parent_id != "root" and new_parent_id not in category_index:
+                    errors.append(f"目标分类 {new_parent_id} 不存在")
+                    continue
 
                 if new_parent_id != "root" and check_cycle(new_parent_id, cat_id):
                     errors.append(f"不能将分类 {cat_id} 移动到自己的子分类下")
                     continue
 
-                # 更新分类的父分类
-                success = category_storage.update_category(cat_id, parentId=new_parent_id)
-                if success:
-                    cat = category_storage.get_category_by_id(cat_id)
-                    moved_categories.append(cat.get("name", cat_id))
-                else:
-                    errors.append(f"分类 {cat_id} 不存在")
+                valid_category_move_map[cat_id] = new_parent_id
+                pending_parent_by_id[cat_id] = new_parent_id
 
             except Exception as e:
                 errors.append(f"移动分类 {cat_data.get('id')} 失败: {str(e)}")
 
+        if valid_category_move_map:
+            moved = category_storage.batch_move([
+                {"id": cat_id, "parentId": parent_id}
+                for cat_id, parent_id in valid_category_move_map.items()
+            ])
+            moved_categories.extend([cat.get("name", cat.get("id")) for cat in moved])
+
         # 移动Prompt
+        valid_prompt_moves = []
+        if prompts:
+            category_ids = {cat.get("id") for cat in category_storage.get_all_categories()}
+            prompt_index = {
+                (prompt.get("categoryId", "root"), prompt.get("value", "")): prompt
+                for prompt in prompt_storage.get_all_prompts()
+            }
+
         for prompt_data in prompts:
             try:
                 category_id = prompt_data.get("categoryId")
                 value = prompt_data.get("value")
                 new_category_id = prompt_data.get("newCategoryId", "root")
 
-                # 验证目标分类存在
-                target_cat = category_storage.get_category_by_id(new_category_id)
-                if not target_cat:
+                if new_category_id not in category_ids:
                     errors.append(f"目标分类 {new_category_id} 不存在")
                     continue
 
-                # 更新Prompt的分类
-                success = prompt_storage.update_prompt(category_id, value, categoryId=new_category_id)
-                if success:
-                    prompt = prompt_storage.get_prompt(new_category_id, value)
-                    moved_prompts.append(prompt.get("name", value))
-                else:
+                prompt = prompt_index.get((category_id, value))
+                if not prompt:
                     errors.append(f"Prompt {value} 不存在")
+                    continue
+
+                if (new_category_id, value) in prompt_index and new_category_id != category_id:
+                    errors.append(f"目标分类 {new_category_id} 已存在 Prompt {value}")
+                    continue
+
+                valid_prompt_moves.append((category_id, value, new_category_id))
+                prompt_index.pop((category_id, value), None)
+                prompt_index[(new_category_id, value)] = prompt
 
             except Exception as e:
                 errors.append(f"移动Prompt {prompt_data.get('value')} 失败: {str(e)}")
+
+        if valid_prompt_moves:
+            moved = prompt_storage.batch_move_to_categories(valid_prompt_moves)
+            moved_prompts.extend([prompt.get("name", prompt.get("value")) for prompt in moved])
 
         return web.json_response({
             "success": True,
@@ -254,6 +285,15 @@ async def batch_copy(request):
 
         copied_prompts = []
         errors = []
+        items_to_create = []
+
+        category_ids = {cat.get("id") for cat in category_storage.get_all_categories()}
+        all_prompts = prompt_storage.get_all_prompts()
+        prompt_index = {
+            (prompt.get("categoryId", "root"), prompt.get("value", "")): prompt
+            for prompt in all_prompts
+        }
+        existing_keys = set(prompt_index.keys())
 
         for prompt_data in prompts:
             try:
@@ -263,30 +303,40 @@ async def batch_copy(request):
                 new_name = prompt_data.get("newName", value)
 
                 # 验证源Prompt存在
-                source_prompt = prompt_storage.get_prompt(category_id, value)
+                source_prompt = prompt_index.get((category_id, value))
                 if not source_prompt:
                     errors.append(f"源Prompt {value} 不存在")
                     continue
 
                 # 验证目标分类存在
-                target_cat = category_storage.get_category_by_id(target_category_id)
-                if not target_cat:
+                if target_category_id not in category_ids:
                     errors.append(f"目标分类 {target_category_id} 不存在")
                     continue
 
-                # 创建新Prompt（使用相同或新名称）
-                try:
-                    new_prompt = prompt_storage.add_prompt(
-                        value=new_name,
-                        name=source_prompt.get("name"),
-                        category_id=target_category_id
-                    )
-                    copied_prompts.append(new_prompt.get("name", new_name))
-                except ValueError as e:
-                    errors.append(f"复制Prompt {value} 失败: {str(e)}")
+                new_key = (target_category_id, new_name)
+                if new_key in existing_keys:
+                    errors.append(f"目标分类 {target_category_id} 已存在 Prompt {new_name}")
+                    continue
+
+                existing_keys.add(new_key)
+                items_to_create.append({
+                    "value": new_name,
+                    "name": source_prompt.get("name"),
+                    "alias": source_prompt.get("alias", ""),
+                    "categoryId": target_category_id,
+                })
 
             except Exception as e:
                 errors.append(f"复制Prompt {prompt_data.get('value')} 失败: {str(e)}")
+
+        if items_to_create:
+            success_prompts, failed_values = prompt_storage.add_prompts_import(items_to_create)
+            copied_prompts.extend([
+                prompt.get("name", prompt.get("value"))
+                for prompt in success_prompts
+            ])
+            for value in failed_values:
+                errors.append(f"复制Prompt {value} 失败: 已存在或无效")
 
         return web.json_response({
             "success": True,
