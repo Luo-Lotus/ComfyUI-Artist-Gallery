@@ -39,7 +39,7 @@ function getDeleteConfig(type, target, context) {
         const name = target?.name || '';
         return [
           `确定要删除组合 "${name}" 吗？`,
-          '不会影响成员 Prompt 和关联图片。',
+          '不会影响成员 Prompt 和匹配到的图片。',
         ];
       },
     },
@@ -49,13 +49,6 @@ function getDeleteConfig(type, target, context) {
       getMessage: () => {
         const imagePath = target?.path || target?.imagePath || '';
         const fileName = imagePath.split('/').pop();
-        const promptCount = target?.prompts?.length || 0;
-        if (context?.promptValue && promptCount > 1) {
-          return [
-            `确定要断开图片 "${fileName}" 与此 Prompt 的关联吗？`,
-            `图片还关联其他 ${promptCount - 1} 个 Prompt，文件将保留。`,
-          ];
-        }
         return [`确定要删除图片 "${fileName}" 吗？`, '图片文件将被永久删除。'];
       },
     },

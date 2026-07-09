@@ -6,7 +6,6 @@ import { h } from '../lib/preact.mjs';
 import { useState } from '../lib/hooks.mjs';
 import { buildImageUrl } from '../utils.js';
 import { Lightbox } from './Lightbox.js';
-import { MoveDialog } from './MoveDialog.js';
 import { useContextMenu } from './ContextMenu.js';
 import { Icon } from '../lib/icons.mjs';
 import { showToast } from './Toast.js';
@@ -18,8 +17,6 @@ export function PromptDetailModal({ isOpen, prompt, onClose, onImageDelete, cate
     prompt: null,
     imageIndex: 0,
   });
-  const [showMoveDialog, setShowMoveDialog] = useState(false);
-  const [selectedImage, setSelectedImage] = useState(null);
   const { showContextMenu } = useContextMenu();
 
   const handleImageClick = (imageIndex) => {
@@ -32,7 +29,7 @@ export function PromptDetailModal({ isOpen, prompt, onClose, onImageDelete, cate
 
   const handleDeleteImage = async (imagePath, index) => {
     try {
-      await deleteImage(imagePath, prompt.value);
+      await deleteImage(imagePath);
       showToast('图片已删除', 'success');
       if (onImageDelete) {
         onImageDelete();
@@ -50,11 +47,6 @@ export function PromptDetailModal({ isOpen, prompt, onClose, onImageDelete, cate
         action: () => handleImageClick(prompt.images.indexOf(image)),
       },
       {
-        icon: 'move',
-        label: '移动图片',
-        action: () => handleMoveImage(image),
-      },
-      {
         icon: 'trash-2',
         label: '删除图片',
         action: () => handleDeleteImage(image.path, prompt.images.indexOf(image)),
@@ -62,39 +54,6 @@ export function PromptDetailModal({ isOpen, prompt, onClose, onImageDelete, cate
     ];
 
     showContextMenu(e, menuItems);
-  };
-
-  const handleMoveImage = (image) => {
-    setSelectedImage(image);
-    setShowMoveDialog(true);
-  };
-
-  const handleMove = async (item, target) => {
-    try {
-      const response = await fetch('/prompt_gallery/image/move', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imagePath: selectedImage.path,
-          fromPromptId: prompt.id,
-          toPromptId: target.id,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setShowMoveDialog(false);
-        setSelectedImage(null);
-        if (onImageDelete) {
-          onImageDelete();
-        }
-      } else {
-        throw new Error(data.error || '移动失败');
-      }
-    } catch (error) {
-      throw error;
-    }
   };
 
   const handleLightboxNavigate = (direction) => {
@@ -179,20 +138,6 @@ export function PromptDetailModal({ isOpen, prompt, onClose, onImageDelete, cate
             imageIndex: 0,
           }),
         onNavigate: handleLightboxNavigate,
-      }),
-
-    // Move Dialog
-    showMoveDialog &&
-      h(MoveDialog, {
-        isOpen: showMoveDialog,
-        itemType: 'image',
-        item: selectedImage,
-        categories: categories || [],
-        onClose: () => {
-          setShowMoveDialog(false);
-          setSelectedImage(null);
-        },
-        onMove: handleMove,
       }),
   ]);
 }

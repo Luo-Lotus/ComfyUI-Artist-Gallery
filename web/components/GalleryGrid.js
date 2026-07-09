@@ -34,8 +34,12 @@ export function GalleryGrid() {
   // 计算每个分类的Prompt数量
   const categoryPromptCounts = useMemo(() => {
     const counts = {};
-    categories.forEach((cat) => {
-      counts[cat.id] = prompts.filter((a) => a.categoryId === cat.id).length;
+    const categoryIds = new Set(categories.map((cat) => cat.id));
+    prompts.forEach((prompt) => {
+      const categoryId = prompt.categoryId;
+      if (categoryIds.has(categoryId)) {
+        counts[categoryId] = (counts[categoryId] || 0) + 1;
+      }
     });
     return counts;
   }, [categories, prompts]);
@@ -121,9 +125,25 @@ export function GalleryGrid() {
       categoryPromptCounts,
       categories.length,
       combinations.length,
-      ctx.currentCombinations,
       ctx.favorites,
+      ctx.handleCardClick,
+      ctx.handleCategorySelect,
+      ctx.handleCombinationClick,
+      ctx.handleCombinationDelete,
+      ctx.handleCombinationDuplicate,
+      ctx.handleCombinationEdit,
+      ctx.handleDeleteCategory,
+      ctx.handleEditCategory,
+      ctx.handleExportPrompt,
+      ctx.handleFavoriteToggle,
+      ctx.handleGallerySelect,
+      ctx.handleOpenExportDialog,
       ctx.handleTogglePinned,
+      ctx.loadData,
+      ctx.openCopyDialog,
+      ctx.openDeleteConfirm,
+      ctx.openEditDialog,
+      ctx.openMoveDialog,
       ctx.selectionMode,
       ctx.selectedItems,
     ],

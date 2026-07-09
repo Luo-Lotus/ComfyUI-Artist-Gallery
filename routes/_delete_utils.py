@@ -28,34 +28,8 @@ def delete_image_file(image_path: str, mapping_type: str = "") -> bool:
 
 def remove_image_prompt_link(image_path: str, prompt_value: str,
                               mapping_storage) -> dict:
-    """
-    从图片映射中移除一个 prompt 关联。
-    - 若移除后映射的 prompts 为空 → 删文件 + 删映射
-    - 若移除后还有其他 prompt → 只更新映射
-    """
-    result = {"file_deleted": False, "mapping_deleted": False, "orphan": False}
-
-    mapping = mapping_storage.get_mappings_by_image(image_path)
-    if not mapping:
-        return result
-
-    prompts = list(mapping.get("prompts", []))
-    if prompt_value not in prompts:
-        return result
-
-    prompts.remove(prompt_value)
-
-    if prompts:
-        # 还有其他 prompt，只更新映射
-        mapping_storage.update_mapping(image_path, prompts)
-    else:
-        # 没有其他 prompt 了，删文件 + 删映射
-        result["orphan"] = True
-        result["file_deleted"] = delete_image_file(image_path, mapping.get("type", ""))
-        mapping_storage.delete_mapping_by_image(image_path)
-        result["mapping_deleted"] = True
-
-    return result
+    """兼容旧接口：图片不再维护可删除的 Prompt 强关联。"""
+    return {"file_deleted": False, "mapping_deleted": False, "orphan": False}
 
 
 def delete_image_completely(image_path: str, mapping_storage, prompt_storage) -> dict:
@@ -69,15 +43,11 @@ def delete_image_completely(image_path: str, mapping_storage, prompt_storage) ->
     if not mapping:
         return result
 
-    prompt_values = mapping.get("prompts", [])
-
     # 删文件
     result["file_deleted"] = delete_image_file(image_path, mapping.get("type", ""))
 
     # 删映射
     mapping_storage.delete_mapping_by_image(image_path)
-
-    result["affected_prompts"] = list(prompt_values or [])
 
     return result
 

@@ -47,6 +47,7 @@ async def get_images_grouped(request):
 
         prompt_filter = request.query.get("prompt", "").strip()
         prompts_param = request.query.get("prompts", "").strip()
+        prompts_json_param = request.query.get("prompts_json", "").strip()
         search_query = request.query.get("search", "").strip().lower()
         filters_param = request.query.get("filters", "").strip()
         include_comfy_output = request.query.get("include_comfy_output", "").strip() == "1"
@@ -61,9 +62,16 @@ async def get_images_grouped(request):
             group_by=group_by,
         )
 
-        # 组合模式：多个 prompt 取交集
+        # 组合模式：多个 prompt 取交集。优先使用 JSON，避免 prompt value 中的逗号被拆坏。
         combination_prompts = None
-        if prompts_param:
+        if prompts_json_param:
+            try:
+                parsed_prompts = json.loads(prompts_json_param)
+                if isinstance(parsed_prompts, list):
+                    combination_prompts = [str(p).strip() for p in parsed_prompts if str(p).strip()]
+            except json.JSONDecodeError:
+                combination_prompts = []
+        elif prompts_param:
             combination_prompts = [p.strip() for p in prompts_param.split(",") if p.strip()]
         log_timing("parse_prompts", combination_count=len(combination_prompts or []))
 
@@ -91,12 +99,9 @@ async def get_images_grouped(request):
         mappings = mapping_storage.get_all_mappings()
         log_timing("load_mappings", mapping_count=len(mappings))
 
-        # 未显式请求时，排除 comfy_output.images.json 中的图片
-        if not include_comfy_output:
-            mappings = [
-                m for m in mappings
-                if "comfy_output.images.json" not in m.get("_source_file", "")
-            ]
+        # comfy_output*.images.json 已在 storage glob 中排除；历史视图显式请求时才按需追加。
+        if include_comfy_output:
+            mappings = mappings + mapping_storage.get_comfy_output_mappings()
         log_timing("filter_comfy_output", mapping_count=len(mappings))
 
         # 预编译分组字段
@@ -123,27 +128,22 @@ async def get_images_grouped(request):
             if not image_path:
                 continue
 
-            prompts_list = mapping.get("prompts", [])
+            prompt_string = mapping.get("promptString", "")
+            prompt_string_lower = prompt_string.lower()
 
             # 单个 prompt 过滤
-            if prompt_filter and prompt_filter not in prompts_list:
+            if prompt_filter and prompt_filter.lower() not in prompt_string_lower:
                 continue
 
             # 组合模式：交集过滤（图片必须包含所有指定 prompt）
             if combination_prompts:
-                if not all(p in prompts_list for p in combination_prompts):
+                if not all(p.lower() in prompt_string_lower for p in combination_prompts):
                     continue
 
-            # search 过滤：检查 prompts 列表或 prompt_string 中是否有匹配项
+            # search 过滤：检查 promptString 中是否有匹配项
             if search_query:
-                matched = any(
-                    search_query in p.lower()
-                    for p in prompts_list
-                )
-                if not matched:
-                    ps = mapping.get("promptString", "").lower()
-                    if search_query not in ps:
-                        continue
+                if search_query not in prompt_string_lower:
+                    continue
 
             # 自定义筛查：所有筛查项取交集
             if active_filters:
@@ -160,13 +160,18 @@ async def get_images_grouped(request):
                     continue
 
             saved_at = mapping.get("fileInfo", {}).get("createdAt", 0)
+            file_info = mapping.get("fileInfo", {})
+            size = file_info.get("size", 0)
 
             valid_items.append({
                 "path": image_path,
                 "type": mapping.get("type", "local"),
                 "savedAt": saved_at,
-                "prompts": prompts_list,
-                "promptString": mapping.get("promptString", ""),
+                # mtime 与 savedAt 同值，供前端按时间排序/选择使用（对齐旧 /prompt_images 字段）
+                "mtime": saved_at,
+                "size": size,
+                "prompts": [],
+                "promptString": prompt_string,
             })
             valid_raw_mappings.append(mapping)
         log_timing("filter_items", valid_count=len(valid_items))

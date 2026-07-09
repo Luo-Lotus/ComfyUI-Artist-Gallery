@@ -284,8 +284,6 @@ export function PartitionItem({
           // 分类特殊 badge
           isCategory && partition.config?.autoSaveCombinationCategoryId === key &&
             h('span', { class: 'prompt-selector-tag-badge auto-save-badge', title: '组合自动保存到此分类' }, h(Icon, { name: 'bookmark', size: 10 })),
-          isCategory && data.metadata?.blockGallerySave &&
-            h('span', { class: 'prompt-selector-tag-badge gallery-block-badge', title: '已禁止保存到画廊' }, h(Icon, { name: 'ban', size: 10 })),
           h(
             'button',
             {

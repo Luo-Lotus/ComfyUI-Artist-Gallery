@@ -169,7 +169,8 @@ def embed_image_metadata(
                 "prompt_names": prompt_names,
                 "display_names": display_names,
                 "selected_categories": categories,
-                "selected_prompts": selected_prompts
+                "selected_prompts": selected_prompts,
+                "promptString": ", ".join(prompt_names),
             }))
 
             # 添加额外的 PNG 元数据（如果提供）
@@ -238,7 +239,8 @@ def save_image_with_metadata(
             "prompt_names": prompt_names,
             "display_names": display_names,
             "selected_categories": categories,
-            "selected_prompts": selected_prompts
+            "selected_prompts": selected_prompts,
+            "promptString": ", ".join(prompt_names),
         }))
 
         # 添加额外的 PNG 元数据（如果提供）

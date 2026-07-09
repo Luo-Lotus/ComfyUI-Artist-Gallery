@@ -1,18 +1,17 @@
 /**
  * 复制对话框组件
- * 用于复制Prompt、分类或图片到其他位置
+ * 用于复制Prompt、分类或组合到其他分类
  */
 import { h } from '../lib/preact.mjs';
-import { useState, useMemo, useCallback } from '../lib/hooks.mjs';
+import { useState, useMemo } from '../lib/hooks.mjs';
 import { Dialog, DialogButton } from './Dialog.js';
 import { FlatSelector } from './FlatSelector.js';
-import { searchPrompts } from '../utils.js';
 import { showToast } from './Toast.js';
 import { Icon } from '../lib/icons.mjs';
 
 export function CopyDialog({
   isOpen,
-  itemType, // 'category' | 'prompt' | 'image'
+  itemType, // 'category' | 'prompt' | 'combination'
   item,
   categories,
   onClose,
@@ -22,8 +21,6 @@ export function CopyDialog({
   const [newName, setNewName] = useState('');
   const [showNameInput, setShowNameInput] = useState(false);
   const [copying, setCopying] = useState(false);
-  const [searchResults, setSearchResults] = useState([]);
-  const [searchLoading, setSearchLoading] = useState(false);
 
   // 过滤掉自己（不能复制到自己）
   const excludeIds = useMemo(() => {
@@ -50,27 +47,9 @@ export function CopyDialog({
   const targetType = useMemo(() => {
     if (itemType === 'category') return 'category';
     if (itemType === 'prompt') return 'category';
-    if (itemType === 'image') return 'prompt';
     if (itemType === 'combination') return 'category';
     return 'category';
   }, [itemType]);
-
-  const handleSearch = useCallback(async (query) => {
-    if (!query || query.length < 1) {
-      setSearchResults([]);
-      return;
-    }
-    setSearchLoading(true);
-    try {
-      const result = await searchPrompts(query, 100);
-      setSearchResults(result.prompts || []);
-    } catch (err) {
-      console.error('搜索失败:', err);
-      setSearchResults([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  }, []);
 
   const handleCopy = async () => {
     if (!selectedTarget) {
@@ -109,7 +88,6 @@ export function CopyDialog({
   const getTitle = () => {
     if (itemType === 'category') return '复制分类';
     if (itemType === 'prompt') return '复制Prompt';
-    if (itemType === 'image') return '复制图片';
     if (itemType === 'combination') return '复制组合';
     return '复制';
   };
@@ -117,7 +95,6 @@ export function CopyDialog({
   const getTitleIcon = () => {
     if (itemType === 'category') return h(Icon, { name: 'folder-plus', size: 18 });
     if (itemType === 'prompt') return h(Icon, { name: 'plus', size: 18 });
-    if (itemType === 'image') return h(Icon, { name: 'image', size: 18 });
     if (itemType === 'combination') return h(Icon, { name: 'link', size: 18 });
     return h(Icon, { name: 'copy', size: 18 });
   };
@@ -126,14 +103,11 @@ export function CopyDialog({
     if (!item) return '';
     if (itemType === 'category') return item.name;
     if (itemType === 'prompt') return item.name || item.value;
-    if (itemType === 'image') return '图片';
     if (itemType === 'combination') return item.name;
     return '';
   };
 
   if (!isOpen) return null;
-
-  const isPromptSearch = targetType === 'prompt';
 
   return h(
     Dialog,
@@ -173,14 +147,10 @@ export function CopyDialog({
           h(FlatSelector, {
             type: targetType,
             categories,
-            prompts: isPromptSearch ? searchResults : undefined,
             excludeIds,
             currentId: null,
             onSelect: handleTargetSelect,
             placeholder: '搜索目标...',
-            searchMode: isPromptSearch,
-            onSearch: isPromptSearch ? handleSearch : undefined,
-            searchLoading,
           }),
         ),
       ]),

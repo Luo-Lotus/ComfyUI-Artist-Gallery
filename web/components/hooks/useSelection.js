@@ -158,8 +158,14 @@ export function useSelection({
 
   const handleBatchMove = ({ setMoveItem, setMoveItemType, setShowMoveDialog }) => {
     const details = getSelectedDetails();
-    const totalSelected = details.categories.length + details.prompts.length + details.combinations.length + details.images.length;
-    if (totalSelected === 0) return;
+    const totalMovable = details.categories.length + details.prompts.length + details.combinations.length;
+    if (totalMovable === 0) {
+      showToast('图片不能移动到其他 Prompt', 'warning');
+      return;
+    }
+    if (details.images.length > 0) {
+      showToast('已忽略选中的图片，仅移动分类、Prompt 和组合', 'warning');
+    }
 
     setBatchOperation('move');
     if (details.categories.length > 0) {
@@ -171,19 +177,19 @@ export function useSelection({
     } else if (details.combinations.length > 0) {
       setMoveItemType('combination');
       setMoveItem(details.combinations[0]);
-    } else {
-      setMoveItemType('image');
-      setMoveItem(details.images[0]);
     }
     setShowMoveDialog(true);
   };
 
   const handleBatchCopy = ({ setCopyItem, setCopyItemType, setShowCopyDialog }) => {
     const details = getSelectedDetails();
-    const totalCopyable = details.prompts.length + details.combinations.length + details.images.length;
+    const totalCopyable = details.prompts.length + details.combinations.length;
     if (totalCopyable === 0) {
       showToast('请选择Prompt或组合后复制', 'warning');
       return;
+    }
+    if (details.images.length > 0) {
+      showToast('已忽略选中的图片，仅复制 Prompt 和组合', 'warning');
     }
 
     setBatchOperation('copy');
@@ -193,9 +199,6 @@ export function useSelection({
     } else if (details.combinations.length > 0) {
       setCopyItemType('combination');
       setCopyItem(details.combinations[0]);
-    } else {
-      setCopyItemType('image');
-      setCopyItem(details.images[0]);
     }
     setShowCopyDialog(true);
   };

@@ -49,15 +49,15 @@ my_export.zip
   "images": [
     {
       "path": "images/photo_001.png",
-      "prompts": ["akakura"]
+      "promptString": "akakura"
     },
     {
       "path": "images/photo_002.jpg",
-      "prompts": ["akakura", "mike"]
+      "promptString": "akakura, mike"
     },
     {
       "path": "images/photo_003.webp",
-      "prompts": ["mike"]
+      "promptString": "mike"
     }
   ]
 }
@@ -79,9 +79,9 @@ my_export.zip
 |------|------|------|------|
 | `path` | string | 是 | 本地图片在 ZIP 内的路径（`images/xxx.png`）或远程图片 URL |
 | `type` | string | 否 | `"local"`（默认）或 `"remote"`。URL 路径会自动识别为 remote |
-| `prompts` | string[] | 是 | 关联的 Prompt value 列表（一张图可关联多个 Prompt） |
+| `promptString` | string | 是 | 用于运行时匹配 Prompt 的提示词文本；Prompt 详情和计数只从该字段做字符串包含匹配 |
 
-> 兼容旧字段：`promptNames` 等价于 `prompts`，`name` 等价于 `value`。
+> 兼容旧字段：`prompts`/`promptNames` 会在导入时转换为 `promptString`（用逗号连接），不再作为持久映射存储；`name` 等价于 `value`。
 
 ### 远程图片
 
@@ -97,12 +97,12 @@ my_export.zip
   "images": [
     {
       "path": "images/local_photo.png",
-      "prompts": ["akakura"]
+      "promptString": "akakura"
     },
     {
       "path": "https://example.com/remote_art.jpg",
       "type": "remote",
-      "prompts": ["akakura"]
+      "promptString": "akakura"
     }
   ]
 }
@@ -178,15 +178,15 @@ my_export.zip
   "images": [
     {
       "path": "images/001.png",
-      "prompts": ["akakura"]
+      "promptString": "akakura"
     },
     {
       "path": "images/002.png",
-      "prompts": ["rossdraws"]
+      "promptString": "rossdraws"
     },
     {
       "path": "images/003.png",
-      "prompts": ["akakura", "rossdraws"]
+      "promptString": "akakura, rossdraws"
     }
   ]
 }
@@ -278,7 +278,7 @@ with zipfile.ZipFile("export_with_images.zip", "w", zipfile.ZIP_DEFLATED) as zf:
         zf.write(img_path, zip_path)
         manifest["images"].append({
             "path": zip_path,
-            "prompts": ["akakura"],  # 关联的 Prompt
+            "promptString": "akakura",
         })
 
     # 需要重写 manifest（因为 images 列表在循环中才填充）
@@ -301,7 +301,7 @@ for img_path in sorted(image_dir.glob("*.png")):
     image_entries.append({
         "local_path": img_path,
         "zip_path": f"images/{img_path.name}",
-        "prompts": [prompt_value],
+        "promptString": prompt_value,
     })
 
 # 2. 构建 manifest
@@ -312,7 +312,7 @@ manifest = {
         {"value": prompt_value, "name": "赤倉"},
     ],
     "images": [
-        {"path": e["zip_path"], "prompts": e["prompts"]}
+        {"path": e["zip_path"], "promptString": e["promptString"]}
         for e in image_entries
     ],
 }
@@ -361,14 +361,14 @@ combinations = [
 image_entries = []
 for img_path in sorted(image_dir.glob("*.png")):
     # 按文件名规则分配 Prompt（示例：文件名包含 prompt value）
-    assigned = [p["value"] for p["prompts"] if p["value"] in img_path.stem.lower()]
+    assigned = [p["value"] for p in prompts if p["value"] in img_path.stem.lower()]
     if not assigned:
         assigned = [prompts[0]["value"]]  # 默认关联第一个
 
     image_entries.append({
         "local_path": img_path,
         "zip_path": f"images/{img_path.name}",
-        "prompts": assigned,
+        "promptString": ", ".join(assigned),
     })
 
 # ---- 构建 manifest ----
@@ -381,7 +381,7 @@ manifest = {
     "prompts": prompts,
     "combinations": combinations,
     "images": [
-        {"path": e["zip_path"], "prompts": e["prompts"]}
+        {"path": e["zip_path"], "promptString": e["promptString"]}
         for e in image_entries
     ],
 }
@@ -476,7 +476,7 @@ for img_path in sorted(image_dir.iterdir()):
     image_entries.append({
         "local_path": img_path,
         "zip_path": f"images/{img_path.name}",
-        "prompts": [value],
+        "promptString": value,
     })
 
 manifest = {
@@ -484,7 +484,7 @@ manifest = {
     "exportedAt": 1715000000000,
     "prompts": list(prompts_map.values()),
     "images": [
-        {"path": e["zip_path"], "prompts": e["prompts"]}
+        {"path": e["zip_path"], "promptString": e["promptString"]}
         for e in image_entries
     ],
 }
@@ -519,17 +519,17 @@ manifest = {
         {
             "path": "https://i.imgur.com/example1.png",
             "type": "remote",
-            "prompts": ["akakura"],
+            "promptString": "akakura",
         },
         {
             "path": "https://cdn.example.com/art/wlop_001.jpg",
             "type": "remote",
-            "prompts": ["wlop"],
+            "promptString": "wlop",
         },
         {
             "path": "https://cdn.example.com/art/collab.png",
             "type": "remote",
-            "prompts": ["akakura", "wlop"],
+            "promptString": "akakura, wlop",
         },
     ],
 }
@@ -555,7 +555,7 @@ for img in sorted(local_images.glob("*.png")):
     local_entries.append({
         "local_path": img,
         "zip_path": f"images/{img.name}",
-        "prompts": ["akakura"],
+        "promptString": "akakura",
     })
 
 manifest = {
@@ -566,12 +566,12 @@ manifest = {
     ],
     "images": [
         # 本地图片
-        *[{"path": e["zip_path"], "prompts": e["prompts"]} for e in local_entries],
+        *[{"path": e["zip_path"], "promptString": e["promptString"]} for e in local_entries],
         # 远程图片
         {
             "path": "https://example.com/extra_art.png",
             "type": "remote",
-            "prompts": ["akakura"],
+            "promptString": "akakura",
         },
     ],
 }

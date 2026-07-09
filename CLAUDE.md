@@ -33,9 +33,8 @@ Prompt Gallery is a ComfyUI custom node plugin that provides:
     - Tracks `partition_used_prompts` (actual prompts after random/cycle filtering)
     - Tracks `partition_formats` (per-partition format string)
 - **SaveToGallery**: Saves generated images to the gallery system
-    - Supports two input sources (priority: `metadata_json` > `prompt_string`):
-        - `metadata_json`: from `PromptSelector`, contains explicit prompt selections
-        - `prompt_string`: auto-matches known prompt names via loop-based substring matching
+    - Uses `prompt_string` to auto-match known prompt names via loop-based substring matching
+    - Writes image mappings and prompt cover updates in a background thread after PNG files are saved
     - Images are always saved even when no prompts match (prompts list will be empty)
     - `_match_prompts_from_prompt()`: Loop-based matching (`name.lower() in prompt_string.lower()`), cached at module level with frozenset fingerprint. Skips prompts in categories with `metadata.blockGallerySave = true` (including descendant categories)
     - Uses `collect_prompt()` to register prompt associations for saved images

@@ -43,18 +43,30 @@ function parseImageInfo(info, imagePath) {
 
   const pnginfo = info.pnginfo || {};
 
-  // 提取工作流 JSON（用于复制）
+  // 提取工作流 JSON；没有 workflow 时降级使用 prompt metadata。
   let workflowText = '';
+  let workflowSource = '';
   try {
     if (pnginfo.workflow) {
       const wf = JSON.parse(pnginfo.workflow);
       workflowText = JSON.stringify(wf, null, 2);
+      workflowSource = 'workflow';
     }
   } catch {
     workflowText = pnginfo.workflow || '';
+    workflowSource = workflowText ? 'workflow' : '';
+  }
+  if (!workflowText && pnginfo.prompt) {
+    try {
+      const prompt = JSON.parse(pnginfo.prompt);
+      workflowText = JSON.stringify(prompt, null, 2);
+    } catch {
+      workflowText = pnginfo.prompt || '';
+    }
+    workflowSource = workflowText ? 'prompt' : '';
   }
 
-  return { workflowText, imagePath };
+  return { workflowText, workflowSource, imagePath };
 }
 
 function InfoPanel({ info, loading, imagePath, customFieldValues, imageFields }) {

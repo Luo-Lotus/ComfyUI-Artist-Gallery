@@ -1,18 +1,17 @@
 /**
  * 移动对话框组件
- * 用于移动分类/Prompt/图片到其他位置
+ * 用于移动分类、Prompt 或组合到其他分类
  */
 import { h } from '../lib/preact.mjs';
-import { useState, useMemo, useCallback } from '../lib/hooks.mjs';
+import { useState, useMemo } from '../lib/hooks.mjs';
 import { Dialog, DialogButton } from './Dialog.js';
 import { FlatSelector } from './FlatSelector.js';
-import { searchPrompts } from '../utils.js';
 import { showToast } from './Toast.js';
 import { Icon } from '../lib/icons.mjs';
 
 export function MoveDialog({
   isOpen,
-  itemType, // 'category' | 'prompt' | 'image'
+  itemType, // 'category' | 'prompt' | 'combination'
   item,
   categories,
   onClose,
@@ -20,8 +19,6 @@ export function MoveDialog({
 }) {
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [moving, setMoving] = useState(false);
-  const [searchResults, setSearchResults] = useState([]);
-  const [searchLoading, setSearchLoading] = useState(false);
 
   // 计算需要排除的ID列表
   const excludeIds = useMemo(() => {
@@ -67,37 +64,12 @@ export function MoveDialog({
     const titles = {
       category: `移动分类 "${item?.name}"`,
       prompt: `移动Prompt "${item?.name || item?.value}"`,
-      image: '移动图片',
       combination: `移动组合 "${item?.name}"`,
     };
     return titles[itemType] || '移动';
   };
 
-  const getSelectorType = () => {
-    if (itemType === 'image') return 'prompt';
-    return 'category';
-  };
-
-  const handleSearch = useCallback(async (query) => {
-    if (!query || query.length < 1) {
-      setSearchResults([]);
-      return;
-    }
-    setSearchLoading(true);
-    try {
-      const result = await searchPrompts(query, 100);
-      setSearchResults(result.prompts || []);
-    } catch (err) {
-      console.error('搜索失败:', err);
-      setSearchResults([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  }, []);
-
   if (!isOpen || !item) return null;
-
-  const isPromptSearch = getSelectorType() === 'prompt';
 
   return h(
     Dialog,
@@ -133,16 +105,12 @@ export function MoveDialog({
           ),
         ]),
       h(FlatSelector, {
-        type: getSelectorType(),
+        type: 'category',
         categories,
-        prompts: isPromptSearch ? searchResults : undefined,
         currentId: selectedTarget?.id,
         onSelect: setSelectedTarget,
         excludeIds,
         placeholder: '选择目标位置...',
-        searchMode: isPromptSearch,
-        onSearch: isPromptSearch ? handleSearch : undefined,
-        searchLoading,
       }),
     ]),
   );

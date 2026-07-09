@@ -158,11 +158,27 @@
   color: var(--g-accent);
 }
 
+.settings-radio-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .settings-radio-btn.active {
   border-color: var(--g-accent);
   background: var(--g-accent-light);
   color: var(--g-accent);
   font-weight: 600;
+}
+
+.settings-radio-btn.settings-danger-btn {
+  border-color: rgba(255, 107, 107, 0.45);
+  color: #ff7b7b;
+}
+
+.settings-radio-btn.settings-danger-btn:hover:not(:disabled) {
+  border-color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.08);
+  color: #ff6b6b;
 }
 
 .settings-radio-btn svg {

@@ -24,7 +24,6 @@ export function PartitionConfigPanel({ partition, globalConfig, categories = [],
   const [randomMode, setRandomMode] = useState(partition.config.randomMode);
   const [randomCount, setRandomCount] = useState(partition.config.randomCount);
   const [cycleMode, setCycleMode] = useState(partition.config.cycleMode);
-  const [saveToGallery, setSaveToGallery] = useState(partition.config.saveToGallery !== false);
   const [autoCreateCombination, setAutoCreateCombination] = useState(partition.config.autoCreateCombination === true);
   const [autoSaveCategoryId, setAutoSaveCategoryId] = useState(partition.config.autoSaveCombinationCategoryId || '');
 
@@ -67,8 +66,6 @@ export function PartitionConfigPanel({ partition, globalConfig, categories = [],
   const previewFormat = format.replace('{content}', 'prompt_name').replace(/\{random\([^)]+\)\}/g, '1.3');
 
   const handleSave = () => {
-    // 如果 saveToGallery 关闭，autoCreateCombination 也强制关闭
-    const finalAutoCreateCombination = saveToGallery ? autoCreateCombination : false;
     onChange({
       name,
       config: {
@@ -77,9 +74,8 @@ export function PartitionConfigPanel({ partition, globalConfig, categories = [],
         randomMode,
         randomCount,
         cycleMode,
-        saveToGallery,
-        autoCreateCombination: finalAutoCreateCombination,
-        autoSaveCombinationCategoryId: finalAutoCreateCombination ? autoSaveCategoryId : '',
+        autoCreateCombination,
+        autoSaveCombinationCategoryId: autoCreateCombination ? autoSaveCategoryId : '',
       },
     });
     onClose();
@@ -204,62 +200,33 @@ export function PartitionConfigPanel({ partition, globalConfig, categories = [],
         ]),
       ]),
 
-      // 保存到画廊
+      // 自动创建组合
       h('div', { class: 'node-config-section' }, [
-        h('label', { class: 'node-config-label' }, '保存到画廊'),
+        h('label', { class: 'node-config-label' }, '自动创建组合'),
         h('div', { class: 'config-radio-group' }, [
           h('label', { class: 'config-radio-item' }, [
             h('input', {
               type: 'radio',
-              name: `save-gallery-${partition.id}`,
-              checked: saveToGallery,
-              onChange: () => setSaveToGallery(true),
+              name: `auto-create-combination-${partition.id}`,
+              checked: autoCreateCombination,
+              onChange: () => setAutoCreateCombination(true),
             }),
-            h('span', null, '启用（图片会关联到该分区Prompt）'),
+            h('span', null, '启用（执行时自动创建组合）'),
           ]),
           h('label', { class: 'config-radio-item' }, [
             h('input', {
               type: 'radio',
-              name: `save-gallery-${partition.id}`,
-              checked: !saveToGallery,
-              onChange: () => {
-                setSaveToGallery(false);
-                setAutoCreateCombination(false);
-              },
+              name: `auto-create-combination-${partition.id}`,
+              checked: !autoCreateCombination,
+              onChange: () => setAutoCreateCombination(false),
             }),
-            h('span', null, '禁用（仅用于提示词，不保存关联）'),
+            h('span', null, '禁用'),
           ]),
         ]),
-      ]),
 
-      // 自动创建组合（仅在保存到画廊开启时可用）
-      saveToGallery &&
-        h('div', { class: 'node-config-section' }, [
-          h('label', { class: 'node-config-label' }, '自动创建组合'),
-          h('div', { class: 'config-radio-group' }, [
-            h('label', { class: 'config-radio-item' }, [
-              h('input', {
-                type: 'radio',
-                name: `auto-create-combination-${partition.id}`,
-                checked: autoCreateCombination,
-                onChange: () => setAutoCreateCombination(true),
-              }),
-              h('span', null, '启用（保存时自动创建组合）'),
-            ]),
-            h('label', { class: 'config-radio-item' }, [
-              h('input', {
-                type: 'radio',
-                name: `auto-create-combination-${partition.id}`,
-                checked: !autoCreateCombination,
-                onChange: () => setAutoCreateCombination(false),
-              }),
-              h('span', null, '禁用'),
-            ]),
-          ]),
-
-          // 保存到分类选择器（仅在自动创建组合开启时显示）
-          autoCreateCombination &&
-            h('div', { class: 'node-config-section', style: { marginTop: '8px' } }, [
+        // 保存到分类选择器（仅在自动创建组合开启时显示）
+        autoCreateCombination &&
+          h('div', { class: 'node-config-section', style: { marginTop: '8px' } }, [
               h('label', { class: 'node-config-label' }, '保存到分类'),
               h('div', {
                 class: 'cat-selector-wrapper',
@@ -327,8 +294,8 @@ export function PartitionConfigPanel({ partition, globalConfig, categories = [],
               h('div', { class: 'config-hint' },
                 h('span', null, '在浏览区右键分类可复制ID，自动创建的组合将保存到此分类'),
               ),
-            ]),
-        ]),
+          ]),
+      ]),
     ]),
 
     // 底部按钮

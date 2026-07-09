@@ -38,21 +38,11 @@ export function PromptDetailView() {
           },
         },
         {
-          icon: 'move',
-          label: '移动图片',
-          action: () => ctx.openMoveDialog(img, 'image'),
-        },
-        {
-          icon: 'copy',
-          label: '复制图片',
-          action: () => ctx.openCopyDialog(img, 'image'),
-        },
-        {
           icon: 'trash-2',
           label: '删除图片',
           action: async () => {
             try {
-              const result = await deleteImage(img.path, prompt.value);
+              const result = await deleteImage(img.path);
               showToast(result.message || '图片已删除', 'success');
               await onDeleteSuccess();
             } catch (error) {
@@ -84,6 +74,7 @@ export function PromptDetailView() {
       onDeleteSuccess: handleDeleteSuccess,
       cardSize: ctx.cardSize,
       cardLayoutMode: ctx.cardLayoutMode,
+      onGroupedData: ctx.setCurrentPromptGroups,
       openLightbox: ctx.openLightbox,
       imageFields: ctx.imageFields,
       groupByField: ctx.groupByField,

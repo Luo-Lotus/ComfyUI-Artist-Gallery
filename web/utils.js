@@ -21,23 +21,26 @@ export const Storage = {
   getButtonPosition() {
     try {
       const saved = localStorage.getItem('prompt-gallery-btn-pos');
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      return typeof parsed?.top === 'number' ? { top: parsed.top } : null;
     } catch (e) {
       console.error('Failed to load button position:', e);
       return null;
     }
   },
-  saveButtonPosition(left, top) {
-    localStorage.setItem('prompt-gallery-btn-pos', JSON.stringify({ left, top }));
+  saveButtonPosition(top) {
+    localStorage.setItem('prompt-gallery-btn-pos', JSON.stringify({ top }));
   },
   resetButtonPosition() {
     localStorage.removeItem('prompt-gallery-btn-pos');
     const btn = document.getElementById('prompt-gallery-floating-btn');
     if (!btn) return false;
+    const maxTop = Math.max(0, window.innerHeight - (btn.offsetHeight || 46));
     btn.style.left = 'auto';
-    btn.style.top = 'auto';
-    btn.style.right = '30px';
-    btn.style.bottom = '100px';
+    btn.style.top = `${Math.min(160, maxTop)}px`;
+    btn.style.right = '0';
+    btn.style.bottom = 'auto';
     return true;
   },
   getFavorites() {
@@ -165,20 +168,13 @@ export async function updateCategory(categoryId, data) {
 }
 
 export async function fetchAllPrompts() {
-  // Deprecated: 使用 searchPrompts 替代
-  const response = await fetch('/prompt_gallery/prompts');
-  if (!response.ok) {
-    throw new Error('获取Prompt列表失败');
-  }
-  return await response.json();
+  const { fetchAllPrompts: apiFetchAllPrompts } = await import('./services/promptApi.js');
+  return await apiFetchAllPrompts();
 }
 
 export async function searchPrompts(query, limit = 100) {
-  const response = await fetch(`/prompt_gallery/prompts?search=${encodeURIComponent(query)}&limit=${limit}`);
-  if (!response.ok) {
-    throw new Error('搜索Prompt失败');
-  }
-  return await response.json();
+  const { searchPrompts: apiSearchPrompts } = await import('./services/promptApi.js');
+  return await apiSearchPrompts(query, limit);
 }
 
 export async function searchAll(query, limit = 50) {
@@ -227,57 +223,18 @@ export async function batchResolve({ prompts = [], categories = [], combinations
 // ============ Prompt API (Composite Key) ============
 
 export async function fetchPrompt(categoryId, value) {
-  const response = await fetch(
-    `/prompt_gallery/prompts/${encodeURIComponent(categoryId)}/${encodeURIComponent(value)}`,
-  );
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '获取Prompt失败');
-  }
-  return await response.json();
+  const { fetchPrompt: apiFetchPrompt } = await import('./services/promptApi.js');
+  return await apiFetchPrompt(categoryId, value);
 }
 
 export async function copyPrompt(categoryId, value, targetCategoryId, newValue) {
-  const response = await fetch(
-    `/prompt_gallery/prompts/${encodeURIComponent(categoryId)}/${encodeURIComponent(value)}/copy`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        targetCategoryId,
-        newValue,
-      }),
-    },
-  );
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '复制Prompt失败');
-  }
-  return await response.json();
-}
-
-export async function fetchPromptImages(value) {
-  const response = await fetch(`/prompt_gallery/prompt_images?value=${encodeURIComponent(value)}`);
-  if (!response.ok) {
-    throw new Error('获取Prompt图片失败');
-  }
-  return await response.json();
+  const { copyPrompt: apiCopyPrompt } = await import('./services/promptApi.js');
+  return await apiCopyPrompt(categoryId, value, targetCategoryId, newValue);
 }
 
 export async function setPromptCover(categoryId, value, coverImagePath) {
-  const response = await fetch(
-    `/prompt_gallery/prompts/${encodeURIComponent(categoryId)}/${encodeURIComponent(value)}`,
-    {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ coverImageId: coverImagePath }),
-    },
-  );
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '设置封面失败');
-  }
-  return await response.json();
+  const { setPromptCover: apiSetPromptCover } = await import('./services/promptApi.js');
+  return await apiSetPromptCover(categoryId, value, coverImagePath);
 }
 
 export async function fetchInitData() {
@@ -288,48 +245,16 @@ export async function fetchInitData() {
   return await response.json();
 }
 
-export async function copyImage(imagePath, toPromptValue) {
-  const response = await fetch('/prompt_gallery/image/copy', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      imagePath,
-      toPromptValue,
-    }),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '复制图片失败');
-  }
-  return await response.json();
-}
-
 // ============ Legacy Prompt API (ID-based, for compatibility) ============
 
 export async function addPrompt(data) {
-  const response = await fetch('/prompt_gallery/prompts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '添加Prompt失败');
-  }
-  return await response.json();
+  const { addPrompt: apiAddPrompt } = await import('./services/promptApi.js');
+  return await apiAddPrompt(data);
 }
 
 export async function addPromptsBatch(promptsData) {
-  const response = await fetch('/prompt_gallery/prompts/batch', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompts: promptsData }),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '批量添加Prompt失败');
-  }
-  return await response.json();
+  const { addPromptsBatch: apiAddPromptsBatch } = await import('./services/promptApi.js');
+  return await apiAddPromptsBatch(promptsData);
 }
 
 export async function movePrompt(promptId, newCategoryId) {
@@ -446,21 +371,12 @@ export async function moveCombination(id, targetCategoryId) {
   return await response.json();
 }
 
-export async function fetchCombinationImages(id) {
-  const response = await fetch(`/prompt_gallery/combinations/${encodeURIComponent(id)}/images`);
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '获取组合图片失败');
-  }
-  return await response.json();
-}
-
 // ============ Grouped Images ============
 
 export async function fetchGroupedImages({ prompt, prompts, search, filters, includeComfyOutput, groupBy } = {}) {
   const params = new URLSearchParams();
   if (prompt) params.set('prompt', prompt);
-  if (prompts && prompts.length > 0) params.set('prompts', prompts.join(','));
+  if (prompts && prompts.length > 0) params.set('prompts_json', JSON.stringify(prompts));
   if (search) params.set('search', search);
   if (filters && filters.length > 0) params.set('filters', JSON.stringify(filters));
   if (includeComfyOutput) params.set('include_comfy_output', '1');

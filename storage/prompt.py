@@ -1,23 +1,24 @@
-import json
 import uuid
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-import threading
 
-from ._config import get_disabled_files
+from ._json_store import SplitJsonStorage
 
 
-class PromptStorage:
+class PromptStorage(SplitJsonStorage):
     """Prompt数据存储管理"""
 
+    item_key = "prompts"
+    file_attr = "prompts_file"
+    glob_pattern = "*.prompts.json"
+
     def __init__(self, storage_dir: Path):
+        super().__init__(storage_dir)
         self.storage_dir = storage_dir
         self.prompts_file = storage_dir / "prompts.json"
-        self._glob_pattern = "*.prompts.json"
-        self._lock = threading.Lock()
-        self._cache = None
         self._idx_by_key = None  # (categoryId, value) -> prompt
         self._idx_by_id = None   # id -> prompt
+        self._idx_by_category = None  # categoryId -> [prompt, ...]
         self._ensure_storage_dir()
 
     def _ensure_storage_dir(self):
@@ -25,77 +26,26 @@ class PromptStorage:
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
         # 有分片文件时不创建主文件
-        if not self.prompts_file.exists():
-            split_files = [f for f in self.storage_dir.glob(self._glob_pattern)
-                           if f.resolve() != self.prompts_file.resolve()]
-            if not split_files:
-                self._write_data({"prompts": []})
+        if not self.prompts_file.exists() and not self._has_split_files():
+            self._write_data({"prompts": []})
 
-    def _glob_source_files(self) -> list:
-        """查找所有源文件：主文件 + glob 匹配的分片文件（排除已禁用）"""
-        disabled = get_disabled_files(self.storage_dir)
-        sources = []
-        if self.prompts_file.exists():
-            sources.append(self.prompts_file)
-        for f in sorted(self.storage_dir.glob(self._glob_pattern)):
-            if f.resolve() != self.prompts_file.resolve():
-                if f.name not in disabled:
-                    sources.append(f)
-        return sources
-
-    def _read_data(self) -> dict:
-        """读取并合并所有源文件（带缓存）"""
-        if self._cache is not None:
-            return self._cache
-        merged_items = []
-        for source_file in self._glob_source_files():
-            try:
-                with open(source_file, 'r', encoding='utf-8') as f:
-                    file_data = json.load(f)
-                for item in file_data.get("prompts", []):
-                    item["_source_file"] = str(source_file)
-                    merged_items.append(item)
-            except Exception as e:
-                print(f"Error reading {source_file.name}: {e}")
-        self._cache = {"prompts": merged_items}
-        return self._cache
-
-    def _write_data(self, data: dict):
-        """按来源文件分组回写，新数据写入主文件"""
-        try:
-            groups: Dict[str, list] = {}
-            for item in data.get("prompts", []):
-                source = item.pop("_source_file", None) or str(self.prompts_file)
-                groups.setdefault(source, []).append(item)
-
-            main_key = str(self.prompts_file)
-            if main_key not in groups and len(groups) > 0:
-                groups[main_key] = []
-
-            for file_path_str, items in groups.items():
-                file_path = Path(file_path_str)
-                file_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    json.dump({"prompts": items}, f, ensure_ascii=False, indent=2)
-
-            self._cache = None
-            self._idx_by_key = None
-            self._idx_by_id = None
-        except Exception as e:
-            self._cache = None
-            self._idx_by_key = None
-            self._idx_by_id = None
-            print(f"Error writing prompts files: {e}")
-            raise
+    def _invalidate_cache(self):
+        super()._invalidate_cache()
+        self._idx_by_key = None
+        self._idx_by_id = None
+        self._idx_by_category = None
 
     def _build_indexes(self):
         """构建内存索引（懒加载，写入时失效）"""
         data = self._read_data()
         self._idx_by_key = {}
         self._idx_by_id = {}
+        self._idx_by_category = {}
         for p in data.get("prompts", []):
-            key = (p.get("categoryId", "root"), p.get("value", ""))
+            category_id = p.get("categoryId", "root")
+            key = (category_id, p.get("value", ""))
             self._idx_by_key[key] = p
+            self._idx_by_category.setdefault(category_id, []).append(p)
             if p.get("id"):
                 self._idx_by_id[p["id"]] = p
 
@@ -123,6 +73,13 @@ class PromptStorage:
             if self._idx_by_key is None:
                 self._build_indexes()
             return self._idx_by_key.get((category_id, value))
+
+    def get_prompts_by_category(self, category_id: str) -> List[dict]:
+        """获取指定分类下的Prompt（不包含子分类，O(1) 索引查找）"""
+        with self._lock:
+            if self._idx_by_category is None:
+                self._build_indexes()
+            return list(self._idx_by_category.get(category_id, []))
 
     def get_prompt_by_name(self, name: str) -> Optional[dict]:
         """
@@ -317,6 +274,79 @@ class PromptStorage:
 
             self._write_data(data)
             return True
+
+    def batch_move(self, keys: list, new_category_id: str) -> List[dict]:
+        """
+        批量移动 Prompt 到目标分类（一次锁和一次写入）。
+        :param keys: [(categoryId, value), ...]
+        :return: 被移动的 Prompt 列表
+        """
+        if not keys:
+            return []
+        key_set = set(keys)
+        moved = []
+        with self._lock:
+            data = self._read_data()
+            for prompt in data["prompts"]:
+                key = (prompt.get("categoryId", "root"), prompt.get("value", ""))
+                if key in key_set:
+                    prompt["categoryId"] = new_category_id
+                    moved.append(prompt)
+            if moved:
+                self._write_data(data)
+            return moved
+
+    def set_cover_batch(self, updates_by_value: Dict[str, str]) -> int:
+        """
+        批量回填 coverImageId（一次锁 + 一次读写），供封面回填迁移使用。
+        :param updates_by_value: {prompt_value: coverImagePath}
+        :return: 实际更新的 prompt 数量
+
+        线程安全：与其它写入串行化（同一 _lock）。只更新 coverImageId 为空的 prompt，
+        按 value 匹配（跨分类），避免覆盖用户已设置的封面。
+        注意：_lock 不可重入，本方法只使用裸 _read_data/_write_data，不得调用其它加锁方法。
+        """
+        if not updates_by_value:
+            return 0
+        with self._lock:
+            data = self._read_data()
+            changed = 0
+            for prompt in data["prompts"]:
+                if prompt.get("coverImageId"):
+                    continue
+                value = prompt.get("value")
+                if not value:
+                    continue
+                cover = updates_by_value.get(value)
+                if cover:
+                    prompt["coverImageId"] = cover
+                    changed += 1
+            if changed:
+                self._write_data(data)
+            return changed
+
+    def set_cover_batch_by_key(self, updates_by_key: Dict[tuple, str]) -> int:
+        """
+        批量回填 coverImageId（按 categoryId + value 精确匹配）。
+        :param updates_by_key: {(categoryId, value): coverImagePath}
+        :return: 实际更新的 prompt 数量
+        """
+        if not updates_by_key:
+            return 0
+        with self._lock:
+            data = self._read_data()
+            changed = 0
+            for prompt in data["prompts"]:
+                if prompt.get("coverImageId"):
+                    continue
+                key = (prompt.get("categoryId", "root"), prompt.get("value", ""))
+                cover = updates_by_key.get(key)
+                if cover:
+                    prompt["coverImageId"] = cover
+                    changed += 1
+            if changed:
+                self._write_data(data)
+            return changed
 
     def update_prompt_by_id(self, prompt_id: str, **kwargs) -> bool:
         """

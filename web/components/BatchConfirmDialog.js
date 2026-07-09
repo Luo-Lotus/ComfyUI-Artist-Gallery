@@ -12,7 +12,7 @@ export function BatchConfirmDialog({
   isOpen,
   onClose,
   operation, // 'delete' | 'move' | 'copy'
-  items, // { categories, prompts, images }
+  items, // { categories, prompts, combinations, images }
   onConfirm,
 }) {
   const [loading, setLoading] = useState(false);
@@ -27,7 +27,7 @@ export function BatchConfirmDialog({
   };
   // 计算统计信息
   const getSummary = () => {
-    const imageCount = Array.isArray(items.images) ? items.images.length : items.images || 0;
+    const imageCount = operation === 'delete' ? (Array.isArray(items.images) ? items.images.length : items.images || 0) : 0;
     const counts = {
       categories: items.categories?.length || 0,
       prompts: items.prompts?.length || 0,
@@ -83,7 +83,7 @@ export function BatchConfirmDialog({
   };
 
   const getConfirmationLevel = () => {
-    const imageCount = Array.isArray(items.images) ? items.images.length : items.images || 0;
+    const imageCount = operation === 'delete' ? (Array.isArray(items.images) ? items.images.length : items.images || 0) : 0;
     const totalItems = (items.categories?.length || 0) + (items.prompts?.length || 0) + (items.combinations?.length || 0) + imageCount;
 
     if (totalItems <= 5) return 'low';
@@ -93,7 +93,7 @@ export function BatchConfirmDialog({
 
   const renderWarning = () => {
     const level = getConfirmationLevel();
-    const imageCount = Array.isArray(items.images) ? items.images.length : items.images || 0;
+    const imageCount = operation === 'delete' ? (Array.isArray(items.images) ? items.images.length : items.images || 0) : 0;
     const totalItems = (items.categories?.length || 0) + (items.prompts?.length || 0) + (items.combinations?.length || 0) + imageCount;
 
     if (level === 'low') {
@@ -157,7 +157,7 @@ export function BatchConfirmDialog({
             items.categories?.length > 0 && h('li', {}, `• ${items.categories.length} 个分类`),
             items.prompts?.length > 0 && h('li', {}, `• ${items.prompts.length} 个Prompt`),
             items.combinations?.length > 0 && h('li', {}, `• ${items.combinations.length} 个组合`),
-            (Array.isArray(items.images) ? items.images.length : 0) > 0 &&
+            operation === 'delete' && (Array.isArray(items.images) ? items.images.length : 0) > 0 &&
               h('li', {}, `• ${items.images.length} 张图片`),
           ),
         ]),

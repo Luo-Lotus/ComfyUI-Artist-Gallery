@@ -30,7 +30,6 @@ const AI_SYSTEM_PROMPT = `你是一个 ComfyUI 图库筛查项代码生成器。
 {
     "imagePath": "2024-01-01/image_001.png",
     "type": "local",             // 或 "remote"
-    "prompts": ["artist_name", "landscape"],
     "promptString": "artist_name, landscape",
     "generatePrompt": "{...}",   // ComfyUI 工作流 JSON 字符串，可能为空
     "fileInfo": {
@@ -127,7 +126,7 @@ def filter_func(item, keywords):
     if not keywords:
         return True
     kw = keywords.lower()
-    return any(kw in p.lower() for p in item.get('prompts', []))
+    return kw in item.get('promptString', '').lower()
 \`\`\`
 
 不需要提取函数。

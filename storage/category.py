@@ -1,95 +1,56 @@
-import json
 import uuid
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-import threading
+from typing import List, Optional
 
-from ._config import get_disabled_files
+from ._json_store import SplitJsonStorage
 
 
-class CategoryStorage:
+class CategoryStorage(SplitJsonStorage):
     """分类数据存储管理"""
 
+    item_key = "categories"
+    file_attr = "categories_file"
+    glob_pattern = "*.categories.json"
+
     def __init__(self, storage_dir: Path):
+        super().__init__(storage_dir)
         self.storage_dir = storage_dir
         self.categories_file = storage_dir / "categories.json"
-        self._glob_pattern = "*.categories.json"
-        self._lock = threading.Lock()
-        self._cache = None
+        self._idx_by_id = None
+        self._idx_by_parent = None
         self._ensure_storage_dir()
 
     def _ensure_storage_dir(self):
         """确保存储目录存在并初始化"""
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
-        if not self.categories_file.exists():
-            split_files = [f for f in self.storage_dir.glob(self._glob_pattern)
-                           if f.resolve() != self.categories_file.resolve()]
-            if not split_files:
-                import time
-                default_data = {
-                    "categories": [{
-                        "id": "root",
-                        "name": "全部",
-                        "parentId": None,
-                        "order": 0,
-                        "createdAt": int(time.time() * 1000)
-                    }]
-                }
-                self._write_data(default_data)
+        if not self.categories_file.exists() and not self._has_split_files():
+            import time
+            default_data = {
+                "categories": [{
+                    "id": "root",
+                    "name": "全部",
+                    "parentId": None,
+                    "order": 0,
+                    "createdAt": int(time.time() * 1000)
+                }]
+            }
+            self._write_data(default_data)
 
-    def _glob_source_files(self) -> list:
-        """查找所有源文件：主文件 + glob 匹配的分片文件（排除已禁用）"""
-        disabled = get_disabled_files(self.storage_dir)
-        sources = []
-        if self.categories_file.exists():
-            sources.append(self.categories_file)
-        for f in sorted(self.storage_dir.glob(self._glob_pattern)):
-            if f.resolve() != self.categories_file.resolve():
-                if f.name not in disabled:
-                    sources.append(f)
-        return sources
+    def _invalidate_cache(self):
+        super()._invalidate_cache()
+        self._idx_by_id = None
+        self._idx_by_parent = None
 
-    def _read_data(self) -> dict:
-        """读取并合并所有源文件（带缓存）"""
-        if self._cache is not None:
-            return self._cache
-        merged_items = []
-        for source_file in self._glob_source_files():
-            try:
-                with open(source_file, 'r', encoding='utf-8') as f:
-                    file_data = json.load(f)
-                for item in file_data.get("categories", []):
-                    item["_source_file"] = str(source_file)
-                    merged_items.append(item)
-            except Exception as e:
-                print(f"Error reading {source_file.name}: {e}")
-        self._cache = {"categories": merged_items}
-        return self._cache
-
-    def _write_data(self, data: dict):
-        """按来源文件分组回写，新数据写入主文件"""
-        try:
-            groups: Dict[str, list] = {}
-            for item in data.get("categories", []):
-                source = item.pop("_source_file", None) or str(self.categories_file)
-                groups.setdefault(source, []).append(item)
-
-            main_key = str(self.categories_file)
-            if main_key not in groups and len(groups) > 0:
-                groups[main_key] = []
-
-            for file_path_str, items in groups.items():
-                file_path = Path(file_path_str)
-                file_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    json.dump({"categories": items}, f, ensure_ascii=False, indent=2)
-
-            self._cache = None
-        except Exception as e:
-            self._cache = None
-            print(f"Error writing categories files: {e}")
-            raise
+    def _build_indexes(self):
+        data = self._read_data()
+        self._idx_by_id = {}
+        self._idx_by_parent = {}
+        for cat in data.get("categories", []):
+            self._idx_by_id[cat.get("id")] = cat
+            self._idx_by_parent.setdefault(cat.get("parentId"), []).append(cat)
+        for children in self._idx_by_parent.values():
+            children.sort(key=lambda x: x.get("order", 0))
 
     def get_all_categories(self) -> List[dict]:
         """获取所有分类"""
@@ -99,17 +60,17 @@ class CategoryStorage:
 
     def get_category_by_id(self, category_id: str) -> Optional[dict]:
         """根据ID获取分类"""
-        categories = self.get_all_categories()
-        for cat in categories:
-            if cat.get("id") == category_id:
-                return cat
-        return None
+        with self._lock:
+            if self._idx_by_id is None:
+                self._build_indexes()
+            return self._idx_by_id.get(category_id)
 
     def get_children(self, parent_id: Optional[str]) -> List[dict]:
         """获取指定分类的子分类"""
-        categories = self.get_all_categories()
-        children = [c for c in categories if c.get("parentId") == parent_id]
-        return sorted(children, key=lambda x: x.get("order", 0))
+        with self._lock:
+            if self._idx_by_parent is None:
+                self._build_indexes()
+            return list(self._idx_by_parent.get(parent_id, []))
 
     def get_category_tree(self) -> List[dict]:
         """获取完整的分类树结构"""
@@ -215,14 +176,12 @@ class CategoryStorage:
 
     def get_descendant_ids(self, category_id: str) -> List[str]:
         """获取指定分类及其所有后代的ID列表"""
-        all_cats = self.get_all_categories()
         result = [category_id]
 
         def collect(parent_id):
-            for cat in all_cats:
-                if cat.get("parentId") == parent_id:
-                    result.append(cat["id"])
-                    collect(cat["id"])
+            for cat in self.get_children(parent_id):
+                result.append(cat["id"])
+                collect(cat["id"])
 
         collect(category_id)
         return result

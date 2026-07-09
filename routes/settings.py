@@ -10,9 +10,15 @@ from pathlib import Path
 from aiohttp import web
 import server
 
-from ..storage._config import get_disabled_files, toggle_disabled_files, get_max_backups, set_max_backups
-from ..storage._resolve import clear_all_caches, _resolve_storage_dir
+from ..storage._config import (
+    get_disabled_files,
+    toggle_disabled_files,
+    get_max_backups,
+    set_max_backups,
+)
+from ..storage._resolve import clear_all_caches, _resolve_storage_dir, get_storage
 from ..storage.backup import BackupManager
+from ..storage.migration import migrate_prompt_covers_from_prompt_string
 
 MAIN_FILES = {"prompts.json", "categories.json", "combinations.json", "images.json"}
 
@@ -154,6 +160,52 @@ async def update_max_backups(request):
         storage_dir = _resolve_storage_dir()
         set_max_backups(storage_dir, value)
         return web.json_response({"success": True, "maxBackups": max(1, min(20, value))})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+@server.PromptServer.instance.routes.post("/prompt_gallery/settings/cleanup_ghost_images")
+async def cleanup_ghost_image_mappings(request):
+    """清理图片文件已不存在的本地图片映射。"""
+    try:
+        import folder_paths
+
+        output_dir = Path(folder_paths.get_output_directory())
+        _, mapping_storage, _, _ = get_storage()
+        result = mapping_storage.cleanup_missing_local_mappings(output_dir)
+
+        return web.json_response({
+            "success": True,
+            **result,
+        })
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+@server.PromptServer.instance.routes.post("/prompt_gallery/settings/backfill_covers")
+async def backfill_prompt_covers(request):
+    """手动扫描所有图片映射，为没有封面的 Prompt/组合补封面。"""
+    try:
+        import folder_paths
+
+        storage_dir = _resolve_storage_dir()
+        output_dir = Path(folder_paths.get_output_directory())
+        prompt_storage, _, _, combination_storage = get_storage()
+
+        result = migrate_prompt_covers_from_prompt_string(
+            storage_dir,
+            output_dir,
+            allow_legacy_fallback=False,
+            prompt_storage=prompt_storage,
+            combination_storage=combination_storage,
+        )
+        if result.get("migrated"):
+            clear_all_caches()
+
+        return web.json_response({
+            "success": True,
+            **result,
+        })
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 

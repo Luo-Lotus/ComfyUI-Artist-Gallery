@@ -18,12 +18,12 @@
 - **随机/循环模式** - 每个分区可独立配置随机抽取或循环输出
 - **分类浏览** - 按分类层级浏览Prompt，支持面包屑导航
 - **组合系统** - 将多个Prompt组合为一个选择单元，支持封面图和自动创建
-- **封面图系统** - 每个Prompt和组合支持设置封面图，图库列表延迟加载图片详情
+- **封面图系统** - 每个 Prompt 和组合支持设置封面图（`coverImageId`）；列表期只读封面、不做匹配，首次启动在后台一次性回填历史 Prompt 封面，图片详情按需延迟加载
 - **自动创建组合** - 保存图片时可自动根据选中Prompt创建组合（每个分区独立配置，可指定保存到的分类）
 - **自动扫描** - 自动检测 ComfyUI output 目录中匹配命名规则的图片
 - **拖拽操作** - 支持将Prompt和分类拖拽到不同分区
 - **格式模板** - 自定义输出格式，支持 `{content}` 和 `{random(min,max,step)}` 变量
-- **图片保存** - 将生成的图片保存到画廊并关联Prompt信息，支持通过 `metadata_json` 或 `prompt_string` 两种方式关联Prompt；即使未匹配到任何Prompt也会保存图片
+- **图片保存** - 将生成的图片保存到画廊并关联Prompt信息，通过 `prompt_string` 自动匹配已知Prompt；即使未匹配到任何Prompt也会保存图片
 - **快速保存Prompt** - 将工作流中的文本直接保存为新的Prompt条目，支持自动更新已有的同名Prompt
 - **从分类读取Prompt** - 按分类批量读取Prompt内容，支持选取所有、取最新/最旧N个、随机取N个等模式
 - **分类画廊控制** - 分类支持"禁止保存到画廊"设置，该分类及其子分类下的Prompt不参与 `prompt_string` 自动匹配
@@ -55,6 +55,22 @@ git clone <repository-url> prompt_gallery
 ```
 
 然后重启 ComfyUI。
+
+### 安装 Python 依赖
+
+本插件依赖 `pyahocorasick`（用于首次启动时在后台高性能回填历史 Prompt 的封面图）。未安装时插件仍可运行，但会自动回退到慢速实现。
+
+- 便携版（`ComfyUI_windows_portable`）：
+
+```bash
+./python_embeded/python.exe -m pip install -r custom_nodes/prompt-gallery/requirements.txt
+```
+
+- 普通环境：
+
+```bash
+pip install -r custom_nodes/prompt-gallery/requirements.txt
+```
 
 ### 验证安装
 
@@ -114,12 +130,10 @@ git clone <repository-url> prompt_gallery
 - **类型**: 输出节点
 - **输入**:
     - `images`: ComfyUI 图片张量
-    - `metadata_json`: Prompt元数据 JSON（可连接 PromptSelector 的输出，优先级高）
     - `filename_prefix`: 文件名前缀（默认 `AG`）
     - `prompt_string`: 提示词字符串（自动匹配已知Prompt名，无需连接 PromptSelector）
 - **输出**: 图片保存到 `output/prompt_gallery/` 目录
 - **说明**:
-    - 两者都提供时，优先使用 `metadata_json`
     - `prompt_string` 模式会自动从提示词中匹配已知Prompt名（不区分大小写，循环子串匹配），支持带格式前缀的名称（如 `@mike`、`(sarah:1.2)` 等）
     - 即使未匹配到任何Prompt，图片也会保存（关联的Prompt列表为空）
     - 设置了"禁止保存到画廊"的分类及其子分类下的Prompt不参与匹配
@@ -200,22 +214,10 @@ git clone <repository-url> prompt_gallery
 
 支持两种方式关联Prompt：
 
-**方式一：通过Prompt选择器（推荐）**
-
-1. 在工作流中添加 **保存到画廊** 节点
-2. 将图片生成节点的输出连接到 `images` 输入
-3. 将Prompt选择节点的 `metadata_json` 输出连接到 `metadata_json` 输入
-4. 图片将保存到 `output/prompt_gallery/` 并自动关联Prompt信息
-5. 如果分区启用了自动创建组合，保存时会自动创建组合
-
-**方式二：通过提示词字符串**
-
 1. 在工作流中添加 **保存到画廊** 节点
 2. 将图片生成节点的输出连接到 `images` 输入
 3. 将包含Prompt名称的文本连接到 `prompt_string` 输入（无需连接Prompt选择器）
 4. 插件会自动从提示词中匹配已知Prompt名，并关联到保存的图片
-
-> 两种方式可同时使用，同时提供时优先使用 `metadata_json`。
 
 ### 快速保存Prompt
 
@@ -450,7 +452,7 @@ prompt_gallery/
 | POST   | `/prompt_gallery/prompts/{categoryId}/{value}/copy` | 复制Prompt到其他分类           |
 | POST   | `/prompt_gallery/prompts/{id}/move`                 | 移动Prompt到其他分类           |
 | GET    | `/prompt_gallery/prompt/{id}/images`                | 获取Prompt图片列表             |
-| GET    | `/prompt_gallery/prompt_images`                     | 获取Prompt图片（?value= 查询） |
+| GET    | `/prompt_gallery/images_grouped`                    | 获取分组图片（支持 `prompt` 查询） |
 
 ### 分类管理
 
@@ -474,7 +476,6 @@ prompt_gallery/
 | DELETE | `/prompt_gallery/combinations/{id}`           | 删除组合                               |
 | POST   | `/prompt_gallery/combinations/{id}/duplicate` | 复制组合                               |
 | POST   | `/prompt_gallery/combinations/{id}/move`      | 移动组合                               |
-| GET    | `/prompt_gallery/combinations/{id}/images`    | 获取组合图片（交集）                   |
 | DELETE | `/prompt_gallery/combinations/batch`          | 批量删除组合                           |
 
 ### 图片操作
@@ -484,8 +485,8 @@ prompt_gallery/
 | GET    | `/prompt_gallery/image/info`            | 获取图片详细信息     |
 | POST   | `/prompt_gallery/save`                  | 保存图片到画廊       |
 | DELETE | `/prompt_gallery/image`                 | 删除单张图片         |
-| POST   | `/prompt_gallery/image/move`            | 移动图片到其他Prompt |
-| POST   | `/prompt_gallery/image/copy`            | 复制图片到其他Prompt |
+| POST   | `/prompt_gallery/image/move`            | 已废弃：图片不再移动到其他Prompt |
+| POST   | `/prompt_gallery/image/copy`            | 已废弃：图片不再复制到其他Prompt |
 | POST   | `/prompt_gallery/restore_from_metadata` | 从PNG元数据恢复映射  |
 
 ### 历史视图
@@ -616,9 +617,13 @@ Lightbox（全屏图片查看器）支持编辑模式，点击图片上方的"�
 
 ### 性能优化
 
-- 图库列表 API 仅返回 `coverImagePath` + `imageCount`（不返回完整图片数组）
-- Prompt图片懒加载（进入详情时才请求）
-- 封面图预览直接使用 `coverImagePath`（无API调用）
+- 列表期接口（`/data`、`/init`、`/batch_resolve`、`/search` 等）只读持久化 `coverImageId`，**不做任何 prompt×mapping 匹配**，避免大数据量下 O(P×M) 卡死事件循环
+- 图片数量改由详情页 `/images_grouped` 返回的图片列表推导，列表 API 不再返回 `imageCount`
+- 图库列表 API 仅返回 `coverImagePath`（不返回完整图片数组）
+- Prompt 图片懒加载（进入详情时才请求）
+- 封面图预览直接使用 `coverImagePath`（无 API 调用）
+- 首次启动在后台 daemon 线程用 `ahocorasick` 一次性高性能回填历史 Prompt 封面（O(总文本长度)，不阻塞页面），`.cover_backfill_version` 标记保证只跑一次
+- 解析映射时忽略 `comfy_output*.images.json`（系统外导入、仅历史视图用），避免每次读取 parse 超大文件
 - `/init` 端点一次性返回分类+Prompt+组合
 - `batchResolve` 端点批量解析混合实体键
 - `useFilteredPrompts` 使用 `useMemo` 优化过滤排序

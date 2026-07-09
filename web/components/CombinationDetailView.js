@@ -73,6 +73,7 @@ export function CombinationDetailView() {
       onDeleteSuccess: handleDeleteSuccess,
       cardSize: ctx.cardSize,
       cardLayoutMode: ctx.cardLayoutMode,
+      onGroupedData: ctx.setCombinationGroups,
       openLightbox: ctx.openLightbox,
       imageFields: ctx.imageFields,
       groupByField: ctx.groupByField,

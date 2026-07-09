@@ -1,27 +1,25 @@
 """
 组合 API 端点
 """
-import json
-from pathlib import Path
 from aiohttp import web
 import server
 from ..storage import get_storage
-from ._utils import is_remote_path
-
-
 
 
 # ============ 组合 CRUD API ============
 
+def _serialize_combination_with_cover(comb):
+    """组合序列化：列表期封面只取持久化 coverImageId（不做 prompt×mapping 匹配）。"""
+    comb_data = dict(comb)
+    comb_data["coverImagePath"] = comb.get("coverImageId")
+    return comb_data
+
+
 @server.PromptServer.instance.routes.get("/prompt_gallery/combinations")
 async def get_combinations(request):
-    """获取组合列表（支持 ?category= 过滤），附带封面图片路径"""
+    """获取组合列表（支持 ?category= 过滤），封面只取持久化 coverImageId"""
     try:
-        import folder_paths
-        from pathlib import Path
-
-        _, mapping_storage, _, combination_storage = get_storage()
-        output_dir = folder_paths.get_output_directory()
+        _, _, _, combination_storage = get_storage()
 
         category_id = request.query.get("category")
         if category_id:
@@ -29,24 +27,7 @@ async def get_combinations(request):
         else:
             raw_combinations = combination_storage.get_all_combinations()
 
-        # 为每个组合添加封面图片路径
-        result_combinations = []
-        for comb in raw_combinations:
-            comb_data = dict(comb)
-            # 优先使用设置的封面，否则取第一个成员Prompt的第一张图
-            cover_path = comb.get("coverImageId")
-            if not cover_path:
-                for prompt_name in comb.get("prompts", []):
-                    mappings = mapping_storage.get_mappings_by_prompt(prompt_name)
-                    for m in mappings:
-                        image_path = m.get("imagePath")
-                        if is_remote_path(image_path, m.get("type", "")) or (Path(output_dir) / image_path).exists():
-                            cover_path = image_path
-                            break
-                    if cover_path:
-                        break
-            comb_data["coverImagePath"] = cover_path
-            result_combinations.append(comb_data)
+        result_combinations = [_serialize_combination_with_cover(comb) for comb in raw_combinations]
 
         return web.json_response({
             "success": True,
@@ -58,33 +39,12 @@ async def get_combinations(request):
 
 @server.PromptServer.instance.routes.get("/prompt_gallery/combinations/all")
 async def get_all_combinations(request):
-    """获取所有组合（选择器用），附带封面图片路径"""
+    """获取所有组合（选择器用），封面只取持久化 coverImageId"""
     try:
-        import folder_paths
-        from pathlib import Path
-
-        _, mapping_storage, _, combination_storage = get_storage()
-        output_dir = folder_paths.get_output_directory()
+        _, _, _, combination_storage = get_storage()
         raw_combinations = combination_storage.get_all_combinations()
 
-        # 为每个组合添加封面图片路径
-        result_combinations = []
-        for comb in raw_combinations:
-            comb_data = dict(comb)
-            # 优先使用设置的封面，否则取第一个成员Prompt的第一张图
-            cover_path = comb.get("coverImageId")
-            if not cover_path:
-                for prompt_name in comb.get("prompts", []):
-                    mappings = mapping_storage.get_mappings_by_prompt(prompt_name)
-                    for m in mappings:
-                        image_path = m.get("imagePath")
-                        if is_remote_path(image_path, m.get("type", "")) or (Path(output_dir) / image_path).exists():
-                            cover_path = image_path
-                            break
-                    if cover_path:
-                        break
-            comb_data["coverImagePath"] = cover_path
-            result_combinations.append(comb_data)
+        result_combinations = [_serialize_combination_with_cover(comb) for comb in raw_combinations]
 
         return web.json_response({
             "success": True,
@@ -223,91 +183,6 @@ async def move_combination(request):
             return web.json_response({"success": False, "error": "组合不存在"}, status=404)
 
         return web.json_response({"success": True})
-    except Exception as e:
-        return web.json_response({"success": False, "error": str(e)}, status=500)
-
-
-@server.PromptServer.instance.routes.get("/prompt_gallery/combinations/{id}/images")
-async def get_combination_images(request):
-    """
-    获取组合的合并图片（交集：只返回同时属于所有成员Prompt的图片）
-    """
-    try:
-        import folder_paths
-        from ..utils import decode_filename
-
-        combination_id = request.match_info.get("id")
-        output_dir = folder_paths.get_output_directory()
-
-        _, mapping_storage, _, combination_storage = get_storage()
-        combination = combination_storage.get_combination_by_id(combination_id)
-
-        if not combination:
-            return web.json_response({"success": False, "error": "组合不存在"}, status=404)
-
-        prompts = combination.get("prompts", [])
-        if not prompts:
-            return web.json_response({
-                "success": True,
-                "images": [],
-                "totalCount": 0,
-            })
-
-        # 获取每个Prompt的图片路径集合
-        prompt_image_sets = []
-        for prompt_name in prompts:
-            mappings = mapping_storage.get_mappings_by_prompt(prompt_name)
-            paths = set()
-            for m in mappings:
-                image_path = m.get("imagePath")
-                if is_remote_path(image_path, m.get("type", "")) or (Path(output_dir) / image_path).exists():
-                    paths.add(image_path)
-            prompt_image_sets.append(paths)
-
-        if not prompt_image_sets:
-            return web.json_response({
-                "success": True,
-                "images": [],
-                "totalCount": 0,
-            })
-
-        # 交集：只保留属于所有Prompt的图片
-        common_paths = prompt_image_sets[0]
-        for s in prompt_image_sets[1:]:
-            common_paths = common_paths & s
-
-        # 构建图片信息
-        images = []
-        for image_path in common_paths:
-            if is_remote_path(image_path):
-                images.append({
-                    "path": image_path,
-                    "type": "remote",
-                    "size": 0,
-                    "mtime": 0,
-                    "prompts": prompts,
-                })
-                continue
-            full_path = Path(output_dir) / image_path
-            try:
-                stat = full_path.stat()
-                images.append({
-                    "path": image_path,
-                    "size": stat.st_size,
-                    "mtime": stat.st_mtime * 1000,
-                    "prompts": prompts,
-                })
-            except Exception:
-                pass
-
-        # 按时间排序
-        images.sort(key=lambda x: x["mtime"], reverse=True)
-
-        return web.json_response({
-            "success": True,
-            "images": images,
-            "totalCount": len(images),
-        })
     except Exception as e:
         return web.json_response({"success": False, "error": str(e)}, status=500)
 

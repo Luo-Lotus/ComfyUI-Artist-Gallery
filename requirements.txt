@@ -1,0 +1,6 @@
+# Prompt Gallery 依赖
+# 安装到 ComfyUI 使用的 Python 环境（便携版默认在 python_embeded/）：
+#   ./python_embeded/python.exe -m pip install -r requirements.txt
+
+# 高性能多模式子串匹配，用于一次性封面回填迁移（无此依赖时自动回退到内置实现，但会慢很多）
+pyahocorasick

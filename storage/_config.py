@@ -92,12 +92,3 @@ def set_max_backups(storage_dir: Path, value: int) -> None:
     data["max_backups"] = max(1, min(20, value))
     with open(config_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-
-
-def _read_config(storage_dir: Path) -> dict:
-    config_path = get_storage_config_path(storage_dir)
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception:
-        return {}

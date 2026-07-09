@@ -7,14 +7,14 @@ from aiohttp import web
 import server
 from ..storage import get_storage
 from ._utils import is_remote_path
-from ._delete_utils import remove_image_prompt_link, delete_image_completely
+from ._delete_utils import delete_image_completely
 
 
 # ============ Image Mapping API ============
 
 @server.PromptServer.instance.routes.get("/prompt_gallery/image/{filename:[\s\S]+}/prompts")
 async def get_image_prompts(request):
-    """获取图片关联的Prompt列表"""
+    """根据图片 promptString 反查匹配的 Prompt 列表"""
     try:
         filename = request.match_info['filename']
         # 构建完整的图片路径
@@ -27,13 +27,13 @@ async def get_image_prompts(request):
             return web.json_response({"prompts": [], "totalCount": 0})
 
         prompt_storage, _, _, _ = get_storage()
-        prompt_ids = mapping.get("promptIds", [])
-
+        prompt_string_lower = (mapping.get("promptString") or "").lower()
         prompts = []
-        for prompt_id in prompt_ids:
-            prompt = prompt_storage.get_prompt_by_id(prompt_id)
-            if prompt:
-                prompts.append(prompt)
+        if prompt_string_lower:
+            for prompt in prompt_storage.get_all_prompts():
+                value = (prompt.get("value") or "").lower()
+                if value and value in prompt_string_lower:
+                    prompts.append(prompt)
 
         return web.json_response({"prompts": prompts, "totalCount": len(prompts)})
     except Exception as e:
@@ -71,11 +71,19 @@ async def get_image_info(request):
                 return web.json_response({"error": "图片文件不存在"}, status=404)
 
         if mapping:
+            prompt_string = mapping.get("promptString", "")
+            prompt_values = []
+            if prompt_string:
+                prompt_string_lower = prompt_string.lower()
+                for prompt in prompt_storage.get_all_prompts():
+                    value = prompt.get("value")
+                    if value and value.lower() in prompt_string_lower:
+                        prompt_values.append(value)
             result["mapping"] = {
                 "type": mapping.get("type", "local"),
-                "prompts": mapping.get("prompts", []),
+                "prompts": prompt_values,
                 "fileInfo": mapping.get("fileInfo", {}),
-                "promptString": mapping.get("promptString", ""),
+                "promptString": prompt_string,
                 "generatePrompt": mapping.get("generatePrompt"),
             }
 
@@ -114,18 +122,18 @@ async def get_image_info(request):
 
 @server.PromptServer.instance.routes.post("/prompt_gallery/save")
 async def save_to_gallery(request):
-    """保存图片到画廊并创建映射关系"""
+    """保存图片到画廊并创建图片索引"""
     try:
         data = await request.json()
         image_filename = data.get("imageFilename")
-        prompt_values = data.get("promptValues", [])
+        prompt_string = data.get("promptString", data.get("prompt_string", ""))
         metadata = data.get("metadata", {})
 
         if not image_filename:
             return web.json_response({"error": "图片文件名不能为空"}, status=400)
 
-        if not prompt_values:
-            return web.json_response({"error": "必须选择至少一个Prompt"}, status=400)
+        if not prompt_string:
+            return web.json_response({"error": "必须提供 promptString"}, status=400)
 
         # 构建图片路径
         image_path = f"prompt_gallery/{image_filename}"
@@ -141,9 +149,8 @@ async def save_to_gallery(request):
         _, mapping_storage, _, _ = get_storage()
         mapping = mapping_storage.add_mapping(
             image_path=image_path,
-            prompt_values=prompt_values,
             file_info=file_info,
-            prompt_string=metadata.get("promptString", ""),
+            prompt_string=prompt_string or metadata.get("promptString", ""),
             mapping_type="local",
         )
 
@@ -192,19 +199,20 @@ async def restore_from_metadata(request):
                         # 解析Prompt元数据
                         prompt_metadata = json.loads(img.text['prompt_gallery'])
                         prompt_ids = prompt_metadata.get("prompt_ids", [])
+                        prompt_string = prompt_metadata.get("promptString") or ", ".join(prompt_ids)
 
-                        if prompt_ids:
+                        if prompt_string:
                             # 创建映射关系
                             image_rel_path = f"prompt_gallery/{filename}"
                             mapping_storage.add_mapping(
                                 image_path=image_rel_path,
-                                prompt_values=prompt_ids,
+                                prompt_string=prompt_string,
                                 file_info={"width": img.width, "height": img.height},
                                 mapping_type="local",
                             )
 
                             restored_count += 1
-                            print(f"[Restore] 恢复映射: {filename} -> PromptID: {prompt_ids}")
+                            print(f"[Restore] 恢复映射: {filename} -> promptString: {prompt_string[:80]}")
                         else:
                             errors.append(f"{filename}: 元数据中没有Prompt信息")
                     else:
@@ -231,8 +239,7 @@ async def delete_image(request):
     删除单张图片
 
     请求体: {
-      "imagePath": "prompt_gallery/xxx.png",
-      "promptValue": "1girl"  // 可选：传了表示从 prompt 详情删图片（只断开关联），不传表示完全删除
+      "imagePath": "prompt_gallery/xxx.png"
     }
     """
     try:
@@ -243,17 +250,10 @@ async def delete_image(request):
         if not image_path:
             return web.json_response({"error": "缺少imagePath参数"}, status=400)
 
-        _, mapping_storage, _, _ = get_storage()
+        prompt_storage, mapping_storage, _, _ = get_storage()
 
         if prompt_value:
-            # 从 prompt 详情删图片：只断开该 prompt 的关联
-            result = remove_image_prompt_link(image_path, prompt_value, mapping_storage)
-            return web.json_response({
-                "success": True,
-                "message": "图片已删除" if result["file_deleted"] else "已断开关联",
-                "fileDeleted": result["file_deleted"],
-                "mappingDeleted": result["mapping_deleted"],
-            })
+            return web.json_response({"error": "当前版本不支持从 Prompt 断开图片关联，请从历史视图删除整张图片"}, status=400)
         else:
             # 从历史视图删图片：完全删除
             result = delete_image_completely(image_path, mapping_storage, None)
@@ -270,103 +270,11 @@ async def delete_image(request):
 
 @server.PromptServer.instance.routes.post("/prompt_gallery/image/move")
 async def move_image(request):
-    """移动图片到其他Prompt下"""
-    try:
-        data = await request.json()
-        image_path = data.get("imagePath")
-        from_prompt_value = data.get("fromPromptValue")
-        to_prompt_value = data.get("toPromptValue")
-        to_category_id = data.get("toCategoryId")
-
-        if not image_path or not from_prompt_value or not to_prompt_value:
-            return web.json_response({"error": "缺少必要参数"}, status=400)
-
-        if from_prompt_value == to_prompt_value:
-            return web.json_response({"error": "不能移动到同一个Prompt"}, status=400)
-
-        prompt_storage, mapping_storage, _, _ = get_storage()
-
-        # 验证目标Prompt存在
-        to_category_id = to_category_id or "root"
-        to_prompt = prompt_storage.get_prompt(to_category_id, to_prompt_value)
-        if not to_prompt:
-            return web.json_response({"error": "目标Prompt不存在"}, status=400)
-
-        # 获取图片映射
-        mapping = mapping_storage.get_mappings_by_image(image_path)
-        if not mapping:
-            return web.json_response({"error": "图片映射不存在"}, status=404)
-
-        # 从映射中移除原Prompt，添加目标Prompt
-        prompt_values = mapping.get("prompts", [])
-        if from_prompt_value not in prompt_values:
-            return web.json_response({"error": "原Prompt未关联此图片"}, status=400)
-
-        prompt_values.remove(from_prompt_value)
-        if to_prompt_value not in prompt_values:
-            prompt_values.append(to_prompt_value)
-
-        # 更新映射到文件
-        success = mapping_storage.update_mapping(image_path, prompt_values)
-
-        if success:
-            return web.json_response({
-                "success": True,
-                "message": f"已移动图片到Prompt '{to_prompt.get('name', to_prompt.get('value'))}'"
-            })
-        else:
-            return web.json_response({"error": "更新映射失败"}, status=500)
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
+    """图片不再支持移动到其他 Prompt。"""
+    return web.json_response({"error": "当前版本不支持将图片移动到其他 Prompt"}, status=400)
 
 
 @server.PromptServer.instance.routes.post("/prompt_gallery/image/copy")
 async def copy_image(request):
-    """
-    复制图片到其他Prompt
-    不修改原映射，只是添加新的Prompt到图片的映射中
-    """
-    try:
-        data = await request.json()
-        image_path = data.get("imagePath")
-        to_prompt_value = data.get("toPromptValue")
-        to_category_id = data.get("toCategoryId")
-
-        if not image_path or not to_prompt_value:
-            return web.json_response({"error": "缺少必要参数"}, status=400)
-
-        prompt_storage, mapping_storage, _, _ = get_storage()
-
-        # 验证目标Prompt存在
-        to_category_id = to_category_id or "root"
-        to_prompt = prompt_storage.get_prompt(to_category_id, to_prompt_value)
-        if not to_prompt:
-            return web.json_response({"error": "目标Prompt不存在"}, status=400)
-
-        # 获取图片映射
-        mapping = mapping_storage.get_mappings_by_image(image_path)
-        if not mapping:
-            return web.json_response({"error": "图片映射不存在"}, status=404)
-
-        # 获取当前Prompt列表
-        prompt_values = mapping.get("prompts", [])
-
-        # 如果已经关联，不重复添加
-        if to_prompt_value in prompt_values:
-            return web.json_response({"error": "图片已关联到目标Prompt"}, status=400)
-
-        # 添加目标Prompt到映射
-        prompt_values.append(to_prompt_value)
-
-        # 更新映射到文件
-        success = mapping_storage.update_mapping(image_path, prompt_values)
-
-        if success:
-            return web.json_response({
-                "success": True,
-                "message": f"已复制图片到Prompt '{to_prompt.get('name', to_prompt.get('value'))}'"
-            })
-        else:
-            return web.json_response({"error": "更新映射失败"}, status=500)
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
+    """图片不再支持复制到其他 Prompt。"""
+    return web.json_response({"error": "当前版本不支持将图片复制到其他 Prompt"}, status=400)

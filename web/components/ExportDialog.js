@@ -64,7 +64,7 @@ export function ExportDialog({ isOpen, title, onClose, onConfirm }) {
             }),
             h('div', { class: 'export-dialog-option-text' }, [
               h('div', { class: 'export-dialog-option-title' }, [h(Icon, { name: 'image', size: 14 }), ' 含图片']),
-              h('div', { class: 'export-dialog-option-desc' }, '导出数据及关联的图片文件'),
+              h('div', { class: 'export-dialog-option-desc' }, '导出数据及按 promptString 匹配到的图片文件'),
             ]),
           ],
         ),

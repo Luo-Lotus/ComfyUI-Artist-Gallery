@@ -80,7 +80,6 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
     setAsDefaultPartition,
     reorderPartitions,
     isItemSelected,
-    getItemPartition,
   } = usePartitionState({
     selectedPromptsCache,
     categories,
@@ -124,28 +123,8 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
     return buildBreadcrumbPath(currentCategory, categories);
   }, [currentCategory, categories]);
 
-  // 计算已选择的画师列表（从缓存中获取）
-  const selectedPromptsList = useMemo(() => {
-    return Array.from(selectedKeys)
-      .map((key) => selectedPromptsCache[key])
-      .filter(Boolean);
-  }, [selectedKeys, selectedPromptsCache]);
-
-  // 计算已选择的分类列表
-  const selectedCategoriesList = useMemo(() => {
-    return Array.from(selectedCategories)
-      .map((catId) => categories.find((c) => c.id === catId))
-      .filter(Boolean);
-  }, [selectedCategories, categories]);
-
   // 辅助函数：生成组合键
   const makePromptKey = (categoryId, value) => `${categoryId}:${value}`;
-
-  // 辅助函数：解析组合键
-  const parsePromptKey = (key) => {
-    const [categoryId, value] = key.split(':');
-    return { categoryId, value };
-  };
 
   // 批量获取封面
   const fetchCoversByIds = useCallback(async (promptKeys, combinationIds) => {
@@ -565,7 +544,7 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
   );
 
   // 节点同步
-  const { updateNodeValue } = useNodeSync({
+  useNodeSync({
     nodeInstance,
     selectedInput,
     metadataInput,
@@ -617,8 +596,6 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
     filteredPrompts,
     filteredCategories,
     filteredCombinations,
-    selectedPromptsList,
-    selectedCategoriesList,
     refreshing,
     breadcrumbPath,
 
@@ -649,7 +626,6 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
     setAsDefaultPartition,
     reorderPartitions,
     isItemSelected,
-    getItemPartition,
 
     // 操作
     setSearchQuery,
@@ -660,7 +636,5 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
     handleCategoryChange,
     handleRefresh,
     makePromptKey,
-    parsePromptKey,
-    updateNodeValue,
   };
 }

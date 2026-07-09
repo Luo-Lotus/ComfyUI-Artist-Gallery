@@ -1,86 +1,46 @@
-import json
 import uuid
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
-import threading
+from typing import List, Optional
 
-from ._config import get_disabled_files
+from ._json_store import SplitJsonStorage
 
 
-class CombinationStorage:
+class CombinationStorage(SplitJsonStorage):
     """组合数据存储管理"""
 
+    item_key = "combinations"
+    file_attr = "combinations_file"
+    glob_pattern = "*.combinations.json"
+
     def __init__(self, storage_dir: Path):
+        super().__init__(storage_dir)
         self.storage_dir = storage_dir
         self.combinations_file = storage_dir / "combinations.json"
-        self._glob_pattern = "*.combinations.json"
-        self._lock = threading.Lock()
-        self._cache = None
+        self._idx_by_id = None
+        self._idx_by_category = None
         self._ensure_storage_dir()
 
     def _ensure_storage_dir(self):
         """确保存储目录存在并初始化"""
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
-        if not self.combinations_file.exists():
-            split_files = [f for f in self.storage_dir.glob(self._glob_pattern)
-                           if f.resolve() != self.combinations_file.resolve()]
-            if not split_files:
-                self._write_data({"combinations": []})
+        if not self.combinations_file.exists() and not self._has_split_files():
+            self._write_data({"combinations": []})
 
-    def _glob_source_files(self) -> list:
-        """查找所有源文件：主文件 + glob 匹配的分片文件（排除已禁用）"""
-        disabled = get_disabled_files(self.storage_dir)
-        sources = []
-        if self.combinations_file.exists():
-            sources.append(self.combinations_file)
-        for f in sorted(self.storage_dir.glob(self._glob_pattern)):
-            if f.resolve() != self.combinations_file.resolve():
-                if f.name not in disabled:
-                    sources.append(f)
-        return sources
+    def _invalidate_cache(self):
+        super()._invalidate_cache()
+        self._idx_by_id = None
+        self._idx_by_category = None
 
-    def _read_data(self) -> dict:
-        """读取并合并所有源文件（带缓存）"""
-        if self._cache is not None:
-            return self._cache
-        merged_items = []
-        for source_file in self._glob_source_files():
-            try:
-                with open(source_file, 'r', encoding='utf-8') as f:
-                    file_data = json.load(f)
-                for item in file_data.get("combinations", []):
-                    item["_source_file"] = str(source_file)
-                    merged_items.append(item)
-            except Exception as e:
-                print(f"Error reading {source_file.name}: {e}")
-        self._cache = {"combinations": merged_items}
-        return self._cache
-
-    def _write_data(self, data: dict):
-        """按来源文件分组回写，新数据写入主文件"""
-        try:
-            groups: Dict[str, list] = {}
-            for item in data.get("combinations", []):
-                source = item.pop("_source_file", None) or str(self.combinations_file)
-                groups.setdefault(source, []).append(item)
-
-            main_key = str(self.combinations_file)
-            if main_key not in groups and len(groups) > 0:
-                groups[main_key] = []
-
-            for file_path_str, items in groups.items():
-                file_path = Path(file_path_str)
-                file_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    json.dump({"combinations": items}, f, ensure_ascii=False, indent=2)
-
-            self._cache = None
-        except Exception as e:
-            self._cache = None
-            print(f"Error writing combinations files: {e}")
-            raise
+    def _build_indexes(self):
+        data = self._read_data()
+        self._idx_by_id = {}
+        self._idx_by_category = {}
+        for combination in data.get("combinations", []):
+            if combination.get("id"):
+                self._idx_by_id[combination.get("id")] = combination
+            self._idx_by_category.setdefault(combination.get("categoryId", "root"), []).append(combination)
 
     def get_all_combinations(self) -> List[dict]:
         """获取所有组合"""
@@ -90,16 +50,17 @@ class CombinationStorage:
 
     def get_combinations_by_category(self, category_id: str) -> List[dict]:
         """获取指定分类下的组合"""
-        combinations = self.get_all_combinations()
-        return [c for c in combinations if c.get("categoryId") == category_id]
+        with self._lock:
+            if self._idx_by_category is None:
+                self._build_indexes()
+            return list(self._idx_by_category.get(category_id, []))
 
     def get_combination_by_id(self, combination_id: str) -> Optional[dict]:
         """根据ID获取组合"""
-        combinations = self.get_all_combinations()
-        for c in combinations:
-            if c.get("id") == combination_id:
-                return c
-        return None
+        with self._lock:
+            if self._idx_by_id is None:
+                self._build_indexes()
+            return self._idx_by_id.get(combination_id)
 
     def add_combination(self, name: str, category_id: str, prompts: List[str],
                         output_content: str = "", target_file: Optional[str] = None) -> dict:
@@ -149,6 +110,27 @@ class CombinationStorage:
                     return c
             return None
 
+    def set_cover_batch(self, updates_by_id: dict) -> int:
+        """
+        批量回填组合 coverImageId（按组合 ID 精确匹配）。
+        只更新当前没有封面的组合，避免覆盖用户手动设置。
+        """
+        if not updates_by_id:
+            return 0
+        with self._lock:
+            data = self._read_data()
+            changed = 0
+            for combination in data["combinations"]:
+                if combination.get("coverImageId"):
+                    continue
+                cover = updates_by_id.get(combination.get("id"))
+                if cover:
+                    combination["coverImageId"] = cover
+                    changed += 1
+            if changed:
+                self._write_data(data)
+            return changed
+
     def delete_combination(self, combination_id: str) -> bool:
         """删除组合"""
         with self._lock:
@@ -192,6 +174,22 @@ class CombinationStorage:
         """移动组合到新分类"""
         result = self.update_combination(combination_id, categoryId=new_category_id)
         return result is not None
+
+    def batch_move(self, combination_ids: List[str], new_category_id: str) -> List[dict]:
+        """批量移动组合到新分类（一次锁和一次写入）"""
+        if not combination_ids:
+            return []
+        id_set = set(combination_ids)
+        moved = []
+        with self._lock:
+            data = self._read_data()
+            for combination in data["combinations"]:
+                if combination.get("id") in id_set:
+                    combination["categoryId"] = new_category_id
+                    moved.append(combination)
+            if moved:
+                self._write_data(data)
+            return moved
 
     def find_by_content(self, output_content: str) -> Optional[dict]:
         """按输出内容查找组合（用于查重）"""
