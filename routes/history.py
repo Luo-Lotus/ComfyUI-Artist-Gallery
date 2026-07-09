@@ -12,6 +12,14 @@ import server
 from ..storage import get_storage, get_custom_filter_storage, get_image_field_storage
 
 
+def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+    allowed = {"datetime", "re", "json", "math", "time"}
+    root_name = name.split(".", 1)[0]
+    if root_name not in allowed:
+        raise ImportError(f"Import '{name}' is not allowed")
+    return __import__(name, globals, locals, fromlist, level)
+
+
 @server.PromptServer.instance.routes.get("/prompt_gallery/images_grouped")
 async def get_images_grouped(request):
     """
@@ -225,6 +233,7 @@ _SAFE_BUILTINS = {
     # 常用模块
     "re": re, "json": json, "math": math,
     "datetime": datetime, "timezone": timezone, "timedelta": timedelta,
+    "__import__": _safe_import,
 }
 
 

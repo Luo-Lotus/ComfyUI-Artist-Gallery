@@ -9,6 +9,15 @@ from aiohttp import web
 import server
 from ..storage import get_custom_filter_storage, get_storage
 
+
+def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+    allowed = {"datetime", "re", "json", "math", "time"}
+    root_name = name.split(".", 1)[0]
+    if root_name not in allowed:
+        raise ImportError(f"Import '{name}' is not allowed")
+    return __import__(name, globals, locals, fromlist, level)
+
+
 _SAFE_BUILTINS = {
     "int": int, "str": str, "float": float, "len": len,
     "bool": bool, "isinstance": isinstance, "print": print,
@@ -26,6 +35,7 @@ _SAFE_BUILTINS = {
     # 常用模块
     "re": re, "json": json, "math": math,
     "datetime": datetime, "timezone": timezone, "timedelta": timedelta,
+    "__import__": _safe_import,
 }
 
 
