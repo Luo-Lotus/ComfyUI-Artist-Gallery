@@ -6,11 +6,9 @@ import re
 import math
 from datetime import datetime, timezone, timedelta
 from collections import OrderedDict
-from pathlib import Path
 from aiohttp import web
 import server
 from ..storage import get_storage, get_custom_filter_storage, get_image_field_storage
-from ._utils import is_remote_path
 
 
 @server.PromptServer.instance.routes.get("/prompt_gallery/images_grouped")
@@ -25,10 +23,6 @@ async def get_images_grouped(request):
       search (可选): 按 prompts[] 字段内容搜索
     """
     try:
-        import folder_paths
-
-        output_dir = Path(folder_paths.get_output_directory())
-
         prompt_filter = request.query.get("prompt", "").strip()
         prompts_param = request.query.get("prompts", "").strip()
         search_query = request.query.get("search", "").strip().lower()
@@ -88,13 +82,6 @@ async def get_images_grouped(request):
             if not image_path:
                 continue
 
-            remote = is_remote_path(image_path, mapping.get("type", ""))
-
-            if not remote:
-                full_path = output_dir / image_path
-                if not full_path.exists():
-                    continue
-
             prompts_list = mapping.get("prompts", [])
 
             # 单个 prompt 过滤
@@ -132,11 +119,6 @@ async def get_images_grouped(request):
                     continue
 
             saved_at = mapping.get("fileInfo", {}).get("createdAt", 0)
-            if not saved_at and not remote:
-                try:
-                    saved_at = int(full_path.stat().st_mtime * 1000)
-                except Exception:
-                    continue
 
             valid_items.append({
                 "path": image_path,

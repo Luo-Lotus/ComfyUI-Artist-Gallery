@@ -89,6 +89,16 @@ class ImageMappingStorage:
             data = self._read_data()
             return data.get("mappings", [])
 
+    def get_all_image_paths(self) -> set:
+        """获取所有已登记图片路径，用于导入去重。"""
+        with self._lock:
+            data = self._read_data()
+            return {
+                mapping.get("imagePath")
+                for mapping in data.get("mappings", [])
+                if mapping.get("imagePath")
+            }
+
     def add_mapping(self, image_path: str, prompt_values: List[str],
                     file_info: Optional[dict] = None, prompt_string: str = "",
                     generate_prompt=None, mapping_type: str = "local",

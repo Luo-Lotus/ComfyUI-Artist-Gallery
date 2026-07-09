@@ -13,6 +13,8 @@ from ..storage import get_storage
 
 IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp'}
 COMFY_OUTPUT_SHARD = "comfy_output.images.json"
+METADATA_BATCH_SIZE = 500
+METADATA_CONCURRENCY = 10
 
 
 @server.PromptServer.instance.routes.post("/prompt_gallery/import_output")
@@ -33,12 +35,8 @@ async def import_comfy_output(request):
         storage_dir = Path(mapping_storage.storage_dir)
         target_file = str(storage_dir / COMFY_OUTPUT_SHARD)
 
-        # 阶段0：加载已有映射，构建去重集合
-        existing_paths = set()
-        for m in mapping_storage.get_all_mappings():
-            p = m.get("imagePath")
-            if p:
-                existing_paths.add(p)
+        # 阶段0：加载已有路径，构建去重集合
+        existing_paths = mapping_storage.get_all_image_paths()
 
         # 构建过滤路径集合
         allowed_dirs = set()
@@ -48,13 +46,41 @@ async def import_comfy_output(request):
             resolved = (output_dir / folder).resolve()
             target_set.add(resolved)
 
-        # 阶段1：收集图片文件，过滤 + 去重
-        image_files = []
+        # 阶段1/2：扫描图片文件，按批并发读取元数据
         duplicated = 0
+        scanned = 0
+        errors = []
+        mapping_items = []
+        batch = []
+        semaphore = asyncio.Semaphore(METADATA_CONCURRENCY)
+
+        async def read_metadata(full_path, rel_path):
+            async with semaphore:
+                try:
+                    loop = asyncio.get_running_loop()
+                    return await loop.run_in_executor(
+                        None, _extract_metadata, full_path, rel_path
+                    )
+                except Exception as e:
+                    return {"error": str(e), "path": rel_path}
+
+        async def process_batch(items):
+            if not items:
+                return
+            results = await asyncio.gather(*[
+                read_metadata(fp, rp) for fp, rp in items
+            ])
+            for r in results:
+                if "error" in r:
+                    errors.append(r)
+                else:
+                    mapping_items.append(r)
+
         for dirpath, rel_path, fname in _walk_output(output_dir, filter_mode, allowed_dirs, blocked_dirs):
             ext = os.path.splitext(fname)[1].lower()
             if ext not in IMAGE_EXTENSIONS:
                 continue
+            scanned += 1
             # 构建相对于 output_dir 的路径
             if rel_path:
                 img_rel = f"{rel_path}/{fname}"
@@ -65,50 +91,32 @@ async def import_comfy_output(request):
                 duplicated += 1
                 continue
             full_path = os.path.join(dirpath, fname)
-            image_files.append((full_path, img_rel))
+            batch.append((full_path, img_rel))
+            existing_paths.add(img_rel)
 
-        if not image_files:
+            if len(batch) >= METADATA_BATCH_SIZE:
+                await process_batch(batch)
+                batch = []
+
+        if batch:
+            await process_batch(batch)
+
+        if not mapping_items and not errors:
             return web.json_response({
                 "success": True,
-                "totalScanned": duplicated,
+                "totalScanned": scanned,
                 "imported": 0,
                 "duplicated": duplicated,
                 "errorCount": 0,
             })
 
-        # 阶段2：并发读取元数据
-        semaphore = asyncio.Semaphore(10)
-
-        async def read_metadata(full_path, rel_path):
-            async with semaphore:
-                try:
-                    loop = asyncio.get_event_loop()
-                    return await loop.run_in_executor(
-                        None, _extract_metadata, full_path, rel_path
-                    )
-                except Exception as e:
-                    return {"error": str(e), "path": rel_path}
-
-        results = await asyncio.gather(*[
-            read_metadata(fp, rp) for fp, rp in image_files
-        ])
-
-        # 阶段3：构建映射项，批量写入
-        mapping_items = []
-        errors = []
-
-        for r in results:
-            if "error" in r:
-                errors.append(r)
-                continue
-            mapping_items.append(r)
-
+        # 阶段3：批量写入映射项，保持一次 JSON 写入
         if mapping_items:
             mapping_storage.add_mappings_import(mapping_items, target_file=target_file)
 
         return web.json_response({
             "success": True,
-            "totalScanned": len(image_files) + duplicated,
+            "totalScanned": scanned,
             "imported": len(mapping_items),
             "duplicated": duplicated,
             "errorCount": len(errors),
@@ -147,17 +155,18 @@ def _walk_output(output_dir, filter_mode, allowed_dirs, blocked_dirs):
 
     def _scan_recursive(current_dir, rel_prefix):
         try:
-            entries = list(os.scandir(current_dir))
+            entries = os.scandir(current_dir)
         except (PermissionError, OSError):
             return
         subdirs = []
-        for entry in entries:
-            if entry.is_dir(follow_symlinks=False):
-                subdirs.append(entry.name)
-            elif entry.is_file(follow_symlinks=False):
-                # 只在通过过滤的目录下收集文件
-                if is_dir_allowed(current_dir):
-                    yield (current_dir, rel_prefix, entry.name)
+        with entries:
+            for entry in entries:
+                if entry.is_dir(follow_symlinks=False):
+                    subdirs.append(entry.name)
+                elif entry.is_file(follow_symlinks=False):
+                    # 只在通过过滤的目录下收集文件
+                    if is_dir_allowed(current_dir):
+                        yield (current_dir, rel_prefix, entry.name)
         for d in subdirs:
             new_prefix = f"{rel_prefix}/{d}" if rel_prefix else d
             yield from _scan_recursive(os.path.join(current_dir, d), new_prefix)
