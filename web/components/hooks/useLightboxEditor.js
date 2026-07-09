@@ -10,12 +10,15 @@ export function useLightboxEditor() {
     const [activeTool, setActiveTool] = useState('none');
     const [brushColor, setBrushColor] = useState('#ff0000');
     const [brushSize, setBrushSize] = useState(10);
+    const [mosaicBrushSize, setMosaicBrushSize] = useState(48);
+    const [mosaicBlockSize, setMosaicBlockSize] = useState(12);
     const [canvasReady, setCanvasReady] = useState(false);
 
     const canvasRef = useRef(null);
     const undoStack = useRef([]);
     const isDrawing = useRef(false);
     const lastPoint = useRef(null);
+    const strokeBlocks = useRef(new Set());
     const currentImage = useRef({ path: null, type: null });
 
     const getCtx = useCallback(() => {
@@ -129,38 +132,129 @@ export function useLightboxEditor() {
         ctx.stroke();
     }, []);
 
-    const handleBrushStart = useCallback((e) => {
-        if (activeTool !== 'brush') return;
+    const drawBrushDot = useCallback((ctx, point, color, size) => {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, size / 2, 0, Math.PI * 2);
+        ctx.fill();
+    }, []);
+
+    const applyMosaicAtPoint = useCallback((ctx, point) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const brushRadius = Math.max(2, mosaicBrushSize / 2);
+        const blockSize = Math.max(2, mosaicBlockSize);
+        const startX = Math.max(0, Math.floor((point.x - brushRadius) / blockSize) * blockSize);
+        const startY = Math.max(0, Math.floor((point.y - brushRadius) / blockSize) * blockSize);
+        const endX = Math.min(canvas.width, Math.ceil((point.x + brushRadius) / blockSize) * blockSize);
+        const endY = Math.min(canvas.height, Math.ceil((point.y + brushRadius) / blockSize) * blockSize);
+        const radiusLimit = brushRadius + blockSize * 0.72;
+
+        for (let by = startY; by < endY; by += blockSize) {
+            for (let bx = startX; bx < endX; bx += blockSize) {
+                const bw = Math.min(blockSize, canvas.width - bx);
+                const bh = Math.min(blockSize, canvas.height - by);
+                if (bw <= 0 || bh <= 0) continue;
+
+                const cx = bx + bw / 2;
+                const cy = by + bh / 2;
+                const dx = cx - point.x;
+                const dy = cy - point.y;
+                if ((dx * dx + dy * dy) > radiusLimit * radiusLimit) continue;
+
+                const blockKey = `${bx}:${by}`;
+                if (strokeBlocks.current.has(blockKey)) continue;
+                strokeBlocks.current.add(blockKey);
+
+                let data;
+                try {
+                    data = ctx.getImageData(bx, by, bw, bh).data;
+                } catch {
+                    continue;
+                }
+
+                let r = 0;
+                let g = 0;
+                let b = 0;
+                let a = 0;
+                let count = 0;
+                const sampleStep = Math.max(1, Math.floor(Math.sqrt((bw * bh) / 80)));
+                for (let sy = 0; sy < bh; sy += sampleStep) {
+                    for (let sx = 0; sx < bw; sx += sampleStep) {
+                        const i = (sy * bw + sx) * 4;
+                        r += data[i];
+                        g += data[i + 1];
+                        b += data[i + 2];
+                        a += data[i + 3];
+                        count += 1;
+                    }
+                }
+                if (!count) continue;
+
+                ctx.fillStyle = `rgba(${Math.round(r / count)}, ${Math.round(g / count)}, ${Math.round(b / count)}, ${(a / count / 255).toFixed(3)})`;
+                ctx.fillRect(bx, by, bw, bh);
+            }
+        }
+    }, [mosaicBrushSize, mosaicBlockSize]);
+
+    const drawMosaicStroke = useCallback((ctx, from, to) => {
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const step = Math.max(1, Math.min(mosaicBlockSize, mosaicBrushSize / 4));
+        const steps = Math.max(1, Math.ceil(distance / step));
+
+        for (let i = 1; i <= steps; i += 1) {
+            const t = i / steps;
+            applyMosaicAtPoint(ctx, {
+                x: from.x + dx * t,
+                y: from.y + dy * t,
+            });
+        }
+    }, [applyMosaicAtPoint, mosaicBrushSize, mosaicBlockSize]);
+
+    const handleDrawStart = useCallback((e) => {
+        if (activeTool !== 'brush' && activeTool !== 'mosaic') return;
         if (e.button !== undefined && e.button !== 0) return;
         e.preventDefault();
-        pushUndo();
-        isDrawing.current = true;
         const point = getCanvasPoint(e);
         if (!point) return;
-        lastPoint.current = point;
         const ctx = getCtx();
         if (!ctx) return;
-        ctx.fillStyle = brushColor;
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, brushSize / 2, 0, Math.PI * 2);
-        ctx.fill();
-    }, [activeTool, pushUndo, getCanvasPoint, getCtx, brushColor, brushSize]);
 
-    const handleBrushMove = useCallback((e) => {
-        if (!isDrawing.current || activeTool !== 'brush') return;
+        pushUndo();
+        isDrawing.current = true;
+        lastPoint.current = point;
+        strokeBlocks.current = new Set();
+
+        if (activeTool === 'brush') {
+            drawBrushDot(ctx, point, brushColor, brushSize);
+        } else {
+            applyMosaicAtPoint(ctx, point);
+        }
+    }, [activeTool, pushUndo, getCanvasPoint, getCtx, drawBrushDot, brushColor, brushSize, applyMosaicAtPoint]);
+
+    const handleDrawMove = useCallback((e) => {
+        if (!isDrawing.current || (activeTool !== 'brush' && activeTool !== 'mosaic')) return;
         if (e.button !== undefined && e.button !== 0) return;
         e.preventDefault();
         const point = getCanvasPoint(e);
         if (!point || !lastPoint.current) return;
         const ctx = getCtx();
         if (!ctx) return;
-        drawLine(ctx, lastPoint.current, point, brushColor, brushSize);
+        if (activeTool === 'brush') {
+            drawLine(ctx, lastPoint.current, point, brushColor, brushSize);
+        } else {
+            drawMosaicStroke(ctx, lastPoint.current, point);
+        }
         lastPoint.current = point;
-    }, [activeTool, getCanvasPoint, getCtx, drawLine, brushColor, brushSize]);
+    }, [activeTool, getCanvasPoint, getCtx, drawLine, brushColor, brushSize, drawMosaicStroke]);
 
-    const handleBrushEnd = useCallback(() => {
+    const handleDrawEnd = useCallback(() => {
         isDrawing.current = false;
         lastPoint.current = null;
+        strokeBlocks.current = new Set();
     }, []);
 
     useEffect(() => {
@@ -180,18 +274,25 @@ export function useLightboxEditor() {
         activeTool,
         brushColor,
         brushSize,
+        mosaicBrushSize,
+        mosaicBlockSize,
         canvasReady,
         canvasRef,
         setActiveTool,
         setBrushColor,
         setBrushSize,
+        setMosaicBrushSize,
+        setMosaicBlockSize,
         enterEditMode,
         exitEditMode,
         applyObfuscation,
         restoreOriginal,
         handleUndo,
-        handleBrushStart,
-        handleBrushMove,
-        handleBrushEnd,
+        handleBrushStart: handleDrawStart,
+        handleBrushMove: handleDrawMove,
+        handleBrushEnd: handleDrawEnd,
+        handleDrawStart,
+        handleDrawMove,
+        handleDrawEnd,
     };
 }

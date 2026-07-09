@@ -129,11 +129,42 @@ function EditToolbar({ editor }) {
     );
 
   return h('div', { class: 'gallery-lightbox-edit-toolbar' }, [
+    toolbarBtn('grid-3x3', '马赛克', () => setActiveTool(activeTool === 'mosaic' ? 'none' : 'mosaic'), activeTool === 'mosaic'),
     toolbarBtn('shuffle', '混淆', applyObfuscation, false),
     toolbarBtn('refresh-cw', '还原', restoreOriginal, false),
     toolbarBtn('brush', '画笔', () => setActiveTool(activeTool === 'brush' ? 'none' : 'brush'), activeTool === 'brush'),
     toolbarBtn('undo', '撤销', handleUndo, false),
     toolbarBtn('x', '退出编辑', exitEditMode, false),
+  ]);
+}
+
+function MosaicPanel({ brushSize, blockSize, onBrushSizeChange, onBlockSizeChange }) {
+  return h('div', { class: 'gallery-lightbox-brush-panel gallery-lightbox-mosaic-panel' }, [
+    h('span', { class: 'brush-size-label mosaic-label' }, `范围 ${brushSize}px`),
+    h('input', {
+      type: 'range',
+      min: 12,
+      max: 160,
+      value: brushSize,
+      onInput: (e) => onBrushSizeChange(parseInt(e.target.value)),
+      title: '马赛克范围',
+    }),
+    h('span', { class: 'brush-size-label mosaic-label' }, `块 ${blockSize}px`),
+    h('input', {
+      type: 'range',
+      min: 4,
+      max: 40,
+      value: blockSize,
+      onInput: (e) => onBlockSizeChange(parseInt(e.target.value)),
+      title: '马赛克块大小',
+    }),
+    h('div', {
+      class: 'mosaic-size-preview',
+      style: {
+        width: `${Math.max(8, blockSize)}px`,
+        height: `${Math.max(8, blockSize)}px`,
+      },
+    }),
   ]);
 }
 
@@ -243,6 +274,8 @@ export function Lightbox({ isOpen, prompt, imageIndex, onClose, onNavigate, imag
 
   const cursorStyle = editor.editMode && editor.activeTool === 'brush'
     ? 'crosshair'
+    : editor.editMode && editor.activeTool === 'mosaic'
+      ? 'cell'
     : editor.editMode && editor.activeTool === 'obfuscate'
       ? 'pointer'
       : undefined;
@@ -337,6 +370,14 @@ export function Lightbox({ isOpen, prompt, imageIndex, onClose, onNavigate, imag
 
         editor.editMode &&
           h(EditToolbar, { editor }),
+
+        editor.editMode && editor.activeTool === 'mosaic' &&
+          h(MosaicPanel, {
+            brushSize: editor.mosaicBrushSize,
+            blockSize: editor.mosaicBlockSize,
+            onBrushSizeChange: editor.setMosaicBrushSize,
+            onBlockSizeChange: editor.setMosaicBlockSize,
+          }),
 
         editor.editMode && editor.activeTool === 'brush' &&
           h(BrushPanel, {

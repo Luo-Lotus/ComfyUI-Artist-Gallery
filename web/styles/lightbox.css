@@ -311,6 +311,8 @@
     max-height: 100%;
     object-fit: contain;
     border-radius: 8px;
+    touch-action: none;
+    user-select: none;
 }
 
 /* ===== 操作栏（图片上方） ===== */
@@ -450,6 +452,14 @@
     cursor: pointer;
 }
 
+.gallery-lightbox-mosaic-panel {
+    gap: 8px;
+}
+
+.gallery-lightbox-mosaic-panel input[type="range"] {
+    width: 88px;
+}
+
 .brush-size-label {
     font-size: 12px;
     color: rgba(255, 255, 255, 0.6);
@@ -457,7 +467,22 @@
     text-align: center;
 }
 
+.mosaic-label {
+    min-width: 58px;
+    white-space: nowrap;
+}
+
 .brush-size-preview {
     border: 1px solid rgba(255, 255, 255, 0.3);
     flex-shrink: 0;
+}
+
+.mosaic-size-preview {
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.35) 1px, transparent 1px),
+        linear-gradient(rgba(255, 255, 255, 0.35) 1px, transparent 1px),
+        rgba(255, 255, 255, 0.16);
+    background-size: 6px 6px;
 }
