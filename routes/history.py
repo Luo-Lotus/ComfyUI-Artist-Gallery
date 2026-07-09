@@ -201,7 +201,13 @@ async def get_images_grouped(request):
             group["images"].sort(key=lambda x: x["savedAt"], reverse=True)
             group["count"] = len(group["images"])
 
-        groups = sorted(groups_dict.values(), key=lambda g: g["date"], reverse=True)
+        groups = sorted(
+            groups_dict.values(),
+            key=lambda g: (g["date"] == "未分类", g["date"]),
+            reverse=True,
+        )
+        if groups and groups[0].get("date") == "未分类":
+            groups.append(groups.pop(0))
         date_list = [g["date"] for g in groups]
         log_timing("group_items", group_by=group_by, group_count=len(groups))
 
