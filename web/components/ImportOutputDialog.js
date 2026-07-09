@@ -3,20 +3,28 @@
  * 扫描 output 目录，按白名单/黑名单过滤，读取 PNG 元数据
  */
 import { h } from '../lib/preact.mjs';
-import { useState, useCallback } from '../lib/hooks.mjs';
+import { useState, useCallback, useRef } from '../lib/hooks.mjs';
 import { Dialog, DialogButton, DialogFormGroup, DialogFormItem } from './Dialog.js';
 import { showToast } from './Toast.js';
 import { Icon } from '../lib/icons.mjs';
+import { buildSSEUrl, createSSE } from '../services/sseClient.js';
 
 export function ImportOutputDialog({ isOpen, onClose, onSuccess }) {
   const [filterMode, setFilterMode] = useState('whitelist');
   const [foldersText, setFoldersText] = useState('');
   const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState(null);
+  const cancelImportRef = useRef(null);
 
   const handleClose = useCallback(() => {
+    if (cancelImportRef.current) {
+      cancelImportRef.current();
+      cancelImportRef.current = null;
+    }
     setFilterMode('whitelist');
     setFoldersText('');
     setImporting(false);
+    setProgress(null);
     onClose();
   }, [onClose]);
 
@@ -32,15 +40,28 @@ export function ImportOutputDialog({ isOpen, onClose, onSuccess }) {
     }
 
     setImporting(true);
-    try {
-      const response = await fetch('/prompt_gallery/import_output', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filterMode, folders }),
-      });
-      const result = await response.json();
+    setProgress({
+      phase: 'preparing',
+      scanned: 0,
+      processed: 0,
+      imported: 0,
+      duplicated: 0,
+      errorCount: 0,
+    });
 
-      if (result.success) {
+    const url = buildSSEUrl('/prompt_gallery/import_output', {
+      filterMode,
+      folders,
+    });
+
+    cancelImportRef.current = createSSE(url, {
+      onProgress: (data) => {
+        setProgress(data);
+      },
+      onDone: (result) => {
+        cancelImportRef.current = null;
+        setImporting(false);
+
         const parts = [`扫描 ${result.totalScanned} 张图片`];
         if (result.imported > 0) parts.push(`导入 ${result.imported} 张`);
         if (result.duplicated > 0) parts.push(`跳过 ${result.duplicated} 张（已存在）`);
@@ -48,14 +69,21 @@ export function ImportOutputDialog({ isOpen, onClose, onSuccess }) {
         showToast(parts.join('，'), result.errorCount > 0 ? 'warning' : 'success');
         if (onSuccess) onSuccess();
         handleClose();
-      } else {
-        showToast('导入失败: ' + (result.error || '未知错误'), 'error');
-      }
-    } catch (error) {
-      showToast('导入失败: ' + error.message, 'error');
-    } finally {
-      setImporting(false);
-    }
+      },
+      onError: (event) => {
+        cancelImportRef.current = null;
+        setImporting(false);
+        let message = '连接中断';
+        if (event?.data) {
+          try {
+            message = JSON.parse(event.data).error || message;
+          } catch (e) {
+            message = '未知错误';
+          }
+        }
+        showToast('导入失败: ' + (message || '未知错误'), 'error');
+      },
+    });
   }, [filterMode, foldersText, onSuccess, handleClose]);
 
   const renderFooter = () => [
@@ -97,6 +125,26 @@ export function ImportOutputDialog({ isOpen, onClose, onSuccess }) {
       h('div', {}, '可在插件存储目录中删除此文件以移除所有导入'),
     ]),
 
+    progress && h('div', {
+      style: {
+        padding: '10px 14px',
+        background: 'var(--g-bg-input)',
+        border: '1px solid var(--g-border)',
+        borderRadius: '8px',
+        fontSize: '12px',
+        color: 'var(--g-text-secondary)',
+        marginBottom: '16px',
+        lineHeight: '1.7',
+      },
+    }, [
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' } }, [
+        h(Icon, { name: 'activity', size: 14 }),
+        h('span', { style: { fontWeight: '600' } }, _phaseLabel(progress.phase)),
+      ]),
+      h('div', {}, `已扫描 ${progress.scanned || 0} 张，已处理 ${progress.processed || 0} 张`),
+      h('div', {}, `导入 ${progress.imported || 0} 张，跳过 ${progress.duplicated || 0} 张，失败 ${progress.errorCount || 0} 张`),
+    ]),
+
     h(DialogFormGroup, {}, [
       // 过滤模式
       h(DialogFormItem, { label: '过滤模式' }, [
@@ -119,6 +167,21 @@ export function ImportOutputDialog({ isOpen, onClose, onSuccess }) {
       ]),
     ]),
   ]);
+}
+
+function _phaseLabel(phase) {
+  switch (phase) {
+    case 'preparing':
+      return '准备中';
+    case 'scanning':
+      return '扫描中';
+    case 'metadata':
+      return '读取元数据';
+    case 'writing':
+      return '写入数据';
+    default:
+      return '处理中';
+  }
 }
 
 function _renderRadioOption(value, label, desc, filterMode, setFilterMode) {
