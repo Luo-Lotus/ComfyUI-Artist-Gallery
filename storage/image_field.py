@@ -9,6 +9,8 @@ from typing import List, Optional
 
 
 # 内置字段定义
+_DEPRECATED_BUILTIN_FIELD_IDS = {"builtin_prompt_names"}
+
 _BUILTIN_FIELDS = [
     {
         "id": "builtin_date",
@@ -63,18 +65,6 @@ _BUILTIN_FIELDS = [
         "options": [],
     },
     {
-        "id": "builtin_prompt_names",
-        "name": "提示词",
-        "extractCode": (
-            "def extract_func(item):\n"
-            "    return item.get('promptString', '')"
-        ),
-        "builtin": True,
-        "groupable": True,
-        "createdAt": 0,
-        "options": [],
-    },
-    {
         "id": "builtin_prompt_string",
         "name": "提示词",
         "extractCode": (
@@ -118,8 +108,13 @@ class ImageFieldStorage:
         else:
             # 确保内置字段存在（合并缺失的 builtin 字段，同步名称和 extractCode）
             data = self._read_data()
+            original_count = len(data.get("fields", []))
+            data["fields"] = [
+                f for f in data.get("fields", [])
+                if f.get("id") not in _DEPRECATED_BUILTIN_FIELD_IDS
+            ]
             existing_map = {f["id"]: f for f in data.get("fields", [])}
-            changed = False
+            changed = len(data["fields"]) != original_count
             for bf in _BUILTIN_FIELDS:
                 if bf["id"] not in existing_map:
                     data["fields"].append(dict(bf))
