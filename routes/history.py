@@ -42,7 +42,7 @@ async def get_images_grouped(request):
         search_query = request.query.get("search", "").strip().lower()
         filters_param = request.query.get("filters", "").strip()
         include_comfy_output = request.query.get("include_comfy_output", "").strip() == "1"
-        group_by = request.query.get("group_by", "").strip()
+        group_by = request.query.get("group_by", "").strip() or "builtin_date"
         log_timing(
             "parse_query",
             prompt=bool(prompt_filter),
@@ -50,7 +50,7 @@ async def get_images_grouped(request):
             search=bool(search_query),
             filters=bool(filters_param),
             include_comfy_output=include_comfy_output,
-            group_by=group_by or "builtin_date",
+            group_by=group_by,
         )
 
         # 组合模式：多个 prompt 取交集
@@ -91,16 +91,21 @@ async def get_images_grouped(request):
             ]
         log_timing("filter_comfy_output", mapping_count=len(mappings))
 
-        # 预编译自定义字段分组函数（如果需要）
+        # 预编译分组字段
         group_extract_fn = None
-        if group_by and group_by != "builtin_date":
-            field_storage = get_image_field_storage()
-            group_field = field_storage.get_by_id(group_by)
-            if group_field and group_field.get("groupable", False):
-                extract_code = group_field.get("extractCode", "").strip()
-                if extract_code:
-                    group_extract_fn = _compile_extract(extract_code)
-        log_timing("compile_group", custom_group=bool(group_extract_fn))
+        field_storage = get_image_field_storage()
+        group_field = field_storage.get_by_id(group_by)
+        if group_field and group_field.get("groupable", False):
+            extract_code = group_field.get("extractCode", "").strip()
+            if extract_code:
+                group_extract_fn = _compile_extract(extract_code)
+        if not group_extract_fn:
+            group_by = "builtin_date"
+            fallback_field = field_storage.get_by_id(group_by)
+            extract_code = (fallback_field or {}).get("extractCode", "").strip()
+            if extract_code:
+                group_extract_fn = _compile_extract(extract_code)
+        log_timing("compile_group", group_by=group_by)
 
         # 收集有效图片
         valid_items = []
@@ -158,60 +163,34 @@ async def get_images_grouped(request):
             valid_raw_mappings.append(mapping)
         log_timing("filter_items", valid_count=len(valid_items))
 
-        # 分组（按日期或自定义字段）
+        # 分组（统一通过图片字段 extractor）
         groups_dict = OrderedDict()
-
-        if group_extract_fn:
-            # 按自定义字段分组
-            for i, item in enumerate(valid_items):
-                raw_mapping = valid_raw_mappings[i]
-                try:
-                    group_key = group_extract_fn(raw_mapping)
-                    if group_key is None or group_key == "":
-                        group_key = "未分类"
-                    group_key = str(group_key)
-                except Exception:
+        for i, item in enumerate(valid_items):
+            raw_mapping = valid_raw_mappings[i]
+            try:
+                group_key = group_extract_fn(raw_mapping)
+                if group_key is None or group_key == "":
                     group_key = "未分类"
+                group_key = str(group_key)
+            except Exception:
+                group_key = "未分类"
 
-                if group_key not in groups_dict:
-                    groups_dict[group_key] = {
-                        "date": group_key,
-                        "timestamp": 0,
-                        "images": [],
-                    }
-                groups_dict[group_key]["images"].append(item)
+            if group_key not in groups_dict:
+                groups_dict[group_key] = {
+                    "date": group_key,
+                    "timestamp": item.get("savedAt", 0),
+                    "images": [],
+                }
+            groups_dict[group_key]["images"].append(item)
 
-            # 组内按时间降序
-            for group in groups_dict.values():
-                group["images"].sort(key=lambda x: x["savedAt"], reverse=True)
-                group["count"] = len(group["images"])
+        # 组内按时间降序
+        for group in groups_dict.values():
+            group["images"].sort(key=lambda x: x["savedAt"], reverse=True)
+            group["count"] = len(group["images"])
 
-            # 组按键名排序
-            groups = sorted(groups_dict.values(), key=lambda g: g["date"])
-            date_list = [g["date"] for g in groups]
-            log_timing("group_custom", group_count=len(groups))
-        else:
-            # 默认按日期分组
-            for item in valid_items:
-                dt = datetime.fromtimestamp(item["savedAt"] / 1000, tz=timezone.utc)
-                date_key = dt.strftime("%Y-%m-%d")
-                if date_key not in groups_dict:
-                    groups_dict[date_key] = {
-                        "date": date_key,
-                        "timestamp": int(dt.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000),
-                        "images": [],
-                    }
-                groups_dict[date_key]["images"].append(item)
-
-            # 组内按时间降序
-            for group in groups_dict.values():
-                group["images"].sort(key=lambda x: x["savedAt"], reverse=True)
-                group["count"] = len(group["images"])
-
-            # 组按日期降序
-            groups = sorted(groups_dict.values(), key=lambda g: g["timestamp"], reverse=True)
-            date_list = [g["date"] for g in groups]
-            log_timing("group_date", group_count=len(groups))
+        groups = sorted(groups_dict.values(), key=lambda g: g["date"], reverse=True)
+        date_list = [g["date"] for g in groups]
+        log_timing("group_items", group_by=group_by, group_count=len(groups))
 
         payload = {
             "success": True,
