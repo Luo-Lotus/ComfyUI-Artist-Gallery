@@ -4,6 +4,7 @@
 import json
 import re
 import math
+import time
 from datetime import datetime, timezone, timedelta
 from collections import OrderedDict
 from aiohttp import web
@@ -23,17 +24,40 @@ async def get_images_grouped(request):
       search (可选): 按 prompts[] 字段内容搜索
     """
     try:
+        started_at = time.perf_counter()
+        last_mark = started_at
+
+        def log_timing(stage, **extra):
+            nonlocal last_mark
+            now = time.perf_counter()
+            delta_ms = (now - last_mark) * 1000
+            total_ms = (now - started_at) * 1000
+            last_mark = now
+            detail = " ".join(f"{key}={value}" for key, value in extra.items())
+            suffix = f" {detail}" if detail else ""
+            print(f"[HistoryTiming] {stage}: +{delta_ms:.1f}ms total={total_ms:.1f}ms{suffix}")
+
         prompt_filter = request.query.get("prompt", "").strip()
         prompts_param = request.query.get("prompts", "").strip()
         search_query = request.query.get("search", "").strip().lower()
         filters_param = request.query.get("filters", "").strip()
         include_comfy_output = request.query.get("include_comfy_output", "").strip() == "1"
         group_by = request.query.get("group_by", "").strip()
+        log_timing(
+            "parse_query",
+            prompt=bool(prompt_filter),
+            prompts=bool(prompts_param),
+            search=bool(search_query),
+            filters=bool(filters_param),
+            include_comfy_output=include_comfy_output,
+            group_by=group_by or "builtin_date",
+        )
 
         # 组合模式：多个 prompt 取交集
         combination_prompts = None
         if prompts_param:
             combination_prompts = [p.strip() for p in prompts_param.split(",") if p.strip()]
+        log_timing("parse_prompts", combination_count=len(combination_prompts or []))
 
         # 自定义筛查：解析 filters JSON 参数
         active_filters = []
@@ -53,9 +77,11 @@ async def get_images_grouped(request):
                                 })
             except (json.JSONDecodeError, Exception):
                 pass
+        log_timing("compile_filters", active_filter_count=len(active_filters))
 
         _, mapping_storage, _, _ = get_storage()
         mappings = mapping_storage.get_all_mappings()
+        log_timing("load_mappings", mapping_count=len(mappings))
 
         # 未显式请求时，排除 comfy_output.images.json 中的图片
         if not include_comfy_output:
@@ -63,6 +89,7 @@ async def get_images_grouped(request):
                 m for m in mappings
                 if "comfy_output.images.json" not in m.get("_source_file", "")
             ]
+        log_timing("filter_comfy_output", mapping_count=len(mappings))
 
         # 预编译自定义字段分组函数（如果需要）
         group_extract_fn = None
@@ -73,6 +100,7 @@ async def get_images_grouped(request):
                 extract_code = group_field.get("extractCode", "").strip()
                 if extract_code:
                     group_extract_fn = _compile_extract(extract_code)
+        log_timing("compile_group", custom_group=bool(group_extract_fn))
 
         # 收集有效图片
         valid_items = []
@@ -128,6 +156,7 @@ async def get_images_grouped(request):
                 "promptString": mapping.get("promptString", ""),
             })
             valid_raw_mappings.append(mapping)
+        log_timing("filter_items", valid_count=len(valid_items))
 
         # 分组（按日期或自定义字段）
         groups_dict = OrderedDict()
@@ -160,6 +189,7 @@ async def get_images_grouped(request):
             # 组按键名排序
             groups = sorted(groups_dict.values(), key=lambda g: g["date"])
             date_list = [g["date"] for g in groups]
+            log_timing("group_custom", group_count=len(groups))
         else:
             # 默认按日期分组
             for item in valid_items:
@@ -181,13 +211,18 @@ async def get_images_grouped(request):
             # 组按日期降序
             groups = sorted(groups_dict.values(), key=lambda g: g["timestamp"], reverse=True)
             date_list = [g["date"] for g in groups]
+            log_timing("group_date", group_count=len(groups))
 
-        return web.json_response({
+        payload = {
             "success": True,
             "groups": groups,
             "totalImages": len(valid_items),
             "dateList": date_list,
-        })
+        }
+        log_timing("build_payload", total_images=len(valid_items), group_count=len(groups))
+        response = web.json_response(payload)
+        log_timing("json_response")
+        return response
     except Exception as e:
         import traceback
         traceback.print_exc()
