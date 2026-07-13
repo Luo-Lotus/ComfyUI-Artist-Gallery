@@ -44,7 +44,7 @@ async def get_image_prompts(request):
 
 @server.PromptServer.instance.routes.get("/prompt_gallery/image/info")
 async def get_image_info(request):
-    """获取图片详细信息（Prompt、prompt、工作流、文件信息）"""
+    """获取图片 PNG 元数据（工作流/prompt，用于前端"复制工作流"）"""
     try:
         image_path = request.query.get("path", "")
         if not image_path:
@@ -55,64 +55,24 @@ async def get_image_info(request):
 
         remote = is_remote_path(image_path)
 
-        result = {"mapping": None, "pnginfo": {}, "fileInfo": {}}
-
-        # 1. 从映射存储获取Prompt关联
-        prompt_storage, mapping_storage, _, _ = get_storage()
-        mapping = mapping_storage.get_mappings_by_image(image_path)
+        result = {"pnginfo": {}}
 
         # 远程图片必须有映射记录，本地图片必须有文件
         if remote:
-            if not mapping:
+            _, mapping_storage, _, _ = get_storage()
+            if not mapping_storage.get_mappings_by_image(image_path):
                 return web.json_response({"error": "远程图片映射不存在"}, status=404)
         else:
             full_path = Path(output_dir) / image_path
             if not full_path.exists():
                 return web.json_response({"error": "图片文件不存在"}, status=404)
 
-        if mapping:
-            prompt_string = mapping.get("promptString", "")
-            prompt_values = []
-            if prompt_string:
-                prompt_string_lower = prompt_string.lower()
-                for prompt in prompt_storage.get_all_prompts():
-                    value = prompt.get("value")
-                    if value and value.lower() in prompt_string_lower:
-                        prompt_values.append(value)
-            result["mapping"] = {
-                "type": mapping.get("type", "local"),
-                "prompts": prompt_values,
-                "fileInfo": mapping.get("fileInfo", {}),
-                "promptString": prompt_string,
-                "generatePrompt": mapping.get("generatePrompt"),
-            }
-
-        if remote:
-            # 远程图片：从映射中获取文件信息
-            fi = mapping.get("fileInfo", {}) if mapping else {}
-            result["fileInfo"] = {
-                "width": fi.get("width", 0),
-                "height": fi.get("height", 0),
-                "size": fi.get("size", 0),
-                "sizeFormatted": "远程图片",
-            }
-        else:
-            # 2. 读取 PNG 元数据
+            # 读取 PNG 元数据（工作流/prompt）
             try:
                 from PIL import Image
                 with Image.open(full_path) as img:
                     if hasattr(img, "text"):
                         result["pnginfo"] = dict(img.text)
-                    result["fileInfo"]["width"] = img.width
-                    result["fileInfo"]["height"] = img.height
-            except Exception:
-                pass
-
-            # 3. 文件基本信息
-            try:
-                stat = full_path.stat()
-                result["fileInfo"]["size"] = stat.st_size
-                result["fileInfo"]["sizeFormatted"] = f"{stat.st_size / 1024:.1f} KB"
             except Exception:
                 pass
 

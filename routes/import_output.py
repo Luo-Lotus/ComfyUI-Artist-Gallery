@@ -255,6 +255,7 @@ def _walk_output(output_dir, filter_mode, allowed_dirs, blocked_dirs):
 def _extract_metadata(full_path, rel_path):
     """
     提取图片文件信息和 PNG prompt 元数据。
+    promptString 留空（提示词提取交给自定义字段从 generatePrompt 解析）。
     在线程池中执行（阻塞 IO）。
     """
     from PIL import Image
@@ -282,7 +283,7 @@ def _extract_metadata(full_path, rel_path):
 
     item = {
         "image_path": rel_path,
-        "prompt_string": generate_prompt or "",
+        "prompt_string": "",
         "file_info": file_info,
         "mapping_type": "local",
     }

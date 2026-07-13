@@ -211,12 +211,15 @@ async def evaluate_fields(request):
         storage = get_image_field_storage()
         _, mapping_storage, _, _ = get_storage()
 
-        # 查找目标图片的 mapping
-        target_mapping = None
-        for m in mapping_storage.get_all_mappings():
-            if m.get("imagePath") == image_path:
-                target_mapping = m
-                break
+        # 查找目标图片的 mapping（O(1) 索引）
+        target_mapping = mapping_storage.get_mappings_by_image(image_path)
+        if target_mapping is None:
+            # comfy_output*.images.json 被排除在全局读取之外（超大分片，仅历史视图用，
+            # 见 _json_store._glob_source_files），单图 evaluate 按需回退查找
+            for m in mapping_storage.get_comfy_output_mappings():
+                if m.get("imagePath") == image_path:
+                    target_mapping = m
+                    break
 
         if not target_mapping:
             return web.json_response({"success": True, "values": {}})
