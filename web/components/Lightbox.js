@@ -43,6 +43,22 @@ function parseImageInfo(info, imagePath) {
 
   const pnginfo = info.pnginfo || {};
 
+  const formatJsonText = (value) => {
+    if (value === undefined || value === null || value === '') return '';
+    if (typeof value !== 'string') {
+      try {
+        return JSON.stringify(value, null, 2);
+      } catch {
+        return String(value);
+      }
+    }
+    try {
+      return JSON.stringify(JSON.parse(value), null, 2);
+    } catch {
+      return value;
+    }
+  };
+
   // 提取工作流 JSON；没有 workflow 时降级使用 prompt metadata。
   let workflowText = '';
   let workflowSource = '';
@@ -66,7 +82,12 @@ function parseImageInfo(info, imagePath) {
     workflowSource = workflowText ? 'prompt' : '';
   }
 
-  return { workflowText, workflowSource, imagePath };
+  return {
+    workflowText,
+    workflowSource,
+    apiPromptText: formatJsonText(info.generatePrompt),
+    imagePath,
+  };
 }
 
 function InfoPanel({ info, loading, imagePath, customFieldValues, imageFields }) {
@@ -365,6 +386,23 @@ export function Lightbox({ isOpen, prompt, imageIndex, onClose, onNavigate, imag
                 },
                 h(Icon, { name: 'package', size: 16 }),
                 h('span', {}, '复制工作流'),
+              ),
+            info?.apiPromptText &&
+              h(
+                'button',
+                {
+                  class: 'gallery-lightbox-action-btn',
+                  onClick: (e) => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(info.apiPromptText).then(
+                      () => showToast('API Prompt 已复制', 'success'),
+                      () => showToast('复制失败', 'error'),
+                    );
+                  },
+                  title: '复制 API Prompt',
+                },
+                h(Icon, { name: 'copy', size: 16 }),
+                h('span', {}, '复制 API Prompt'),
               ),
           ]),
 

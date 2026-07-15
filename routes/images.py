@@ -44,7 +44,7 @@ async def get_image_prompts(request):
 
 @server.PromptServer.instance.routes.get("/prompt_gallery/image/info")
 async def get_image_info(request):
-    """获取图片 PNG 元数据（工作流/prompt，用于前端"复制工作流"）"""
+    """获取图片 PNG 元数据和图片索引中的 API Prompt。"""
     try:
         image_path = request.query.get("path", "")
         if not image_path:
@@ -55,12 +55,16 @@ async def get_image_info(request):
 
         remote = is_remote_path(image_path)
 
-        result = {"pnginfo": {}}
+        _, mapping_storage, _, _ = get_storage()
+        mapping = mapping_storage.get_mappings_by_image(image_path)
+        result = {
+            "pnginfo": {},
+            "generatePrompt": mapping.get("generatePrompt") if mapping else None,
+        }
 
         # 远程图片必须有映射记录，本地图片必须有文件
         if remote:
-            _, mapping_storage, _, _ = get_storage()
-            if not mapping_storage.get_mappings_by_image(image_path):
+            if not mapping:
                 return web.json_response({"error": "远程图片映射不存在"}, status=404)
         else:
             full_path = Path(output_dir) / image_path
