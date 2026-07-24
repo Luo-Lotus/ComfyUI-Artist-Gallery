@@ -65,6 +65,7 @@ async def create_image_field(request):
         name = data.get("name", "").strip()
         extract_code = data.get("extractCode", "").strip()
         groupable = bool(data.get("groupable", False))
+        render_html = bool(data.get("renderHtml", False))
 
         if not name:
             return web.json_response({"error": "名称不能为空"}, status=400)
@@ -78,7 +79,7 @@ async def create_image_field(request):
             return web.json_response({"error": f"提取代码语法错误: {e}"}, status=400)
 
         storage = get_image_field_storage()
-        item = storage.create(name, extract_code, groupable)
+        item = storage.create(name, extract_code, groupable, render_html)
         return web.json_response({"success": True, "field": item})
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
@@ -108,6 +109,8 @@ async def update_image_field(request):
             kwargs["extract_code"] = code
         if "groupable" in data:
             kwargs["groupable"] = bool(data["groupable"])
+        if "renderHtml" in data:
+            kwargs["render_html"] = bool(data["renderHtml"])
         if "options" in data:
             kwargs["options"] = data["options"]
 

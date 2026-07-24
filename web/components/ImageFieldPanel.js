@@ -184,6 +184,7 @@ export function ImageFieldPanel() {
             h('div', { class: 'image-field-info' }, [
                 h('span', { class: 'image-field-name' }, field.name),
                 field.groupable && h('span', { class: 'image-field-badge groupable' }, '分组'),
+                field.renderHtml && h('span', { class: 'image-field-badge html' }, 'HTML'),
                 field.options?.length > 0 &&
                     h('span', { class: 'image-field-badge options' }, `${field.options.length} 选项`),
             ]),

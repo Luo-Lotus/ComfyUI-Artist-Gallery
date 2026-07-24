@@ -1,6 +1,6 @@
 /**
  * 图片自定义字段编辑弹窗
- * 创建/编辑字段：名称、提取代码、是否参与分组
+ * 创建/编辑字段：名称、提取代码、分组与详情展示方式
  */
 import { h } from '../lib/preact.mjs';
 import { useState, useEffect, useCallback } from '../lib/hooks.mjs';
@@ -12,7 +12,9 @@ const ITEM_FIELDS_HELP = `使用 AI 生成代码：
 1. 点击右侧「复制 AI 提示词」
 2. 将提示词发给 LLM（ChatGPT / Claude / DeepSeek）
 3. 描述你想提取的字段，附上图片 Prompt 示例
-4. 将 AI 返回的代码填入下方输入框`;
+4. 将 AI 返回的代码填入下方输入框
+
+如需在图片详情中展示富文本，可让 AI 返回安全 HTML，并开启「按 HTML 渲染」`;
 
 const EXTRACT_CODE_TEMPLATE = `def extract_func(item):
     """参数: item (dict)  返回: str"""
@@ -56,6 +58,9 @@ def extract_func(item):
 - item: 上述图片数据 dict
 - 返回 str，作为该字段的值
 - 返回空字符串表示该图片没有此字段值
+- 如需富文本展示，可返回 HTML 字符串，并在字段设置中开启「按 HTML 渲染」
+- HTML 支持 p、div、span、br、标题、加粗/斜体/下划线、ul/ol/li、blockquote、code/pre、table 和 a，也支持安全的内联排版样式；图片、表单、iframe、脚本、事件属性、危险 CSS 和危险 URL 会被过滤
+- 普通文本字段不要额外包裹 HTML
 - 可用内置函数: int, str, float, len, bool, isinstance, list, dict, set, tuple, sorted, enumerate, zip, map, filter, any, all, min, max, sum, abs, range, reversed, hasattr, getattr, type, round, pow, divmod
 - 可用模块（直接使用，无需 import）: re, json, math, datetime, timezone, timedelta
 - 不可用: import, open, exec, eval, os, pathlib, subprocess
@@ -90,7 +95,6 @@ def extract_func(item):
 
 \`\`\`python
 def extract_func(item):
-    import re
     gp = item.get('generatePrompt', '')
     if not gp:
         return ""
@@ -107,11 +111,31 @@ def extract_func(item):
 
 \`\`\`python
 def extract_func(item):
-    from datetime import datetime, timezone
     ts = item.get('fileInfo', {}).get('createdAt', 0)
     if not ts:
         return ""
     return datetime.fromtimestamp(ts / 1000, tz=timezone.utc).strftime('%Y-%m')
+\`\`\`
+
+---
+
+用户: "从 promptString 中提取逗号分隔的提示词，并在图片详情中显示为 HTML 列表"
+
+你:
+这个字段将提示词转换为可在图片详情中渲染的 HTML 列表；创建字段后请开启「按 HTML 渲染」。
+
+\`\`\`python
+def extract_func(item):
+    prompt = item.get('promptString', '')
+    values = [value.strip() for value in prompt.split(',') if value.strip()]
+    if not values:
+        return ""
+    escaped = []
+    for value in values:
+        safe_value = (value.replace('&', '&amp;').replace('<', '&lt;')
+                     .replace('>', '&gt;').replace('"', '&quot;'))
+        escaped.append(f"<li>{safe_value}</li>")
+    return "<ul>" + "".join(escaped) + "</ul>"
 \`\`\`
 
 ## 注意事项
@@ -119,7 +143,9 @@ def extract_func(item):
 2. generatePrompt 是 JSON 字符串，使用前用 if 判断是否为空
 3. fileInfo 字段可能不存在，用 .get() 安全取值
 4. re 模块可直接使用，如 re.findall(r'pattern', string)
-5. datetime 模块可直接使用，如 datetime.fromtimestamp(ts/1000)`;
+5. datetime 模块可直接使用，如 datetime.fromtimestamp(ts/1000)
+6. 生成 HTML 时必须转义来自图片数据的动态文本；可使用安全的内联 style 排版，不要输出 style 标签、script、iframe、表单、图片、on* 事件属性、外部资源或危险 URL
+7. HTML 字段的提取函数仍然只返回 str，不要返回 DOM、Markdown 或 JSON`;
 
 function handleCopyAiPrompt() {
     navigator.clipboard.writeText(AI_SYSTEM_PROMPT).then(() => {
@@ -133,6 +159,7 @@ export function ImageFieldEditDialog({ isOpen, onClose, onSave, editItem }) {
     const [name, setName] = useState('');
     const [extractCode, setExtractCode] = useState('');
     const [groupable, setGroupable] = useState(false);
+    const [renderHtml, setRenderHtml] = useState(false);
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
@@ -141,10 +168,12 @@ export function ImageFieldEditDialog({ isOpen, onClose, onSave, editItem }) {
                 setName(editItem.name || '');
                 setExtractCode(editItem.extractCode || EXTRACT_CODE_TEMPLATE);
                 setGroupable(editItem.groupable || false);
+                setRenderHtml(editItem.renderHtml || false);
             } else {
                 setName('');
                 setExtractCode(EXTRACT_CODE_TEMPLATE);
                 setGroupable(false);
+                setRenderHtml(false);
             }
         }
     }, [isOpen, editItem]);
@@ -165,6 +194,7 @@ export function ImageFieldEditDialog({ isOpen, onClose, onSave, editItem }) {
                 name: name.trim(),
                 extractCode: extractCode.trim(),
                 groupable,
+                renderHtml,
             };
 
             let url, method;
@@ -195,7 +225,7 @@ export function ImageFieldEditDialog({ isOpen, onClose, onSave, editItem }) {
         } finally {
             setSaving(false);
         }
-    }, [name, extractCode, groupable, editItem, onSave, onClose]);
+    }, [name, extractCode, groupable, renderHtml, editItem, onSave, onClose]);
 
     const renderFooter = () => [
         h(DialogButton, { onClick: onClose }, '取消'),
@@ -306,6 +336,39 @@ export function ImageFieldEditDialog({ isOpen, onClose, onSave, editItem }) {
                         onChange: (e) => setGroupable(e.target.checked),
                     }),
                     '参与图片分组（开启后可在图片列表左侧按此字段分组）',
+                ]),
+            ]),
+
+            // 图片详情展示方式
+            h(DialogFormItem, { label: '详情展示' }, [
+                h('label', {
+                    style: {
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '8px',
+                        cursor: 'pointer',
+                        fontSize: '13px',
+                        color: '#555',
+                    },
+                }, [
+                    h('input', {
+                        type: 'checkbox',
+                        checked: renderHtml,
+                        onChange: (e) => setRenderHtml(e.target.checked),
+                        style: { marginTop: '2px' },
+                    }),
+                    h('span', {}, [
+                        '按 HTML 渲染字段值',
+                        h('span', {
+                            style: {
+                                display: 'block',
+                                marginTop: '3px',
+                                color: 'var(--g-text-secondary)',
+                                fontSize: '12px',
+                                lineHeight: '1.5',
+                            },
+                        }, '仅影响图片详情展示；HTML 会经过安全过滤，复制、分组和选项提取仍使用原始字符串。'),
+                    ]),
                 ]),
             ]),
         ]),

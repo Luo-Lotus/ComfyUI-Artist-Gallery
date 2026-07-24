@@ -251,6 +251,94 @@
     line-height: 1.5;
 }
 
+/* 自定义字段安全 HTML */
+.lightbox-info-html {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 12px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+.lightbox-info-html > :first-child {
+    margin-top: 0;
+}
+
+.lightbox-info-html > :last-child {
+    margin-bottom: 0;
+}
+
+.lightbox-info-html p,
+.lightbox-info-html blockquote,
+.lightbox-info-html ul,
+.lightbox-info-html ol,
+.lightbox-info-html pre,
+.lightbox-info-html table,
+.lightbox-info-html h1,
+.lightbox-info-html h2,
+.lightbox-info-html h3,
+.lightbox-info-html h4,
+.lightbox-info-html h5,
+.lightbox-info-html h6 {
+    margin: 0 0 8px;
+}
+
+.lightbox-info-html h1,
+.lightbox-info-html h2,
+.lightbox-info-html h3,
+.lightbox-info-html h4,
+.lightbox-info-html h5,
+.lightbox-info-html h6 {
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 13px;
+}
+
+.lightbox-info-html ul,
+.lightbox-info-html ol {
+    padding-left: 20px;
+}
+
+.lightbox-info-html a {
+    color: var(--g-accent);
+    text-decoration: underline;
+}
+
+.lightbox-info-html blockquote {
+    padding-left: 9px;
+    border-left: 2px solid rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.lightbox-info-html code,
+.lightbox-info-html kbd,
+.lightbox-info-html pre {
+    font-family: monospace;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 4px;
+}
+
+.lightbox-info-html code,
+.lightbox-info-html kbd {
+    padding: 1px 4px;
+}
+
+.lightbox-info-html pre {
+    padding: 8px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+}
+
+.lightbox-info-html table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.lightbox-info-html th,
+.lightbox-info-html td {
+    padding: 4px 6px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    text-align: left;
+}
+
 .lightbox-info-workflow {
     max-height: 200px;
 }

@@ -6,6 +6,7 @@ import { h } from '../lib/preact.mjs';
 import { useState, useEffect, useCallback } from '../lib/hooks.mjs';
 import { Icon } from '../lib/icons.mjs';
 import { buildImageUrl } from '../utils.js';
+import { sanitizeFieldHtml } from '../utils/sanitizeFieldHtml.js';
 import { showToast } from './Toast.js';
 import { useLightboxEditor } from './hooks/useLightboxEditor.js';
 
@@ -108,7 +109,12 @@ function InfoPanel({ info, loading, imagePath, customFieldValues, imageFields })
           const v = customFieldValues[f.id];
           return v !== undefined && v !== null && v !== '';
         })
-        .map(f => ({ id: f.id, name: f.name, value: customFieldValues[f.id] }))
+        .map(f => ({
+          id: f.id,
+          name: f.name,
+          value: customFieldValues[f.id],
+          renderHtml: f.renderHtml === true,
+        }))
     : [];
 
   // 判断值是否适合单行显示
@@ -122,10 +128,20 @@ function InfoPanel({ info, loading, imagePath, customFieldValues, imageFields })
     ...fieldEntries.map(entry =>
       h(
         InfoBlock,
-        { title: entry.name, icon: 'info-circle', copyText: entry.value, copyLabel: entry.name },
-        [isShortValue(entry.value)
-          ? h('span', { class: 'lightbox-info-inline-value' }, entry.value)
-          : h('pre', { class: 'lightbox-info-pre' }, entry.value)
+        {
+          title: entry.name,
+          icon: 'info-circle',
+          copyText: entry.value,
+          copyLabel: entry.name,
+        },
+        [entry.renderHtml
+          ? h('div', {
+              class: 'lightbox-info-html',
+              dangerouslySetInnerHTML: { __html: sanitizeFieldHtml(entry.value) },
+            })
+          : isShortValue(entry.value)
+            ? h('span', { class: 'lightbox-info-inline-value' }, entry.value)
+            : h('pre', { class: 'lightbox-info-pre' }, entry.value)
         ],
       ),
     ),

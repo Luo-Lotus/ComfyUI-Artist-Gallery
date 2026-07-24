@@ -648,6 +648,12 @@
   border: 1px solid var(--g-border);
 }
 
+.image-field-badge.html {
+  color: #0f8a73;
+  background: rgba(15, 138, 115, 0.1);
+  border: 1px solid rgba(15, 138, 115, 0.3);
+}
+
 .image-field-badge.options {
   color: #6c5ce7;
   background: rgba(108, 92, 231, 0.1);

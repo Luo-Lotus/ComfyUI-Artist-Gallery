@@ -67,7 +67,10 @@ function GalleryModalContent() {
       h(DialogLayer),
       h(SettingsDialog, {
         isOpen: showSettings,
-        onClose: () => setShowSettings(false),
+        onClose: () => {
+          setShowSettings(false);
+          ctx.loadImageFields();
+        },
       }),
     ],
   );
