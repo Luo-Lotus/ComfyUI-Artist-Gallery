@@ -1,5 +1,8 @@
 import json
+import sys
+from types import SimpleNamespace
 
+import storage._resolve as storage_resolve
 from storage.category import CategoryStorage
 from storage._resolve import _run_startup_migrations
 from storage.image_mapping import ImageMappingStorage
@@ -14,6 +17,41 @@ from storage.prompt import PromptStorage
 
 def write_json(path, data):
     path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def configure_storage_locations(tmp_path, monkeypatch):
+    plugin_dir = tmp_path / "plugin"
+    (plugin_dir / "storage").mkdir(parents=True)
+    user_dir = tmp_path / "user"
+    monkeypatch.setattr(storage_resolve, "__file__", str(plugin_dir / "storage" / "_resolve.py"))
+    monkeypatch.setitem(
+        sys.modules,
+        "folder_paths",
+        SimpleNamespace(get_user_directory=lambda: str(user_dir)),
+    )
+    return plugin_dir, user_dir / "default" / "prompt_gallery"
+
+
+def test_resolve_storage_keeps_new_dir_with_only_legacy_main_groups(tmp_path, monkeypatch):
+    plugin_dir, new_storage_dir = configure_storage_locations(tmp_path, monkeypatch)
+    write_json(plugin_dir / "prompts.json", {"prompts": [{"value": "old-plugin"}]})
+    new_storage_dir.mkdir(parents=True)
+    write_json(new_storage_dir / "combinations.json", {"combinations": [{"outputContent": "new-user"}]})
+
+    assert storage_resolve._resolve_storage_dir() == new_storage_dir
+    assert not (new_storage_dir / "prompts.json").exists()
+
+
+def test_resolve_storage_copies_legacy_group_shards_and_config(tmp_path, monkeypatch):
+    plugin_dir, new_storage_dir = configure_storage_locations(tmp_path, monkeypatch)
+    write_json(plugin_dir / "legacy.combinations.json", {"combinations": [{"outputContent": "legacy"}]})
+    write_json(plugin_dir / "storage_config.json", {"disabled_files": ["legacy.combinations.json"]})
+
+    assert storage_resolve._resolve_storage_dir() == new_storage_dir
+    assert (new_storage_dir / "legacy.combinations.json").exists()
+    assert json.loads((new_storage_dir / "storage_config.json").read_text(encoding="utf-8")) == {
+        "disabled_files": ["legacy.combinations.json"],
+    }
 
 
 def test_prompt_storage_reads_enabled_shards_and_category_index(tmp_path):
@@ -306,3 +344,26 @@ def test_startup_migration_converts_artists_before_legacy_groups(tmp_path):
     ]
     assert not (tmp_path / "artists.json").exists()
     assert not (tmp_path / "combinations.json").exists()
+
+
+def test_startup_migration_does_not_mark_failed_return_as_complete(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        storage_resolve,
+        "migrate_to_prompt_schema",
+        lambda _storage_dir: {"success": False, "message": "expected failure"},
+    )
+    monkeypatch.setattr(storage_resolve, "migrate_image_schema", lambda _storage_dir: {"success": True})
+    monkeypatch.setattr(
+        storage_resolve,
+        "migrate_prompt_string_image_index",
+        lambda _storage_dir: {"success": True},
+    )
+    monkeypatch.setattr(
+        storage_resolve,
+        "migrate_combinations_to_prompts",
+        lambda _storage_dir: {"success": True},
+    )
+
+    storage_resolve._run_startup_migrations(tmp_path)
+
+    assert not (tmp_path / ".migration_version").exists()

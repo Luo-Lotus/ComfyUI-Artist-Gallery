@@ -12,10 +12,10 @@ classifiers = [
 ]
 
 [project.urls]
-Repository = "https://github.com/Luo-Lotus/ComfyUI-Prompt-Gallery"
-"Bug Tracker" = "https://github.com/Luo-Lotus/ComfyUI-Prompt-Gallery/issues"
+Repository = "https://github.com/Lotus0614/ComfyUI-Prompt-Gallery"
+"Bug Tracker" = "https://github.com/Lotus0614/ComfyUI-Prompt-Gallery/issues"
 
 [tool.comfy]
 PublisherId = "lotus"
 DisplayName = "Prompt Gallery"
-Icon = "https://raw.githubusercontent.com/Luo-Lotus/ComfyUI-Prompt-Gallery/master/assets/demo1.png"
+Icon = "https://raw.githubusercontent.com/Lotus0614/ComfyUI-Prompt-Gallery/master/assets/demo1.png"

@@ -18,9 +18,10 @@ from ..storage._config import (
 )
 from ..storage._resolve import clear_all_caches, _resolve_storage_dir, get_storage
 from ..storage.backup import BackupManager
-from ..storage.migration import migrate_prompt_covers_from_prompt_string
-
-MAIN_FILES = {"prompts.json", "categories.json", "images.json"}
+from ..storage.migration import (
+    migrate_combinations_to_prompts,
+    migrate_prompt_covers_from_prompt_string,
+)
 
 STORAGE_TYPES = [
     {"key": "prompts", "main": "prompts.json", "glob": "*.prompts.json"},
@@ -228,13 +229,24 @@ async def apply_backup(request):
             if f.is_file():
                 shutil.copy2(f, storage_dir / f.name)
 
+        # 旧备份可能重新带回组合文件，恢复后立即转成 Prompt，无需等待重启。
+        migration_warning = None
+        try:
+            migrate_combinations_to_prompts(storage_dir)
+        except Exception as migration_error:
+            migration_warning = f"旧组合转换失败，将在下次启动时重试: {migration_error}"
+            print(f"[prompt_gallery] {migration_warning}")
+
         # 清除缓存
         clear_all_caches()
 
-        return web.json_response({
+        response = {
             "success": True,
             "safety_backup": safety.name if safety else None,
-        })
+        }
+        if migration_warning:
+            response["warning"] = migration_warning
+        return web.json_response(response)
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 

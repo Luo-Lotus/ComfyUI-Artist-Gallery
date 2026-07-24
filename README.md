@@ -23,7 +23,7 @@
 在 ComfyUI 的 `custom_nodes` 目录执行：
 
 ```bash
-git clone https://github.com/Luo-Lotus/ComfyUI-Prompt-Gallery.git
+git clone https://github.com/Lotus0614/ComfyUI-Prompt-Gallery.git
 ```
 
 安装依赖：

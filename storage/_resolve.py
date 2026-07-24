@@ -50,6 +50,7 @@ def _resolve_storage_dir() -> Path:
         or (new_storage_dir / "image_prompts.json").exists()
         or (new_storage_dir / "images.json").exists()
         or (new_storage_dir / "categories.json").exists()
+        or (new_storage_dir / "combinations.json").exists()
         or (new_storage_dir / "artists.json").exists()
         or (new_storage_dir / "image_artists.json").exists()
         or any(new_storage_dir.glob("*.prompts.json"))
@@ -70,7 +71,19 @@ def _resolve_storage_dir() -> Path:
         plugin_dir / "combinations.json",
         plugin_dir / "artists.json",
         plugin_dir / "image_artists.json",
+        plugin_dir / "storage_config.json",
+        plugin_dir / "custom_filters.json",
+        plugin_dir / "image_fields.json",
     ]
+    for pattern in (
+        "*.prompts.json",
+        "*.categories.json",
+        "*.combinations.json",
+        "*.image_prompts.json",
+        "*.images.json",
+    ):
+        old_files.extend(sorted(plugin_dir.glob(pattern)))
+    old_files = list(dict.fromkeys(old_files))
     old_has_data = any(f.exists() for f in old_files)
 
     if not old_has_data:
@@ -128,7 +141,9 @@ def _run_startup_migrations(storage_dir: Path) -> None:
     def _run(name, fn):
         t0 = _time.time()
         try:
-            fn(storage_dir)
+            result = fn(storage_dir)
+            if isinstance(result, dict) and result.get("success") is False:
+                raise RuntimeError(result.get("message") or "迁移返回失败")
             print(f"[prompt_gallery] 迁移 {name} 完成（{_time.time() - t0:.2f}s）")
             return True
         except Exception as e:
