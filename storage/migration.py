@@ -267,27 +267,19 @@ def migrate_prompt_data(prompt_storage) -> bool:
     :param prompt_storage: Prompt存储实例
     :return: 是否进行了迁移
     """
-    prompts = prompt_storage.get_all_prompts()
-    migrated = False
-
-    for prompt in prompts:
-        updated = False
-        if "categoryId" not in prompt:
-            prompt["categoryId"] = "root"
-            updated = True
-        if "coverImageId" not in prompt:
-            prompt["coverImageId"] = None
-            updated = True
-
-        if updated:
-            prompt_storage.update_prompt_by_id(
-                prompt.get("id", ""),
-                categoryId=prompt["categoryId"],
-                coverImageId=prompt["coverImageId"]
-            )
-            migrated = True
-
-    return migrated
+    with prompt_storage._lock:
+        data = prompt_storage._read_data()
+        migrated = False
+        for prompt in data.get("prompts", []):
+            if "categoryId" not in prompt:
+                prompt["categoryId"] = "root"
+                migrated = True
+            if "coverImageId" not in prompt:
+                prompt["coverImageId"] = None
+                migrated = True
+        if migrated:
+            prompt_storage._write_data(data)
+        return migrated
 
 
 def migrate_to_composite_key(storage_dir: Path) -> dict:
@@ -634,7 +626,6 @@ def migrate_prompt_string_image_index(storage_dir: Path) -> dict:
     迁移到 promptString 派生关联：
     - images*.json 中没有 promptString 但有 prompts/promptIds 时，用逗号分隔填充 promptString
     - 移除图片记录中的 prompts/promptIds
-    - 移除 prompts*.json 中持久化的 imageCount
     """
     changed_files = 0
     changed_items = 0
@@ -663,30 +654,6 @@ def migrate_prompt_string_image_index(storage_dir: Path) -> dict:
                     changed = True
                 if "promptIds" in item:
                     del item["promptIds"]
-                    changed = True
-            if changed:
-                with open(file_path, "w", encoding="utf-8") as f:
-                    json.dump(data, f, ensure_ascii=False, indent=2)
-                changed_files += 1
-        except Exception as e:
-            print(f"[Migration-PromptStringIndex] 处理 {file_path.name} 失败: {e}")
-
-    prompt_files = []
-    main_prompts = storage_dir / "prompts.json"
-    if main_prompts.exists():
-        prompt_files.append(main_prompts)
-    for f in sorted(storage_dir.glob("*.prompts.json")):
-        if f.resolve() != main_prompts.resolve():
-            prompt_files.append(f)
-
-    for file_path in prompt_files:
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            changed = False
-            for prompt in data.get("prompts", []):
-                if "imageCount" in prompt:
-                    del prompt["imageCount"]
                     changed = True
             if changed:
                 with open(file_path, "w", encoding="utf-8") as f:

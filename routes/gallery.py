@@ -5,7 +5,6 @@ from pathlib import Path
 from aiohttp import web
 import server
 from ..storage import get_storage
-from ..utils import decode_filename
 
 
 # ============ Gallery 数据 API ============
@@ -28,7 +27,7 @@ async def get_gallery_data(request):
             return web.json_response({"error": "分类不存在"}, status=400)
 
         # 列表期只读持久化 coverImageId，不做任何 prompt×mapping 匹配（避免 O(P×M) 卡死）。
-        # 图片数量改由详情页 /prompt_images 返回的图片列表推导。
+        # 图片数量由详情页 /images_grouped 返回的图片列表推导。
         result_prompts = []
         for prompt in prompt_storage.get_prompts_by_category(category_id):
             result_prompts.append({
@@ -68,15 +67,3 @@ async def get_gallery_data(request):
         from ..utils import scan_output_directory
         data = scan_output_directory(str(output_dir))
         return web.json_response(data)
-
-
-@server.PromptServer.instance.routes.get("/prompt_gallery/html")
-async def get_gallery_html(request):
-    """返回图库 HTML 页面"""
-    html_path = Path(__file__).parent.parent / "web" / "gallery.html"
-    if html_path.exists():
-        with open(html_path, 'r', encoding='utf-8') as f:
-            html_content = f.read()
-        return web.Response(text=html_content, content_type='text/html')
-    else:
-        return web.Response(text="Gallery HTML not found", status=404)

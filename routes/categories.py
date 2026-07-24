@@ -20,22 +20,6 @@ async def get_categories(request):
         return web.json_response({"error": str(e)}, status=500)
 
 
-@server.PromptServer.instance.routes.get("/prompt_gallery/categories/{category_id}")
-async def get_category(request):
-    """获取单个分类详情"""
-    try:
-        category_id = request.match_info['category_id']
-        _, _, category_storage, _ = get_storage()
-        category = category_storage.get_category_by_id(category_id)
-
-        if not category:
-            return web.json_response({"error": "分类不存在"}, status=404)
-
-        return web.json_response({"category": category})
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
-
-
 @server.PromptServer.instance.routes.post("/prompt_gallery/categories")
 async def add_category(request):
     """添加分类"""
@@ -93,7 +77,7 @@ async def delete_category(request):
     try:
         category_id = request.match_info['category_id']
 
-        prompt_storage, mapping_storage, category_storage, combination_storage = get_storage()
+        prompt_storage, _, category_storage, combination_storage = get_storage()
 
         category = category_storage.get_category_by_id(category_id)
         if not category:
@@ -101,7 +85,7 @@ async def delete_category(request):
 
         result = delete_category_cascade(
             category_id,
-            prompt_storage, mapping_storage,
+            prompt_storage,
             category_storage, combination_storage,
         )
 
@@ -110,7 +94,6 @@ async def delete_category(request):
             "message": f"已删除分类 '{category.get('name')}'",
             "deletedCategories": len(result["deleted_categories"]),
             "deletedPrompts": len(result["deleted_prompts"]),
-            "deletedFiles": len(result["deleted_files"]),
             "deletedCombinations": result["deleted_combinations"],
         })
     except ValueError as e:

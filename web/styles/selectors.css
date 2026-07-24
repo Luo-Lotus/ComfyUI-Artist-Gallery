@@ -151,14 +151,6 @@
     font-weight: 500;
 }
 
-.flat-selector-count {
-    font-size: 11px;
-    color: var(--g-text-muted);
-    padding: 2px 8px;
-    background: var(--g-bg-hover);
-    border-radius: 10px;
-}
-
 .flat-selector-check {
     font-size: 14px;
     color: var(--g-text-hint);

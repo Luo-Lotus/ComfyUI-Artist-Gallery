@@ -36,7 +36,7 @@ Prompt Gallery is a ComfyUI custom node plugin that provides:
     - Uses `prompt_string` to auto-match known prompt names via loop-based substring matching
     - Writes image mappings and prompt cover updates in a background thread after PNG files are saved
     - Images are always saved even when no prompts match (prompts list will be empty)
-    - `_match_prompts_from_prompt()`: Loop-based matching (`name.lower() in prompt_string.lower()`), cached at module level with frozenset fingerprint. Skips prompts in categories with `metadata.blockGallerySave = true` (including descendant categories)
+    - `_match_prompts_from_prompt()`: Loop-based matching (`name.lower() in prompt_string.lower()`), cached at module level with frozenset fingerprint
     - Uses `collect_prompt()` to register prompt associations for saved images
 - **`_apply_format()`**: Applies format template (e.g., `@{content}`) to prompt names
 
@@ -408,12 +408,11 @@ The plugin maintains JSON files in the plugin storage directory. Each storage cl
 
 **`prompts.json`** (glob: `*.prompts.json`): Prompt metadata (PromptStorage)
 
-- Fields: `value`, `name`, `alias`, `categoryId`, `coverImageId`, `createdAt`, `imageCount`, `metadata`
+- Fields: `value`, `name`, `alias`, `categoryId`, `coverImageId`, `createdAt`, `metadata`
 
 **`categories.json`** (glob: `*.categories.json`): Category tree (CategoryStorage)
 
 - Fields: `id`, `name`, `parentId`, `order`, `createdAt`, `metadata`
-- `metadata` fields: `blockGallerySave` (boolean) — when true, prompts in this category and its descendants are excluded from `prompt_string` auto-matching in SaveToGallery
 
 **`combinations.json`** (glob: `*.combinations.json`): Combination data (CombinationStorage)
 
@@ -596,18 +595,17 @@ svg.spin {
 
 ### Implemented
 
-- **Gallery list API**: Returns only `coverImagePath` + `imageCount` (no full images array)
+- **Gallery list API**: Returns persisted `coverImagePath` without full image arrays
 - **Lazy image loading**: Prompt images fetched on-demand when entering detail view
 - **Cover image preview**: Hover preview uses `coverImagePath` directly (no API call)
 - **Single data endpoint**: `/prompt_gallery/data` returns both prompts and combinations in one call
-- **Init endpoint**: `/prompt_gallery/init` returns categories + prompts + combinations in one call
 - **Batch resolve**: `POST /prompt_gallery/batch_resolve` resolves mixed prompt/category/combination keys in one call for hydration
 - **Pre-computed maxTime**: Calculated during data fetch for faster sorting
 - **Memoized filtering**: `useFilteredPrompts` with `useMemo`
 - **Image lazy loading**: `loading="lazy"` attribute on images
 - **Event listener cleanup**: Proper cleanup in `useEffect` return functions
 - **Virtual scroll**: `LazyList` component for large lists
-- **Prompt string prompt matching**: SaveToGallery matches prompt names via loop-based substring matching (`name.lower() in prompt_string.lower()`, CPython C-level optimized), sorted by name length descending (longest-first), cached at module level with frozenset fingerprint invalidation. Skips blocked categories (`metadata.blockGallerySave`) with cached descendant ID set
+- **Prompt string prompt matching**: SaveToGallery matches prompt names via cached, longest-first substring matching and updates missing covers asynchronously
 - **Batch import methods**: `add_prompts_import()` and `add_mappings_import()` do single read → batch append → single write (O(1) instead of O(N) storage writes)
 - **Multi-file glob storage**: Read merges all shard files, write splits by `_source_file` tag
 - **Remote image support**: All endpoints use `is_remote_path()` to handle remote images (URL-based) consistently, skipping local file I/O

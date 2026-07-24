@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from ._json_store import SplitJsonStorage
 
@@ -180,18 +180,6 @@ class ImageMappingStorage(SplitJsonStorage):
             if query in (m.get("promptString") or "").lower()
         ]
 
-    def get_first_mapping_by_prompt(self, prompt_value: str) -> Optional[dict]:
-        """获取Prompt的第一张图片映射（用于封面图）"""
-        mappings = self.get_mappings_by_prompt(prompt_value)
-        return mappings[0] if mappings else None
-
-    def get_mappings_by_prompt_id(self, prompt_id: str) -> List[dict]:
-        """
-        获取指定Prompt的所有图片映射（使用 ID，兼容旧版本）
-        注意：此方法仅用于迁移期间的兼容性
-        """
-        return self.get_mappings_by_prompt(prompt_id)
-
     def _build_path_index(self):
         """构建 imagePath 索引（懒加载）"""
         data = self._read_data()
@@ -207,22 +195,6 @@ class ImageMappingStorage(SplitJsonStorage):
             if self._idx_by_path is None:
                 self._build_path_index()
             return self._idx_by_path.get(image_path)
-
-    def remove_prompt_from_mappings(self, prompt_value: str) -> List[str]:
-        """
-        从所有映射中移除指定Prompt
-        :param prompt_value: Prompt值
-        :return: 被完全移除的图片路径列表（没有其他Prompt关联的图片）
-        """
-        return []
-
-    def batch_remove_prompt_links(self, prompt_values: List[str]) -> dict:
-        """
-        批量从所有映射中移除多个 prompt 关联（一次锁完成）。
-        :param prompt_values: 要移除的 prompt value 列表
-        :return: {"orphan_images": [{"path": ..., "type": ...}], "updated_paths": [...]}
-        """
-        return {"orphan_images": [], "updated_paths": []}
 
     def delete_mapping_by_image(self, image_path: str) -> bool:
         """根据图片路径删除映射"""
@@ -341,35 +313,6 @@ class ImageMappingStorage(SplitJsonStorage):
                     return True
 
             return False
-
-    def rename_prompt_in_mappings(self, old_value: str, new_value: str) -> int:
-        """
-        兼容旧接口：不再维护强映射，因此不修改图片索引。
-        :param old_value: 旧值
-        :param new_value: 新值
-        :return: 更新的映射数量
-        """
-        return 0
-
-    def get_all_mappings_for_prompt(self, prompt_value: str) -> List[dict]:
-        """
-        获取指定Prompt的所有映射（用于重命名时显示预览）
-        :param prompt_value: Prompt值
-        :return: 映射列表
-        """
-        mappings = self.get_all_mappings()
-        return [
-            {**m, "matched": True}
-            for m in mappings
-            if (prompt_value or "").lower() in (m.get("promptString") or "").lower()
-        ]
-
-    def build_prompt_index(self) -> Dict[str, List[dict]]:
-        """
-        根据 promptString 动态构建 prompt_value → [mapping, ...] 索引。
-        只对调用方传入的完整 prompt 列表更可靠；无 prompt 列表时保留空实现。
-        """
-        return {}
 
     def build_prompt_index_for_values(self, prompt_values: List[str]) -> Dict[str, List[dict]]:
         """为指定 prompt value 列表按 promptString 包含关系构建索引。"""

@@ -69,7 +69,6 @@ def test_image_mapping_prompt_index_invalidates_after_write(tmp_path):
     storage.add_mapping("two.png", ["b"])
 
     assert [m["imagePath"] for m in storage.get_mappings_by_prompt("a")] == ["one.png"]
-    assert storage.build_prompt_index() == {}
     prompt_index = storage.build_prompt_index_for_values(["b"])
     assert [m["imagePath"] for m in prompt_index["b"]] == ["one.png", "two.png"]
 
@@ -138,7 +137,7 @@ def test_batch_move_updates_indexes(tmp_path):
     assert [c["id"] for c in combinations.get_combinations_by_category("cat-2")] == [combination["id"]]
 
 
-def test_prompt_string_migration_removes_old_mapping_fields_and_image_count(tmp_path):
+def test_prompt_string_migration_removes_old_mapping_fields_and_keeps_prompt_data(tmp_path):
     write_json(tmp_path / "images.json", {
         "mappings": [
             {"imagePath": "one.png", "prompts": ["alpha", "beta"]},
@@ -162,7 +161,7 @@ def test_prompt_string_migration_removes_old_mapping_fields_and_image_count(tmp_
         {"imagePath": "three.png", "promptString": "kept"},
     ]
     migrated_prompts = json.loads((tmp_path / "prompts.json").read_text(encoding="utf-8"))["prompts"]
-    assert migrated_prompts == [{"value": "alpha"}]
+    assert migrated_prompts == [{"value": "alpha", "imageCount": 10}]
 
 
 def test_prompt_cover_migration_uses_latest_matching_prompt_string_image(tmp_path):

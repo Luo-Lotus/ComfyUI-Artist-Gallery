@@ -148,10 +148,6 @@ export function FlatSelector({
       h('span', { class: 'flat-selector-name' }, type === 'category' ? item.name : item.name || item.value),
     );
 
-    if (type === 'prompt') {
-      children.push(h('span', { class: 'flat-selector-count' }, `${item.imageCount || 0}张`));
-    }
-
     return h(
       'div',
       {

@@ -6,10 +6,9 @@ import { h } from '../lib/preact.mjs';
 import { useCallback } from '../lib/hooks.mjs';
 import { useContextMenu } from './ContextMenu.js';
 import { ImageGroupView } from './ImageGroupView.js';
-import { setPromptCover } from '../utils.js';
+import { deleteImage, setPromptCover } from '../services/promptApi.js';
 import { showToast } from './Toast.js';
 import { useGallery } from './GalleryContext.js';
-import { deleteImage } from '../services/promptApi.js';
 
 export function PromptDetailView() {
   const ctx = useGallery();

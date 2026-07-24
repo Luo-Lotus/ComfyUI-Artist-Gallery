@@ -4,7 +4,7 @@ Batch 操作端点
 from aiohttp import web
 import server
 from ..storage import get_storage
-from ._delete_utils import delete_category_cascade, batch_delete_prompts_cascade, delete_images_completely_batch
+from ._delete_utils import delete_category_cascade, delete_images_completely_batch
 
 
 # ============ Batch Operations API ============
@@ -34,7 +34,6 @@ async def batch_delete(request):
             "deleted_categories": [],
             "deleted_prompts": [],
             "deleted_files": [],
-            "disassociated_images": [],
             "deleted_combinations": 0,
             "errors": [],
         }
@@ -51,13 +50,11 @@ async def batch_delete(request):
                     continue
                 cat_result = delete_category_cascade(
                     cat_id,
-                    prompt_storage, mapping_storage,
+                    prompt_storage,
                     category_storage, combination_storage,
                 )
                 result["deleted_categories"].extend(cat_result["deleted_categories"])
                 result["deleted_prompts"].extend(cat_result["deleted_prompts"])
-                result["deleted_files"].extend(cat_result["deleted_files"])
-                result["disassociated_images"].extend(cat_result["disassociated_images"])
                 result["deleted_combinations"] += cat_result["deleted_combinations"]
                 deleted_category_set.update(cat_result["deleted_categories"])
             except Exception as e:
@@ -83,12 +80,7 @@ async def batch_delete(request):
                 result["deleted_prompts"].append(prompt.get("name", value))
 
             if valid_keys:
-                prompt_result = batch_delete_prompts_cascade(
-                    valid_keys,
-                    prompt_storage, mapping_storage, combination_storage,
-                )
-                result["deleted_files"].extend(prompt_result["deleted_files"])
-                result["disassociated_images"].extend(prompt_result["disassociated_images"])
+                prompt_storage.batch_delete_prompts(valid_keys)
 
         # 删除组合（批量删除，一次写入）
         if combination_ids:
@@ -116,7 +108,7 @@ async def batch_delete(request):
         if image_paths:
             try:
                 img_result = delete_images_completely_batch(
-                    image_paths, mapping_storage, prompt_storage
+                    image_paths, mapping_storage
                 )
                 result["deleted_files"].extend(img_result["deleted_files"])
             except Exception as e:
@@ -127,6 +119,7 @@ async def batch_delete(request):
             len(result["deleted_categories"]) > 0
             or len(result["deleted_prompts"]) > 0
             or len(result["deleted_files"]) > 0
+            or result["deleted_combinations"] > 0
         )
 
         return web.json_response({
@@ -134,7 +127,6 @@ async def batch_delete(request):
             "deletedCategories": result["deleted_categories"],
             "deletedPrompts": result["deleted_prompts"],
             "deletedFiles": result["deleted_files"],
-            "disassociatedImages": result["disassociated_images"],
             "deletedCombinations": result["deleted_combinations"],
             "errors": result["errors"],
         })

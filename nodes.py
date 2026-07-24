@@ -676,7 +676,7 @@ class QuickSavePrompt:
     def _save_prompt_worker(prompt_name, category, prompt_value):
         try:
             with _quick_save_prompt_lock:
-                prompt_storage, mapping_storage, category_storage, _ = get_storage()
+                prompt_storage, _, category_storage, _ = get_storage()
 
                 # 根据分类名称查找分类 ID
                 categories = category_storage.get_all_categories()
@@ -701,8 +701,6 @@ class QuickSavePrompt:
                             old_value=old_value,
                             value=prompt_value,
                         )
-                        # 兼容旧版本映射；当前 promptString 派生关系下通常是 no-op。
-                        mapping_storage.rename_prompt_in_mappings(old_value, prompt_value)
                         print(f"[QuickSavePrompt] 已更新 prompt: {prompt_name} (value: {old_value} -> {prompt_value}, 分类: {category})")
                     else:
                         print(f"[QuickSavePrompt] prompt 未变化: {prompt_name} (value: {prompt_value}, 分类: {category})")

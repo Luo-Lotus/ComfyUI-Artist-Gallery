@@ -463,7 +463,6 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
           [
             h('option', { value: 'name' }, '名称'),
             h('option', { value: 'created_at' }, '创建时间'),
-            h('option', { value: 'image_count' }, '图片数量'),
           ],
         ),
         h(

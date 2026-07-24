@@ -24,17 +24,6 @@ export async function addPrompt(promptData) {
 }
 
 /**
- * 更新Prompt（使用 ID，兼容旧版本）
- */
-export async function updatePrompt(promptId, promptData) {
-  return await requestJson(`/prompt_gallery/prompts/${promptId}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(promptData),
-  }, '更新Prompt失败');
-}
-
-/**
  * 更新Prompt（使用组合键）
  */
 export async function updatePromptByKey(categoryId, value, promptData) {
@@ -60,26 +49,6 @@ export async function addPromptsBatch(promptsData, categoryId) {
   }, '批量添加Prompt失败');
 }
 
-export async function fetchAllPrompts() {
-  return await requestJson('/prompt_gallery/prompts', {}, '获取Prompt列表失败');
-}
-
-export async function searchPrompts(query, limit = 100) {
-  return await requestJson(
-    `/prompt_gallery/prompts?search=${encodeURIComponent(query)}&limit=${limit}`,
-    {},
-    '搜索Prompt失败',
-  );
-}
-
-export async function fetchPrompt(categoryId, value) {
-  return await requestJson(
-    `/prompt_gallery/prompts/${encodeURIComponent(categoryId)}/${encodeURIComponent(value)}`,
-    {},
-    '获取Prompt失败',
-  );
-}
-
 export async function setPromptCover(categoryId, value, coverImagePath) {
   return await requestJson(
     `/prompt_gallery/prompts/${encodeURIComponent(categoryId)}/${encodeURIComponent(value)}`,
@@ -92,9 +61,7 @@ export async function setPromptCover(categoryId, value, coverImagePath) {
   );
 }
 
-/**
- * 删除Prompt（清理组合成员，不删除图片）
- */
+/** 删除 Prompt 记录。 */
 export async function deletePromptByKey(categoryId, value) {
   return await requestJson(
     `/prompt_gallery/prompts/${encodeURIComponent(categoryId)}/${encodeURIComponent(value)}`,
@@ -145,132 +112,6 @@ export async function batchDelete({ categories = [], prompts = [], combinations 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ categories, prompts, combinations, images }),
   }, '批量删除失败');
-}
-
-/**
- * 复制Prompt到其他分类
- */
-export async function copyPrompt(categoryId, value, targetCategoryId, newValue) {
-  return await requestJson(
-    `/prompt_gallery/prompts/${encodeURIComponent(categoryId)}/${encodeURIComponent(value)}/copy`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        targetCategoryId,
-        newValue,
-      }),
-    },
-    '复制Prompt失败',
-  );
-}
-
-/**
- * 保存循环状态
- */
-export async function saveCycleState(nodeId, cycleIndex) {
-  const response = await fetch('/prompt_gallery/cycle-state', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      node_id: nodeId,
-      cycle_index: cycleIndex,
-    }),
-  });
-  return await response.json();
-}
-
-/**
- * 获取循环状态
- */
-export async function getCycleState(nodeId) {
-  const response = await fetch(`/prompt_gallery/cycle-state?node_id=${encodeURIComponent(nodeId)}`);
-  return await response.json();
-}
-
-/**
- * 重置循环状态
- */
-export async function resetCycleState(nodeId) {
-  const response = await fetch('/prompt_gallery/cycle-state/reset', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      node_id: nodeId,
-    }),
-  });
-  return await response.json();
-}
-
-/**
- * 导出Prompt（含图片）为 ZIP 文件
- */
-export async function exportPrompts(prompts, options = {}) {
-  const response = await fetch('/prompt_gallery/export', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompts,
-      includeImages: options.includeImages !== false,
-      maxImagesPerPrompt: options.maxImagesPerPrompt || 0,
-    }),
-  });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: '导出失败' }));
-    throw new Error(err.error || '导出失败');
-  }
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'prompts_export.zip';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-/**
- * 导出分类（递归含子分类、Prompt、组合）为 ZIP 文件
- */
-export async function exportCategory(categoryId, options = {}) {
-  const response = await fetch('/prompt_gallery/export-category', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      categoryId,
-      includeImages: options.includeImages !== false,
-      maxImagesPerPrompt: options.maxImagesPerPrompt || 0,
-    }),
-  });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: '导出失败' }));
-    throw new Error(err.error || '导出失败');
-  }
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'category_export.zip';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-/**
- * 导入（从 ZIP 文件，支持 v1 Prompt格式和 v2 分类格式）
- */
-export async function importPrompts(file, categoryId, separateStorage = false) {
-  const formData = new FormData();
-  formData.append('file', file);
-  const params = new URLSearchParams({ categoryId });
-  if (separateStorage) params.set('separate', 'true');
-  const response = await fetch(`/prompt_gallery/import?${params}`, {
-    method: 'POST',
-    body: formData,
-  });
-  return await response.json();
 }
 
 /**

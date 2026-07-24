@@ -10,37 +10,7 @@ from ._utils import is_remote_path
 from ._delete_utils import delete_image_completely
 
 
-# ============ Image Mapping API ============
-
-@server.PromptServer.instance.routes.get("/prompt_gallery/image/{filename:[\s\S]+}/prompts")
-async def get_image_prompts(request):
-    """根据图片 promptString 反查匹配的 Prompt 列表"""
-    try:
-        filename = request.match_info['filename']
-        # 构建完整的图片路径
-        image_path = f"prompt_gallery/{filename}"
-
-        _, mapping_storage, _, _ = get_storage()
-        mapping = mapping_storage.get_mappings_by_image(image_path)
-
-        if not mapping:
-            return web.json_response({"prompts": [], "totalCount": 0})
-
-        prompt_storage, _, _, _ = get_storage()
-        prompt_string_lower = (mapping.get("promptString") or "").lower()
-        prompts = []
-        if prompt_string_lower:
-            for prompt in prompt_storage.get_all_prompts():
-                value = (prompt.get("value") or "").lower()
-                if value and value in prompt_string_lower:
-                    prompts.append(prompt)
-
-        return web.json_response({"prompts": prompts, "totalCount": len(prompts)})
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
-
-
-# ============ Save to Gallery API ============
+# ============ Image API ============
 
 @server.PromptServer.instance.routes.get("/prompt_gallery/image/info")
 async def get_image_info(request):
@@ -209,36 +179,16 @@ async def delete_image(request):
     try:
         data = await request.json()
         image_path = data.get("imagePath")
-        prompt_value = data.get("promptValue")
-
         if not image_path:
             return web.json_response({"error": "缺少imagePath参数"}, status=400)
 
-        prompt_storage, mapping_storage, _, _ = get_storage()
-
-        if prompt_value:
-            return web.json_response({"error": "当前版本不支持从 Prompt 断开图片关联，请从历史视图删除整张图片"}, status=400)
-        else:
-            # 从历史视图删图片：完全删除
-            result = delete_image_completely(image_path, mapping_storage, None)
-            return web.json_response({
-                "success": True,
-                "message": "图片已删除",
-                "fileDeleted": result["file_deleted"],
-                "affectedPrompts": result["affected_prompts"],
-            })
+        _, mapping_storage, _, _ = get_storage()
+        result = delete_image_completely(image_path, mapping_storage)
+        return web.json_response({
+            "success": True,
+            "message": "图片已删除",
+            "fileDeleted": result["file_deleted"],
+        })
 
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
-
-
-@server.PromptServer.instance.routes.post("/prompt_gallery/image/move")
-async def move_image(request):
-    """图片不再支持移动到其他 Prompt。"""
-    return web.json_response({"error": "当前版本不支持将图片移动到其他 Prompt"}, status=400)
-
-
-@server.PromptServer.instance.routes.post("/prompt_gallery/image/copy")
-async def copy_image(request):
-    """图片不再支持复制到其他 Prompt。"""
-    return web.json_response({"error": "当前版本不支持将图片复制到其他 Prompt"}, status=400)

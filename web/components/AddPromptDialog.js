@@ -5,7 +5,7 @@ import { h } from '../lib/preact.mjs';
 import { useState } from '../lib/hooks.mjs';
 import { showToast } from './Toast.js';
 import { Icon } from '../lib/icons.mjs';
-import { addPrompt, updatePrompt, updatePromptByKey, addPromptsBatch } from '../services/promptApi.js';
+import { addPrompt, updatePromptByKey, addPromptsBatch } from '../services/promptApi.js';
 import { Dialog, DialogButton, DialogFormGroup, DialogFormItem } from './Dialog.js';
 
 export function AddPromptDialog({ isOpen, mode, editModePrompt, currentCategoryId, onClose, onSave }) {

@@ -1,706 +1,393 @@
-# Prompt选择节点 & 保存图片节点 — 数据流与业务逻辑
+# Prompt Gallery 数据流与存储设计
 
-本文档详细描述 `PromptsSelector`（Prompt选择）节点和 `SaveToGallery`（保存到画廊）节点的完整数据处理流程。
+本文档描述当前 Prompt 选择、图片保存、运行时关联、封面补齐和图片导入流程。用户安装与使用方法见项目根目录的 `README.md`。
 
-由于插件改过一次名，从 画师(prompt) 改为 Prompt，系统中还是存在大量使用prompt命名的代码，这些命名都指的是prompt
+## 一、核心设计
 
----
+当前数据模型不再维护 Image 到 Prompt 的强映射，核心规则如下：
 
-## 一、整体架构概览
+1. Prompt 以 `(categoryId, value)` 标识，独立存储在 `prompts.json`。
+2. Image 独立存储在 `images.json`，只保存图片路径、`promptString`、生成信息和文件信息。
+3. 查询某个 Prompt 的图片时，在运行时判断 Prompt `value` 是否包含在图片的 `promptString` 中。
+4. `coverImageId` 是 Prompt 或组合上的持久化封面路径，用于列表快速展示，不代表图片归属关系。
+5. `imageCount` 不再读取或维护；旧数据中的字段可以保留，但不是有效数据源。
+6. 删除或移动 Prompt 不修改图片索引；删除 Prompt 也不修改组合成员。
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                        前端 (Preact)                             │
-│                                                                  │
-│  用户操作 → usePartitionState → useNodeSync → ComfyUI Widget     │
-│      (状态管理)       (序列化)        (隐藏输入框)                │
-└──────────────────────────────┬───────────────────────────────────┘
-                               │ ComfyUI 执行工作流时
-                               │ 读取 widget 值作为节点输入
-                               ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                        后端 (Python)                             │
-│                                                                  │
-│  PromptsSelector.select_prompts()                                │
-│      → 解析 metadata → 解析Prompt/分类/组合 → 格式化+权重包裹      │
-│      → 自动创建组合 → 返回 (result_string, enriched_metadata)    │
-│                               │                                  │
-│                               ▼                                  │
-│  SaveToGallery.save_image()                                     │
-│      → 读取 enriched_metadata → 保存图片 → 创建映射 → 更新计数  │
-└──────────────────────────────────────────────────────────────────┘
+因此，Prompt 与 Image 的关系是可派生关系：
+
+```text
+Prompt.value
+    |
+    | case-insensitive substring match
+    v
+Image.promptString
 ```
 
----
+## 二、整体数据流
 
-## 二、前端数据处理流程
+```text
+Prompt 选择节点
+  前端选择 Prompt / 分类 / 组合
+        |
+        v
+  metadata widget 随工作流保存
+        |
+        v
+  PromptSelector.select_prompts()
+        |
+        +--> prompts_string --------------+
+        |                                  |
+        +--> metadata_json                 |
+                                           v
+生成提示词链路 ---------------------> SaveToGallery.prompt_string
+                                           |
+                                           +--> 同步保存 PNG
+                                           |
+                                           +--> 后台批量登记 images.json
+                                           |
+                                           +--> 后台匹配 Prompt 并补空封面
 
-### 2.1 节点初始化
+图库查询
+  Prompt.value / 组合 prompts[]
+        |
+        v
+  扫描 Image.promptString
+        |
+        v
+  返回匹配图片
+```
 
-**入口文件**: `web/nodes/PromptsSelector.js`
+`PromptSelector.metadata_json` 不再是 `SaveToGallery` 的输入。保存节点只依赖必填的 `prompt_string`，因此也可以接入任意其他文本节点。
 
-当 ComfyUI 加载节点定义时，通过 `app.registerExtension()` 的 `beforeRegisterNodeDef` 钩子介入。当检测到节点类型为 `PromptsSelector` 时：
+## 三、Prompt 选择节点
 
-1. **创建隐藏输入框**：ComfyUI 根据 `INPUT_TYPES` 自动创建两个隐藏 widget：
-    - `selected_prompts`（STRING）：用于显示的Prompt名称字符串
-    - `metadata`（STRING）：v1 格式的 JSON，承载完整的分区和选择信息
+### 3.1 前端初始化
 
-2. **创建 DOM 容器**：在节点上添加一个 DOM widget，作为 Preact 组件的挂载点
+入口为 `web/nodes/PromptSelector.js`。ComfyUI 注册 `PromptsSelector` 节点时，前端会：
 
-3. **延迟渲染**：100ms 后动态导入 `PromptSelectorWidget` 组件并渲染到容器中，传入三个关键 props：
-    - `nodeInstance`：ComfyUI 节点实例引用
-    - `selectedInput`：`selected_prompts` widget 引用
-    - `metadataInput`：`metadata` widget 引用
+1. 隐藏 `selected_prompts` 和 `metadata` 两个原生 widget。
+2. 创建 DOM widget。
+3. 动态加载 `PromptSelectorWidget`。
+4. 从 `metadata` 恢复分区状态。
 
-### 2.2 数据加载
+主要职责分布：
 
-**Hook**: `usePromptSelector.js`
+| 模块 | 职责 |
+| --- | --- |
+| `usePromptSelector.js` | 分类浏览、搜索、已选项补全和封面缓存 |
+| `usePartitionState.js` | 分区、成员顺序、权重和配置状态 |
+| `useNodeSync.js` | 将状态序列化回 ComfyUI widget |
 
-组件挂载后，并行发起三个数据加载请求：
+### 3.2 数据加载
 
-#### (1) 加载分类树
+选择器按需加载数据，避免首次打开时获取全部 Prompt：
 
-- 请求：`GET /prompt_gallery/categories`
-- 返回：嵌套的分类树结构
-- 处理：通过 `flattenCategories()` 扁平化为 `{ id, name, parentId, children }` 列表
+- 当前分类：读取当前分类直属 Prompt、组合和子分类。
+- 全局搜索：输入停止 200ms 后搜索 Prompt 与组合。
+- 已选项补全：工作流恢复后，批量解析当前分类之外的 Prompt、分类和组合。
+- 封面：按当前可见或预览项批量读取持久化 `coverImageId`。
 
-#### (2) 加载所有Prompt和组合
+分类列表接口和封面接口都不会扫描图片索引。
 
-- 请求：`GET /prompt_gallery/prompts` + `GET /prompt_gallery/combinations/all`
-- `allPrompts`：用于补全已选Prompt的缓存信息（跨分类查找）
-- `allCombinations`：用于分区中组合的显示和操作
+### 3.3 分区状态
 
-#### (3) 加载当前分类数据
-
-- 请求：`GET /prompt_gallery/data?category={currentCategory}`
-- 这是一个**合并接口**，同时返回当前分类下的：
-    - `prompts[]`：Prompt列表（只含 `coverImagePath` + `imageCount`，不含完整图片）
-    - `combinations[]`：组合列表（含 `coverImagePath`、`prompts`、`outputContent`）
-- 当用户点击分类导航切换时，会重新请求此接口
-
-### 2.3 分区状态管理
-
-**Hook**: `usePartitionState.js`
-
-分区状态是整个选择器的核心数据结构，管理着「哪些Prompt/分类/组合属于哪个分区」。
-
-#### 数据结构
+当前前端状态以 `orderItems` 为唯一成员来源：
 
 ```javascript
-partitionData = {
-    partitions: [
-        {
-            id: "partition-default",       // 分区唯一 ID
-            name: "默认分区",                // 显示名称
-            isDefault: true,                // 是否为默认分区
-            enabled: true,                  // 是否启用
-            config: {
-                format: "{content}",        // 输出格式模板
-                randomMode: false,          // 随机模式
-                randomCount: 3,             // 随机数量
-                cycleMode: false,           // 循环模式
-                saveToGallery: true,        // 是否保存到画廊
-                autoCreateCombination: false, // 是否自动创建组合
-                autoSaveCombinationCategoryId: "" // 自动创建组合的目标分类（空=root）
-            },
-            orderItems: [                  // 分区成员的有序列表（统一数据源）
-                { type: 'prompt', key: 'root:prompt_a' },
-                { type: 'category', key: 'cat-id-1' },
-                { type: 'combination', key: 'combination:uuid-xxx' },
-            ]
-        },
-        // ... 最多 10 个分区
-    ],
-    promptWeights: {           // Prompt权重（仅Prompt，不含分类/组合）
-        "root:prompt_a": 1.5,  // key 格式为 "categoryId:promptName"
-        "cat1:prompt_b": 0.8   // 不存在或为 1.0 时表示默认权重
-    },
-    globalConfig: { ... }      // 全局默认配置
-}
-```
-
-#### 关键设计
-
-- **统一 orderItems**：每个分区使用一个 `orderItems[]` 数组记录成员和顺序，每项包含 `type`（`'prompt'`/`'category'`/`'combination'`）和 `key`。这是分区成员和排序的唯一数据源
-- **向后兼容**：旧数据无 `orderItems` 时，自动从 `promptKeys + categoryIds + combinationKeys` 构建
-- **权重存储**：`promptWeights` 扁平字典（`promptKey → number`），权重为 1.0 时删除 key，仅限Prompt标签
-- **持久化方式**：不使用独立的 JSON 文件存储，而是通过 `useNodeSync` 序列化到 ComfyUI 节点的 widget 值中，随工作流一起保存
-- **状态恢复**：组件初始化时，从 `metadataInput.value`（ComfyUI 恢复的 widget 值）解析分区数据
-- **派生视图**：`itemsByPartition`（useMemo）遍历 `orderItems` 并解析每项的数据对象，产出扁平数组供 UI 渲染
-
-#### 主要操作
-
-| 操作                                       | 说明                                           |
-| ------------------------------------------ | ---------------------------------------------- |
-| `addPartition(name)`                       | 创建新分区（继承全局配置），最多 10 个         |
-| `deletePartition(id)`                      | 删除分区，orderItems 转移回默认分区（去重）     |
-| `updatePartition(id, updates)`             | 更新分区名称或配置（不可改 enabled/isDefault） |
-| `togglePartition(id)`                      | 切换分区启用/禁用                              |
-| `addItemToPartition(type, key, pid)`       | 将项添加到指定分区的 orderItems 末尾           |
-| `removeItemFromPartition(type, key, pid)`  | 从指定分区的 orderItems 中移除项               |
-| `removeItemGlobally(type, key)`            | 从所有分区的 orderItems 中移除项               |
-| `reorderPartitionItems(pid, from, to)`     | 分区内拖拽排序（调整 orderItems 顺序）         |
-| `isItemSelected(type, key)`                | 检查某项是否在任意分区的 orderItems 中          |
-| `getItemPartition(type, key)`              | 获取某项所在的分区 ID                          |
-| `setPromptWeight(key, weight)`             | 设置Prompt权重（0~2，weight=1.0 时删除 key）   |
-
-### 2.4 节点同步（前端 → ComfyUI）
-
-**Hook**: `useNodeSync.js`
-
-每当分区数据、选择状态发生变化时，自动将状态同步到 ComfyUI 节点的隐藏输入框。
-
-#### 序列化过程
-
-```
-partitionData（内部格式）
-    ↓ 转换
-v1 metadata（传输格式）
-```
-
-具体步骤：
-
-1. **构建 partitions 数组**：遍历每个分区，直接读取 `orderItems` 数组：
-    - `orderItems`：分区的成员有序列表，每项 `{ type, key }`
-    - 向后兼容：旧数据仍输出 `promptKeys`/`categoryIds`/`combinationKeys`，后端会自动转换
-
-2. **构建 metadata 对象**：
-
-    ```json
+{
+  partitions: [
     {
-        "version": 1,
-        "partitions": [
-            {
-                "id": "partition-default",
-                "name": "默认分区",
-                "isDefault": true,
-                "enabled": true,
-                "config": { "format": "{content}", ... },
-                "orderItems": [
-                    { "type": "prompt", "key": "root:prompt_a" },
-                    { "type": "prompt", "key": "cat1:prompt_b" },
-                    { "type": "category", "key": "cat-id-1" },
-                    { "type": "combination", "key": "combination:uuid-xxx" }
-                ]
-            }
-        ],
-        "promptWeights": {
-            "root:prompt_a": 1.5,
-            "cat1:prompt_b": 0.8
-        },
-        "globalConfig": { ... }
+      id: 'partition-default',
+      name: '默认分区',
+      isDefault: true,
+      enabled: true,
+      order: 0,
+      config: {
+        format: '{content}',
+        randomMode: false,
+        randomCount: 3,
+        cycleMode: false,
+        autoCreateCombination: false,
+        autoSaveCombinationCategoryId: ''
+      },
+      orderItems: [
+        { type: 'prompt', key: 'root:prompt_a' },
+        { type: 'category', key: 'category-id' },
+        { type: 'combination', key: 'combination:uuid' }
+      ]
     }
-    ```
-
-3. **写入 widget**：
-    - `selectedInput.value` = 逗号分隔的Prompt名（仅用于显示，后端不使用）
-    - `metadataInput.value` = JSON.stringify(metadata)
-
-4. **触发更新**：调用 `nodeInstance.graph.change()` 通知 ComfyUI 图需要重新执行
-
-### 2.5 用户交互流程
-
-```
-用户点击Prompt
-    ↓
-toggleSelection(categoryId, name)
-    ↓
-生成 key = "categoryId:name"
-    ↓
-addItemToPartition('prompt', key, defaultPartition.id)
-    ↓
-分区 orderItems 更新 → itemsByPartition 重新计算
-    ↓
-useNodeSync useEffect 触发
-    ↓
-序列化 v1 metadata（含 orderItems）→ 写入 widget → graph.change()
+  ],
+  promptWeights: {
+    'root:prompt_a': 1.5
+  },
+  globalConfig: {}
+}
 ```
 
-分类选择和组合选择的流程类似，分别调用 `toggleCategorySelection` 和 `toggleCombinationSelection`，内部使用 `addItemToPartition`/`removeItemGlobally`。
+关键约束：
 
-分区内标签支持拖拽排序：通过 `reorderPartitionItems(partitionId, fromIndex, toIndex)` 调整 `orderItems` 顺序。
+- Prompt key 是 `categoryId:value`，不是数据库 ID。
+- 组合 key 是 `combination:id`。
+- 同一个项目只存在于一个分区；分区内顺序由 `orderItems` 决定。
+- 删除非默认分区时，成员去重后转移到默认分区。
+- 权重只应用于直接选择的 Prompt。
+- 分区配置中不再有 `saveToGallery`；图片保存由独立节点决定。
+- 旧工作流中的 `promptKeys`、`categoryIds` 和 `combinationKeys` 仍可转换为 `orderItems`。
 
----
+### 3.4 同步到工作流
 
-## 三、后端数据处理流程
+`useNodeSync` 使用 `requestAnimationFrame` 合并同一轮交互中的更新，然后写入：
 
-### 3.1 PromptsSelector.select_prompts() — 主入口
-
-当 ComfyUI 执行工作流时，调用此函数。
-
-**输入**：
-
-- `selected_prompts`（STRING）：前端显示用的Prompt名（后端不使用）
-- `metadata`（STRING）：v1 格式的 JSON
-
-**输出**：
-
-- `prompts_string`（STRING）：格式化后的Prompt名称字符串，可直接作为提示词
-- `metadata_json`（STRING）：富化后的 JSON，供下游 `SaveToGallery` 使用
-
-#### 处理流程
-
-```
-输入 metadata JSON
-    ↓
-版本检查（version !== 1 → 返回空）
-    ↓
-加载所有Prompt和分类数据（从 storage）
-    ↓
-遍历每个分区 ──────────────────────────────┐
-    ↓                                       │
-跳过 enabled=false 的分区                   │
-    ↓                                       │
-读取分区配置（format, randomMode, 等）      │
-    ↓                                       │
-解析Prompt来源（三种）────→ 合并去重           │
-    ↓                                       │
-处理循环/随机模式                            │
-    ↓                                       │
-格式化输出 + 权重包裹 + 收集Prompt              │
-    ↓                                       │
-└────────────────────────────────────────────┘
-    ↓
-自动创建组合（遍历分区再次检查）
-    ↓
-构建富化 metadata
-    ↓
-返回 (result_string, enriched_metadata)
+```json
+{
+  "version": 1,
+  "partitions": [],
+  "globalConfig": {},
+  "promptWeights": {}
+}
 ```
 
-### 3.2 Prompt来源解析
+- `selected_prompts`：已选 Prompt 显示名称的逗号拼接，仅用于显示。
+- `metadata`：完整分区状态，是后端执行时的实际输入。
 
-后端从每个分区的 `orderItems` 中按 `type` 字段分组解析Prompt来源。向后兼容：如果 `orderItems` 不存在，则 fallback 读取 `promptKeys` + `categoryIds` + `combinationKeys` 构建。
+两者都随 ComfyUI 工作流保存，不写入插件的独立配置文件。
 
-每个分区中的Prompt来自三个渠道，全部解析后合并为一个统一的工作列表：
+### 3.5 后端执行
 
-#### 来源一：直接选择的Prompt（type = 'prompt'）
+`PromptSelector.select_prompts()` 按以下顺序处理：
 
-- key 格式：`"categoryId:promptName"`
-- 处理：按 `:` 分割，提取 `categoryId` 和 `name`
-- 示例：`"root:mike"` → `('', 'mike')`
+1. 解析并校验 `metadata.version == 1`。
+2. 跳过禁用分区。
+3. 按 `orderItems` 解析直接 Prompt、分类和组合。
+4. 分类展开为该分类及全部后代分类中的 Prompt。
+5. 对 Prompt 去重，并与组合合并为工作列表。
+6. 应用循环或随机模式。
+7. 对 Prompt 应用格式和权重；组合直接使用 `outputContent`。
+8. 可选地根据本次实际输出创建组合。
+9. 返回 `prompts_string` 和 `metadata_json`。
 
-#### 来源二：分类递归解析（type = 'category'）
+输出格式支持：
 
-- 用户可能选择了整个分类而非单个Prompt
-- key 为分类 ID，调用 `_resolve_category_to_prompts(category_id, all_prompts, all_categories)` 递归解析
-- 解析逻辑：
-    1. 查找 `parentId == category_id` 的所有子分类，递归处理
-    2. 查找 `categoryId == category_id` 的所有Prompt，收集名称
-- 防止循环引用：用 `visited` 集合记录已访问的分类 ID
+- `{content}`：替换为 Prompt `value`。
+- `{random(min,max,step)}`：按步长生成范围内随机值。
+- 权重不为 `1.0` 时，在格式化结果外包裹 `(content:weight)`。
 
-#### 来源三：组合（type = 'combination'）
+循环状态保存在当前 Python 进程内的 `_cycle_states` 中，不写入磁盘；ComfyUI 重启后会重置。
 
-- key 格式：`"combination:{uuid}"`
-- 处理：提取 UUID，从 `CombinationStorage` 查询组合详情
-- 获取两个关键字段：
-    - `outputContent`：组合的格式化输出文本（如 `"@prompt_a,@prompt_b"`）
-    - `prompts`：组合包含的Prompt名称列表
+后端返回的富化元数据格式为：
 
-#### 合并为工作列表
+```json
+{
+  "prompt_names": ["prompt_a", "prompt_b"],
+  "selected_prompts": [
+    { "categoryId": "root", "value": "prompt_a" }
+  ],
+  "formatted_result": "prompt_a,prompt_b"
+}
+```
+
+该输出可供其他节点使用，但 `SaveToGallery` 不读取它。
+
+## 四、SaveToGallery
+
+### 4.1 输入与保存路径
+
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `images` | IMAGE | 是 | 一张或多张图片 |
+| `prompt_string` | STRING | 是 | 最终提示词文本，也是图片关联的唯一来源 |
+| `prefix` | STRING | 否 | 默认 `prompt_gallery/AG`，支持 `strftime` |
+| `prompt` | PROMPT | 隐藏 | ComfyUI API prompt |
+| `extra_pnginfo` | EXTRA_PNGINFO | 隐藏 | workflow 等附加信息 |
+
+`prefix` 最后一段作为文件名前缀，其余部分作为 `output` 下的相对目录。例如：
+
+```text
+prefix = prompt_gallery/AG
+result = output/prompt_gallery/AG_<timestamp>_0.png
+
+prefix = gallery/%Y/%m/portrait
+result = output/gallery/2026/07/portrait_<timestamp>_0.png
+```
+
+### 4.2 同步阶段
+
+工作流返回前执行以下操作：
+
+1. 校验 `prompt_string` 非空。
+2. 一次性将图片 Tensor 转为 NumPy。
+3. 逐张生成 PNG 并写入磁盘。
+4. 收集待写入的图片索引和 ComfyUI UI 返回值。
+5. 启动后台线程。
+
+PNG 中写入：
+
+- `prompt`：序列化后的 ComfyUI API prompt。
+- `prompt_gallery`：`{"promptString": "..."}`。
+- `extra_pnginfo`：包括 workflow 在内的额外信息。
+
+磁盘写入仍是同步操作，因为节点必须保证返回的图片路径已经存在。
+
+### 4.3 后台阶段
+
+后台线程执行：
+
+1. 使用 `add_mappings_batch()` 一次加锁、一次写入全部图片索引。
+2. 从全部 Prompt 的 `value` 和逗号分隔别名构建匹配表。
+3. 在 `prompt_string` 中进行不区分大小写的字符串包含匹配。
+4. 使用本批次第一张图片，为匹配到且没有封面的 Prompt 批量设置 `coverImageId`。
+
+Prompt 匹配表带有模块级缓存。只有 Prompt `value`、别名或分类集合变化时才重建。
+
+后台失败不会撤销已经写入磁盘的 PNG，错误会输出到 ComfyUI 日志。当前后台补封面只处理 Prompt，不创建或更新组合封面。
+
+### 4.4 图片索引格式
+
+```json
+{
+  "type": "local",
+  "imagePath": "prompt_gallery/AG_1752724800000_0.png",
+  "fileInfo": {
+    "createdAt": 1752724800000,
+    "size": 123456,
+    "type": "image/png",
+    "width": 1024,
+    "height": 1024
+  },
+  "promptString": "prompt_a, prompt_b",
+  "generatePrompt": "{...}"
+}
+```
+
+索引中不再写入 `prompts`、`promptIds` 或其他 Image 到 Prompt 的持久化关系。
+
+## 五、图片查询
+
+### 5.1 Prompt 与组合详情
+
+Prompt 图片查询规则：
 
 ```python
-working_items = [
-    ('prompt', 'root', 'mike'),           # 直接选择的Prompt
-    ('prompt', 'cat1', 'sarah'),          # 从分类解析出的Prompt
-    ('combination', '@a,@b', ['a', 'b']), # 组合（内容 + 成员Prompt）
-    ...
-]
+prompt.value.lower() in image.promptString.lower()
 ```
 
-去重：按 `"categoryId:promptName"` 去重，保持 `orderItems` 中的选择顺序。
+组合图片查询要求图片的 `promptString` 同时包含组合的全部成员值，即交集语义。
 
-### 3.3 输出模式处理
+这意味着修改 Prompt `value` 后，旧图片不会被改写；如果旧 `promptString` 不包含新值，旧图片将不再匹配该 Prompt。复制相同 `value` 的 Prompt 到其他分类时，两者会看到相同的派生图片集合。
 
-#### 普通模式（默认）
+### 5.2 列表数据
 
-所有工作项直接进入输出，每个Prompt应用格式模板后加入结果列表。
+分类列表只读取：
 
-#### 随机模式（randomMode = true）
+- 当前分类直属 Prompt。
+- 当前分类直属组合。
+- 当前分类直属子分类。
+- Prompt 和组合上持久化的 `coverImageId`。
 
-- 从工作列表中随机抽取 `randomCount` 个条目
-- 使用 `random.sample()` 无重复抽样
-- **重要**：只有被随机到的Prompt才会出现在输出和自动创建的组合中
+列表不扫描 `images.json`，也不计算图片数量。进入 Prompt 或组合详情后才查询图片。
 
-#### 循环模式（cycleMode = true）
+### 5.3 历史分组
 
-- 维护全局循环状态 `_cycle_states`（以 `节点实例ID_分区ID` 为 key）
-- 每次执行取 `working_items[cycle_index]`，然后 `cycle_index = (index + 1) % length`
-- 每次执行只输出一个条目（一个Prompt或一个组合）
-- **重要**：只有当前循环到的Prompt会出现在输出中
+历史图片查询会：
 
-### 3.4 格式化输出
+1. 加载图片索引。
+2. 按 `promptString` 执行 Prompt、组合、搜索和自定义筛选。
+3. 通过所选图片字段的 `extractCode` 计算分组值。
+4. 组内和分组均按降序排列，`未分类` 固定在最后。
+5. 构建完整 JSON 响应。
 
-每个Prompt条目通过 `_apply_format(name, format_str)` 处理：
+`comfy_output*.images.json` 默认不进入普通图片查询，只有历史视图显式启用时才按需加载。
 
-1. **替换 `{content}`**：将 `{content}` 替换为Prompt名称
-    - `"{content}"` → `"mike"`
-    - `"by {content}"` → `"by mike"`
-    - `"({content}:1.2)"` → `"(mike:1.2)"`
+## 六、导入流程
 
-2. **替换 `{random(min,max,step)}`**：生成随机数
-    - 在 `[min, max]` 范围内按 `step` 步进随机选择
-    - `"(mike:{random(0.5,2.0,0.1)})"` → `"(mike:1.3)"`
-    - 支持多个 `{random()}` 在同一格式字符串中
+### 6.1 ZIP 导入
 
-3. **组合条目特殊处理**：组合不经过格式化，直接使用其 `outputContent`
+ZIP v1 和 v2 均以 `promptString` 作为图片关联来源。兼容旧包时，导入器会将 `prompts` 或 `promptNames` 用逗号连接为 `promptString`，但不会继续持久化旧数组字段。
 
-4. **权重包裹**：Prompt格式化后，通过 `_apply_weight(formatted_str, weight)` 处理：
-    - 权重为 1.0 或 None → 返回原字符串
-    - 其他权重 → 包裹为 `(formatted_str:weight)`
-    - 权重与格式模板独立，始终包裹在格式化结果外层
-    - 示例：`@mike` + weight=1.5 → `(@mike:1.5)`
-    - 组合和分类解析出的Prompt不应用权重
+导入过程按批次执行：
 
-最终所有分区的格式化结果用逗号拼接：`"(@mike:1.5),sarah,@a,@b"`
+1. 创建分类和 Prompt。
+2. 创建组合（v2）。
+3. 解压本地图片或登记远程 URL。
+4. 一次写入本批次图片索引。
+5. 只扫描本次导入的 `mapping_specs`，为没有封面的 Prompt 补封面。
+6. v2 同时为没有封面的组合选择成员中最新匹配图片。
 
-### 3.5 Prompt收集（collect_prompt）
+封面候选按 `fileInfo.createdAt` 选择最新图片。安装 `pyahocorasick` 时使用 Aho-Corasick 单次扫描，否则回退为逐值字符串匹配。
 
-在输出处理过程中，通过 `collect_prompt(cat_id, name, save_to_gallery)` 函数跨分区收集所有参与输出的Prompt：
-
-- 去重：用 `seen_keys` 集合防止同一Prompt被重复收集
-- 记录 `saveToGallery` 标记：来自分区配置
-- 组合条目中的Prompt也会被收集：遍历组合的 `prompts`，逐一调用 `collect_prompt`
-- 这些收集到的Prompt会用于：
-    1. 构建富化 metadata 中的 `prompt_names` 和 `selected_prompts`
-    2. 供 `SaveToGallery` 使用
-
-同时，通过 `partition_used_prompts` 字典记录每个分区实际参与输出的Prompt名（区分随机/循环后真正被选中的Prompt）。
-
-### 3.6 自动创建组合
-
-输出处理完成后，再次遍历所有分区，检查是否需要自动创建组合：
-
-**条件检查**：
-
-1. 分区已启用（`enabled = true`）
-2. 分区配置中 `autoCreateCombination = true`
-3. 分区配置中 `saveToGallery = true`（前置条件）
-4. 该分区有实际参与输出的Prompt（`partition_used_prompts` 不为空）
-
-**创建逻辑**：
-
-1. 获取该分区实际使用的Prompt名称列表
-2. 获取该分区的格式模板
-3. 对每个Prompt名应用格式模板，得到格式化片段
-4. 用逗号拼接所有格式化片段作为 `outputContent`
-5. 用逗号拼接Prompt名称作为组合名 `name`
-6. 查重：检查 `outputContent` 相同的组合是否已存在
-7. 不存在则创建新组合（存储到分区配置 `autoSaveCombinationCategoryId` 指定的分类，未设置则保存到根目录）
-
-**示例**：
-
-- 分区选择了Prompt `mike`, `sarah`，格式模板为 `@{content}`
-- `outputContent` = `"@mike,@sarah"`
-- `name` = `"mike,sarah"`
-- `prompts` = `["mike", "sarah"]`
-- `categoryId` = 分区配置 `autoSaveCombinationCategoryId` 的值（未设置则为 `"root"`）
-
-### 3.7 富化 Metadata 输出
-
-处理完成后，构建一个富化的 metadata JSON 供 `SaveToGallery` 使用：
-
-```json
-{
-    "prompt_names": ["mike", "sarah", "alice"],
-    "selected_prompts": [
-        { "categoryId": "root", "name": "mike", "saveToGallery": true },
-        { "categoryId": "cat1", "name": "sarah", "saveToGallery": true },
-        { "categoryId": "cat2", "name": "alice", "saveToGallery": false }
-    ],
-    "formatted_result": "mike,sarah"
-}
-```
-
-- `prompt_names`：所有收集到的Prompt名（包含 `saveToGallery=false` 的）
-- `selected_prompts`：详细信息列表，含 `saveToGallery` 标记
-- `formatted_result`：格式化后的输出字符串
-
----
-
-## 四、SaveToGallery — 保存图片节点
-
-### 4.1 输入
-
-| 参数                    | 类型          | 必填 | 说明                                                 |
-| ----------------------- | ------------- | ---- | ---------------------------------------------------- |
-| `images`                | IMAGE         | 是   | ComfyUI 图片张量（可能多张）                         |
-| `metadata_json`         | STRING        | 否\* | 来自 PromptsSelector 的富化 metadata（优先级高）     |
-| `filename_prefix`       | STRING        | 否   | 文件名前缀，默认 `"AG"`                              |
-| `prompt_string`         | STRING        | 否\* | 提示词字符串，自动匹配已知Prompt名（备选，优先级低） |
-| `prompt`（隐藏）        | PROMPT        | —    | ComfyUI 工作流的 prompt 信息                         |
-| `extra_pnginfo`（隐藏） | EXTRA_PNGINFO | —    | ComfyUI 附加 PNG 信息                                |
-
-> 两者都提供时，优先使用 `metadata_json`。即使都未提供或未匹配到任何Prompt，图片也会保存（关联Prompt列表为空）。
-
-### 4.2 处理流程
-
-```
-接收 metadata_json 和 prompt_string
-    ↓
-解析 metadata_json（JSON → dict）
-    ↓
-三路优先级判断 ──────────────────────────────────────────┐
-    ↓                                                    │
-Path A: metadata_json 有效                                │
-（包含 prompt_names 和 selected_prompts）                  │
-    → 筛选 saveToGallery=true 的Prompt                      │
-    ↓                                                    │
-Path B: metadata_json 无效，但有 prompt_string             │
-    → 调用 _match_prompts_from_prompt(prompt_string)       │
-    → 使用循环子串匹配已知Prompt名（跳过禁止画廊的分类）       │
-    → 所有匹配到的Prompt默认 saveToGallery=true               │
-    ↓                                                    │
-Path C: 两者都没有有效内容或未匹配到Prompt                    │
-    → 输出警告日志，继续保存图片（关联Prompt为空）              │
-    ↓                                                    │
-└────────────────────────────────────────────────────────┘
-    ↓ （Path A 或 Path B 得到 saveable_prompts / saveable_names）
-创建保存目录 output/prompt_gallery/
-    ↓
-遍历每张图片 ──────────────────────────┐
-    ↓                                  │
-Tensor → numpy → PIL Image             │
-    ↓                                  │
-生成文件名: AG_{timestamp}_{index}.png  │
-    ↓                                  │
-嵌入 PNG 元数据:                        │
-  - prompt (工作流信息)                  │
-  - prompt_gallery (Prompt关联信息)        │
-  - extra_pnginfo (附加信息)            │
-    ↓                                  │
-保存 PNG 到磁盘                         │
-    ↓                                  │
-创建映射关系 (image_mapping):           │
-  imagePath → prompts[]                 │
-    ↓                                  │
-更新Prompt图片计数 +1                     │
-    ↓                                  │
-└───────────────────────────────────────┘
-    ↓
-返回 ()
-```
-
-### 4.2.1 prompt_string Prompt匹配算法
-
-当 `metadata_json` 无效但 `prompt_string` 有内容时，使用 `_match_prompts_from_prompt()` 方法自动匹配Prompt。
-
-**原理**：格式模板（如 `@{content}`、`({content}:1.2)`）输出中，Prompt名始终是完整子串。因此只需在 prompt_string 中查找已知Prompt名的子串即可。
-
-**算法步骤**：
-
-1. 从 `PromptStorage` 加载所有Prompt
-2. 从 `CategoryStorage` 构建被禁止保存到画廊的分类 ID 集合（`metadata.blockGallerySave=true` 的分类及其所有后代）
-3. 构建 `name → [prompt, ...]` 查找表（同名Prompt可属于不同分类，含别名）
-4. 按名称长度降序排列（贪心匹配，长名优先），缓存到模块级变量
-5. 循环遍历每个名称，使用 `name.lower() in prompt_string.lower()` 子串匹配
-6. 跳过 `categoryId` 在禁止集合中的Prompt
-7. 去重保序，返回 `[{categoryId, name, saveToGallery: True}, ...]`
-
-**性能优化**：
-
-- 循环子串匹配：CPython 的 `in` 操作使用 C 级优化字符串搜索（Boyer-Moore 变体），比正则 alternation 快得多
-- 模块级缓存：`_prompt_match_cache`（名称列表）+ `_prompt_match_names`（frozenset 指纹），Prompt列表未变化时复用
-- 禁止分类缓存：`_blocked_category_cache` + `_blocked_category_fingerprint`，分类数据未变化时复用
-- 大小写不敏感匹配（`name.lower()` 比较）
-
-**示例**：
-
-```
-prompt_string = "@mike, (sarah:1.2), some other text, @tom"
-已知Prompt: mike, sarah, tom, alice
-匹配结果: [mike, sarah, tom] → 关联到保存的图片
-```
-
-### 4.3 关键细节
-
-#### Prompt筛选
-
-```python
-saveable_prompts = [a for a in selected_prompts if a.get("saveToGallery", True)]
-saveable_names = [a["name"] for a in saveable_prompts]
-```
-
-只有 `saveToGallery=true` 的Prompt会参与图片关联和计数更新。这意味着：
-
-- 如果某个分区关闭了 `saveToGallery`，该分区的Prompt名称不会出现在保存图片的关联信息中
-- 但这些Prompt仍然会出现在 `PromptsSelector` 的输出字符串中（用于提示词）
-
-#### 映射关系创建
-
-每张保存的图片会在 `images.json` 中创建一条映射记录：
-
-```json
-{
-    "type": "local",
-    "imagePath": "prompt_gallery/AG_1712345678900_00000.png",
-    "prompts": ["mike", "sarah"],
-    "fileInfo": { "width": 512, "height": 768, "createdAt": 1712345678900 }
-}
-```
-
-- `prompts` 是一个数组：一张图片可以关联多个Prompt
-- `type` 可以是 `"local"` 或 `"remote"`（远程图片的 `imagePath` 是 URL）
-- 这些关联信息用于：
-    1. 画廊中按Prompt筛选图片
-    2. 组合图片查询（取所有成员Prompt图片的交集）
-    3. 封面图自动选取（取第一张映射的图片）
-
-#### PNG 元数据嵌入
-
-保存的图片会嵌入以下文本块：
-
-- `prompt`：完整的 ComfyUI 工作流 prompt（可拖入 ComfyUI 恢复工作流）
-- `prompt_gallery`：Prompt关联信息 JSON
-- `extra_pnginfo` 中的其他信息（如 workflow JSON）
-
----
-
-## 五、数据流完整示例
-
-假设用户操作如下：
-
-- 默认分区：选择了Prompt `mike`（root 分类，权重 1.5）、Prompt `sarah`（cat1 分类，权重 1.0）、分类 `cat2`（包含Prompt `alice`、`bob`，权重均为 1.0）
-- 分区配置：格式 `@{content}`，随机模式抽取 2 个，开启保存到画廊，开启自动创建组合
-- 额外分区：选择了组合 `combination:uuid-123`（包含Prompt `tom`, `jerry`，输出内容 `@tom,@jerry`）
-
-### 前端序列化
-
-```json
-{
-    "version": 1,
-    "partitions": [
-        {
-            "id": "partition-default",
-            "name": "默认分区",
-            "enabled": true,
-            "config": {
-                "format": "@{content}",
-                "randomMode": true,
-                "randomCount": 2,
-                "saveToGallery": true,
-                "autoCreateCombination": true,
-                "autoSaveCombinationCategoryId": ""
-            },
-            "orderItems": [
-                { "type": "prompt", "key": "root:mike" },
-                { "type": "prompt", "key": "cat1:sarah" },
-                { "type": "category", "key": "cat2" }
-            ]
-        },
-        {
-            "id": "partition-2",
-            "name": "分区2",
-            "enabled": true,
-            "config": { "format": "{content}", "saveToGallery": true },
-            "orderItems": [
-                { "type": "combination", "key": "combination:uuid-123" }
-            ]
-        }
-    ],
-    "promptWeights": {
-        "root:mike": 1.5
-    }
-}
-```
-
-### 后端处理（假设随机抽到 mike 和 bob）
-
-**解析阶段**：
-
-- 默认分区：`mike`（直接选择）+ `sarah`（直接选择）+ `alice`, `bob`（从 cat2 解析）
-- 分区2：组合 `uuid-123` → outputContent=`@tom,@jerry`, prompts=[`tom`, `jerry`]
-
-**随机模式处理**（默认分区）：
-
-- 从 [mike, sarah, alice, bob] 中随机抽取 2 个，假设得到 [bob, mike]
-- 格式化：`@bob`, `@mike`
-- 权重包裹：mike 权重 1.5 → `(@mike:1.5)`，bob 权重 1.0 → `@bob`
-
-**组合处理**（分区2）：
-
-- 直接使用组合的 outputContent：`@tom,@jerry`
-- 收集组合Prompt：tom, jerry
-
-**自动创建组合**（默认分区）：
-
-- 使用实际选中的Prompt：bob, mike
-- 格式化内容：`@bob,@mike`（自动创建时不包含权重包裹）
-- 组合名：`bob,mike`
-- 检查 `@bob,@mike` 是否已存在，不存在则创建
-
-**最终输出**：
-
-- `prompts_string` = `"@bob,(@mike:1.5),@tom,@jerry"`
-- `metadata_json` = `{ "prompt_names": ["bob", "mike", "tom", "jerry"], ... }`
-
-### SaveToGallery 处理
-
-- 保存图片到 `output/prompt_gallery/AG_xxx.png`
-- 关联Prompt：`["bob", "mike", "tom", "jerry"]`
-- 更新这四位Prompt的图片计数各 +1
-
----
-
-## 六、关键数据结构速查
-
-### 前端内部格式
-
-```
-partitionData = {
-    partitions: Partition[]                          // 分区列表（每个分区含 orderItems[]）
-    promptWeights: { [promptKey]: number }           // Prompt权重 (0~2, 默认 1.0)
-}
-
-Partition = {
-    id, name, isDefault, enabled, config,
-    orderItems: [{ type: 'prompt'|'category'|'combination', key: string }]  // 统一成员+排序数据源
-}
-
-// 派生视图（useMemo 计算，不存储）
-itemsByPartition = {
-    [partitionId]: [{ type, key, data: Object, orphaned: boolean }]  // 解析后的扁平数组
-}
-```
-
-### 前端→后端传输格式（v1 metadata）
-
-```json
-{
-    "version": 1,
-    "partitions": [{
-        "id": "...", "name": "...", "isDefault": bool, "enabled": bool,
-        "config": { format, randomMode, randomCount, cycleMode, saveToGallery, autoCreateCombination, autoSaveCombinationCategoryId },
-        "orderItems": [
-            { "type": "prompt", "key": "categoryId:name" },
-            { "type": "category", "key": "catId" },
-            { "type": "combination", "key": "combination:uuid" }
-        ]
-    }],
-    "promptWeights": { "categoryId:name": 1.5, ... },
-    "globalConfig": { ... }
-}
-```
-
-向后兼容：旧格式的 `promptKeys`/`categoryIds`/`combinationKeys` 数组仍然被后端支持，会自动转换为 `orderItems`。
-
-### 后端→后端传递格式（enriched metadata）
-
-```json
-{
-    "prompt_names": ["name1", "name2", ...],
-    "selected_prompts": [{ "categoryId": "...", "name": "...", "saveToGallery": bool }],
-    "formatted_result": "格式化后的完整字符串"
-}
-```
-
-### 存储层格式
-
-存储采用多文件 glob 架构：每个存储类读取主文件 + glob 匹配的分片文件（如 `import_20260506_120000.prompts.json`），读取时合并，写入时按 `_source_file` 标签分组回写。
-
-- **prompts.json** (glob: `*.prompts.json`): `{ value, name, alias, categoryId, coverImageId, createdAt, imageCount, metadata }`
-- **combinations.json** (glob: `*.combinations.json`): `{ id, name, categoryId, prompts[], outputContent, coverImageId, createdAt }`
-- **images.json** (glob: `*.images.json`): `{ type, imagePath, prompts[], fileInfo, promptString, generatePrompt }`
-- **categories.json** (glob: `*.categories.json`): `{ id, name, parentId, order, createdAt, metadata }`
-
-远程图片：`type` 为 `"remote"` 时，`imagePath` 是 URL。所有端点通过 `is_remote_path()` 跳过本地文件 I/O。
+### 6.2 导入 ComfyUI Output
+
+`导入输出图片` 使用 SSE 实时返回 `preparing`、`scanning`、`metadata`、`writing` 和 `done` 阶段。
+
+后端流程：
+
+1. 调用 `get_all_image_paths()` 构建路径集合，用相对 `output` 的 `imagePath` 去重。
+2. 使用 `os.scandir` 递归扫描白名单或黑名单目录。
+3. 每 500 张组成一批，最多并发 10 个线程读取文件信息和 PNG `prompt`。
+4. 批量写入 `comfy_output.images.json`。
+
+这类索引的 `promptString` 留空，生成信息保存在 `generatePrompt`，后续由图片自定义字段解析。该分片只用于历史视图，不参与 Prompt 图片匹配或封面回填。
+
+前后端 SSE 公共封装分别位于：
+
+- 后端：`routes/_sse.py`
+- 前端：`web/services/sseClient.js`
+
+## 七、封面流程
+
+封面是查询性能优化，不是图片关联数据源。
+
+| 触发场景 | 候选范围 | 行为 |
+| --- | --- | --- |
+| 新建 Prompt | 全部普通图片索引 | 查找最新有效匹配图片 |
+| SaveToGallery | 本次保存第一张图片 | 为本次匹配到的空封面 Prompt 设置封面 |
+| ZIP 导入 | 本次导入图片 | 为新导入 Prompt 和组合补空封面 |
+| 手动自动匹配封面 | 全部普通图片索引 | 为所有空封面 Prompt 和组合选择最新图片 |
+
+启动迁移不会自动扫描全量图片补封面。历史数据需要在设置页手动执行 `自动匹配封面`。
+
+手动回填会忽略不存在的本地图片，远程图片视为有效；已有封面不会被覆盖。
+
+## 八、迁移与兼容
+
+首次使用当前迁移版本时，启动迁移会执行：
+
+1. 旧 Artist schema 到 Prompt schema 的字段与文件迁移。
+2. 旧图片 schema 到 `images.json` 的迁移。
+3. 对缺少 `promptString` 的旧图片索引，从 `prompts` 或 `promptIds` 生成逗号分隔文本。
+
+迁移完成后写入 `.migration_version`，后续启动不重复执行。旧 `imageCount` 可以保留，但系统不再读取、更新或迁移它。
+
+## 九、存储与并发
+
+默认存储目录为 ComfyUI 的 `user/default/prompt_gallery`：
+
+| 文件 | 内容 |
+| --- | --- |
+| `prompts.json` / `*.prompts.json` | Prompt |
+| `categories.json` / `*.categories.json` | 分类 |
+| `combinations.json` / `*.combinations.json` | 组合 |
+| `images.json` / `*.images.json` | 普通图片索引 |
+| `comfy_output*.images.json` | 仅历史视图使用的 Output 导入索引 |
+| `image_fields.json` | 图片自定义字段 |
+| `custom_filters.json` | 自定义筛选器 |
+
+`SplitJsonStorage` 的行为：
+
+- 主文件与已启用分片合并读取。
+- 读取结果缓存在内存，写入后统一失效。
+- 每个 Storage 使用线程锁保护读改写。
+- 批量操作尽量在一次锁和一次文件写入中完成。
+- `_source_file` 只用于决定回写分片，不会持久化到 JSON。
+- `comfy_output` 分片从普通 glob 读取中排除，避免大文件常驻缓存。
+
+## 十、关键不变量
+
+后续修改代码时应保持以下约束：
+
+1. Image 到 Prompt 的关联只能从 `promptString` 派生，不能重新引入持久化 Prompt ID 数组。
+2. `SaveToGallery.prompt_string` 必须保持必填，保存失败与后台索引失败必须可区分。
+3. 列表接口不能为了图片数量或封面扫描全部图片索引。
+4. `coverImageId` 只在为空时自动补齐，用户设置的封面不能被后台任务覆盖。
+5. 批量写入必须复用 Storage 的批处理方法，避免每张图片重复读写 JSON。
+6. Output 导入分片不能进入普通 Prompt 匹配和封面回填路径。

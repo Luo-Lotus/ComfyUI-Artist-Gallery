@@ -1,4 +1,3 @@
-import uuid
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -17,7 +16,6 @@ class PromptStorage(SplitJsonStorage):
         self.storage_dir = storage_dir
         self.prompts_file = storage_dir / "prompts.json"
         self._idx_by_key = None  # (categoryId, value) -> prompt
-        self._idx_by_id = None   # id -> prompt
         self._idx_by_category = None  # categoryId -> [prompt, ...]
         self._ensure_storage_dir()
 
@@ -32,35 +30,24 @@ class PromptStorage(SplitJsonStorage):
     def _invalidate_cache(self):
         super()._invalidate_cache()
         self._idx_by_key = None
-        self._idx_by_id = None
         self._idx_by_category = None
 
     def _build_indexes(self):
         """构建内存索引（懒加载，写入时失效）"""
         data = self._read_data()
         self._idx_by_key = {}
-        self._idx_by_id = {}
         self._idx_by_category = {}
         for p in data.get("prompts", []):
             category_id = p.get("categoryId", "root")
             key = (category_id, p.get("value", ""))
             self._idx_by_key[key] = p
             self._idx_by_category.setdefault(category_id, []).append(p)
-            if p.get("id"):
-                self._idx_by_id[p["id"]] = p
 
     def get_all_prompts(self) -> List[dict]:
         """获取所有Prompt"""
         with self._lock:
             data = self._read_data()
             return data.get("prompts", [])
-
-    def get_prompt_by_id(self, prompt_id: str) -> Optional[dict]:
-        """根据 ID 获取Prompt（O(1) 索引查找）"""
-        with self._lock:
-            if self._idx_by_id is None:
-                self._build_indexes()
-            return self._idx_by_id.get(prompt_id)
 
     def get_prompt(self, category_id: str, value: str) -> Optional[dict]:
         """
@@ -347,36 +334,6 @@ class PromptStorage(SplitJsonStorage):
             if changed:
                 self._write_data(data)
             return changed
-
-    def update_prompt_by_id(self, prompt_id: str, **kwargs) -> bool:
-        """
-        更新Prompt信息（使用 ID，兼容旧版本）
-        :param prompt_id: Prompt ID
-        :param kwargs: 要更新的字段
-        :return: 是否更新成功
-        """
-        with self._lock:
-            data = self._read_data()
-
-            # 如果要更新 value，需要检查重复
-            if "value" in kwargs:
-                new_value = kwargs["value"]
-                for prompt in data["prompts"]:
-                    if prompt.get("id") != prompt_id and prompt.get("value") == new_value:
-                        raise ValueError(f"Prompt值 '{new_value}' 已存在")
-
-            for prompt in data["prompts"]:
-                if prompt.get("id") == prompt_id:
-                    for key, value in kwargs.items():
-                        if key in ["value", "name", "alias", "categoryId", "coverImageId"]:
-                            prompt[key] = value
-                        elif key == "metadata":
-                            if not isinstance(prompt.get("metadata"), dict):
-                                prompt["metadata"] = {}
-                            prompt["metadata"].update(value)
-                    self._write_data(data)
-                    return True
-            return False
 
     def delete_prompt(self, category_id: str, value: str) -> bool:
         """

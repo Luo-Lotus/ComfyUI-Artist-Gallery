@@ -5,80 +5,10 @@ from pathlib import Path
 from aiohttp import web
 import server
 from ..storage import get_storage
-from ._delete_utils import delete_prompt_cascade
 from ._prompt_cover import ensure_prompt_cover
 
 
 # ============ Prompt CRUD API ============
-
-@server.PromptServer.instance.routes.get("/prompt_gallery/prompts")
-async def get_prompts(request):
-    """搜索Prompt列表（必须传 search 参数）"""
-    try:
-        search = request.query.get("search", "").strip()
-        if not search:
-            return web.json_response({"error": "需要 search 参数"}, status=400)
-
-        limit = min(int(request.query.get("limit", "100")), 200)
-        query = search.lower()
-
-        prompt_storage, _, _, _ = get_storage()
-        all_prompts = prompt_storage.get_all_prompts()
-
-        results = []
-        for p in all_prompts:
-            if (query in (p.get("value") or "").lower()
-                    or query in (p.get("name") or "").lower()
-                    or query in (p.get("alias") or "").lower()):
-                results.append({
-                    "value": p.get("value"),
-                    "name": p.get("name"),
-                    "categoryId": p.get("categoryId", "root"),
-                    "createdAt": p.get("createdAt", 0),
-                })
-                if len(results) >= limit:
-                    break
-
-        return web.json_response({"prompts": results, "totalCount": len(results)})
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
-
-
-@server.PromptServer.instance.routes.post("/prompt_gallery/prompts/batch_resolve")
-async def batch_resolve_prompts(request):
-    """批量解析Prompt（根据组合键列表返回 prompt 对象）"""
-    try:
-        data = await request.json()
-        keys = data.get("keys", [])
-        if not keys:
-            return web.json_response({"prompts": {}})
-
-        prompt_storage, _, _, _ = get_storage()
-        all_prompts = prompt_storage.get_all_prompts()
-
-        # 构建 categoryId:value -> prompt 的索引
-        prompt_index = {}
-        for p in all_prompts:
-            key = f"{p.get('categoryId', 'root')}:{p.get('value')}"
-            prompt_index[key] = p
-
-        result = {}
-        for key in keys:
-            p = prompt_index.get(key)
-            if p:
-                result[key] = {
-                    "value": p.get("value"),
-                    "name": p.get("name"),
-                    "categoryId": p.get("categoryId", "root"),
-                    "alias": p.get("alias", ""),
-                    "createdAt": p.get("createdAt", 0),
-                    "metadata": p.get("metadata", {}),
-                }
-
-        return web.json_response({"prompts": result})
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
-
 
 @server.PromptServer.instance.routes.post("/prompt_gallery/batch_resolve")
 async def batch_resolve(request):
@@ -89,30 +19,19 @@ async def batch_resolve(request):
         category_ids = data.get("categories", [])
         combination_ids = data.get("combinations", [])
 
-        prompt_storage, mapping_storage, category_storage, combination_storage = get_storage()
+        prompt_storage, _, category_storage, combination_storage = get_storage()
 
         result = {}
 
         # 解析 prompts（支持 "categoryId:value" 和纯 "value" 两种格式）
         if prompt_keys:
-            all_prompts = prompt_storage.get_all_prompts()
-            prompt_index = {}
-            value_index = {}  # value -> [prompt, ...]（同名 prompt 可能属于不同分类）
-            for p in all_prompts:
-                key = f"{p.get('categoryId', 'root')}:{p.get('value')}"
-                prompt_index[key] = p
-                v = p.get('value', '')
-                if v not in value_index:
-                    value_index[v] = []
-                value_index[v].append(p)
             prompts_result = {}
             for key in prompt_keys:
-                p = prompt_index.get(key)
-                # fallback: 纯 value 查找（取第一个匹配）
-                if not p and ':' not in key:
-                    matches = value_index.get(key, [])
-                    if matches:
-                        p = matches[0]
+                if ':' in key:
+                    category_id, value = key.split(':', 1)
+                    p = prompt_storage.get_prompt(category_id, value)
+                else:
+                    p = prompt_storage.get_prompt_by_value(key)
                 if p:
                     result_key = f"{p.get('categoryId', 'root')}:{p.get('value')}"
                     prompts_result[result_key] = {
@@ -142,10 +61,8 @@ async def batch_resolve(request):
         # 解析 combinations
         if combination_ids:
             combinations_result = {}
-            all_combs = combination_storage.get_all_combinations()
-            comb_index = {c.get("id"): c for c in all_combs}
             for comb_id in combination_ids:
-                c = comb_index.get(comb_id)
+                c = combination_storage.get_combination_by_id(comb_id)
                 if c:
                     combinations_result[comb_id] = {
                         "id": c.get("id"),
@@ -281,24 +198,6 @@ async def add_prompts_batch(request):
         return web.json_response({"error": str(e)}, status=500)
 
 
-@server.PromptServer.instance.routes.get(r"/prompt_gallery/prompts/{category_id}/{value:[\s\S]+}")
-async def get_prompt_composite(request):
-    """获取单个Prompt详情（使用组合键）"""
-    try:
-        category_id = request.match_info['category_id']
-        value = request.match_info['value']
-
-        prompt_storage, _, _, _ = get_storage()
-        prompt = prompt_storage.get_prompt(category_id, value)
-
-        if not prompt:
-            return web.json_response({"error": "Prompt不存在"}, status=404)
-
-        return web.json_response({"prompt": prompt})
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
-
-
 @server.PromptServer.instance.routes.put(r"/prompt_gallery/prompts/{category_id}/{value:[\s\S]+}")
 async def update_prompt_composite(request):
     """更新Prompt信息（使用组合键）"""
@@ -307,7 +206,7 @@ async def update_prompt_composite(request):
         old_value = request.match_info['value']
         data = await request.json()
 
-        prompt_storage, mapping_storage, category_storage, _ = get_storage()
+        prompt_storage, _, category_storage, _ = get_storage()
 
         # 检查是否要修改值
         new_value = data.get("value", old_value)
@@ -413,125 +312,18 @@ async def delete_prompt_composite(request):
         category_id = request.match_info['category_id']
         value = request.match_info['value']
 
-        prompt_storage, mapping_storage, _, combination_storage = get_storage()
+        prompt_storage, _, _, _ = get_storage()
 
         prompt = prompt_storage.get_prompt(category_id, value)
         if not prompt:
             return web.json_response({"error": "Prompt不存在"}, status=404)
 
-        result = delete_prompt_cascade(
-            category_id, value,
-            prompt_storage, mapping_storage, combination_storage,
-        )
+        prompt_storage.delete_prompt(category_id, value)
 
         return web.json_response({
             "success": True,
             "message": f"已删除Prompt '{prompt.get('name')}'",
-            "deletedFiles": result["deleted_files"],
-            "disassociatedImages": result["disassociated_images"],
-            "affectedCombinations": result["affected_combinations"],
         })
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
-
-
-@server.PromptServer.instance.routes.put("/prompt_gallery/prompts/{prompt_id}")
-async def update_prompt(request):
-    """更新Prompt信息"""
-    try:
-        prompt_id = request.match_info['prompt_id']
-        data = await request.json()
-
-        prompt_storage, _, category_storage, _ = get_storage()
-
-        kwargs = {}
-        if "value" in data:
-            kwargs["value"] = data["value"]
-        if "name" in data:
-            kwargs["name"] = data["name"]
-        if "alias" in data:
-            kwargs["alias"] = data["alias"]
-        if "categoryId" in data:
-            # 验证分类存在
-            category = category_storage.get_category_by_id(data["categoryId"])
-            if not category:
-                return web.json_response({"error": "分类不存在"}, status=400)
-            kwargs["categoryId"] = data["categoryId"]
-        if "coverImageId" in data:
-            kwargs["coverImageId"] = data["coverImageId"]
-        if "metadata" in data:
-            kwargs["metadata"] = data["metadata"]
-
-        success = prompt_storage.update_prompt_by_id(prompt_id, **kwargs)
-
-        if success:
-            prompt = prompt_storage.get_prompt_by_id(prompt_id)
-            return web.json_response({"prompt": prompt, "success": True})
-        else:
-            return web.json_response({"error": "Prompt不存在"}, status=404)
-    except ValueError as e:
-        return web.json_response({"error": str(e)}, status=400)
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
-
-
-@server.PromptServer.instance.routes.post("/prompt_gallery/prompts/{prompt_id}/move")
-async def move_prompt(request):
-    """移动Prompt到其他分类下"""
-    try:
-        prompt_id = request.match_info['prompt_id']
-        data = await request.json()
-        new_category_id = data.get("newCategoryId", "root")
-
-        prompt_storage, _, category_storage, _ = get_storage()
-
-        # 验证新分类存在
-        category = category_storage.get_category_by_id(new_category_id)
-        if not category:
-            return web.json_response({"error": "目标分类不存在"}, status=400)
-
-        # 更新Prompt的分类
-        success = prompt_storage.update_prompt_by_id(prompt_id, categoryId=new_category_id)
-
-        if success:
-            prompt = prompt_storage.get_prompt_by_id(prompt_id)
-            return web.json_response({"prompt": prompt, "success": True})
-        else:
-            return web.json_response({"error": "Prompt不存在"}, status=404)
-    except ValueError as e:
-        return web.json_response({"error": str(e)}, status=400)
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
-
-
-@server.PromptServer.instance.routes.get("/prompt_gallery/prompt/{prompt_id}/images")
-async def get_prompt_images(request):
-    """获取Prompt关联的图片（通过映射查询）"""
-    try:
-        prompt_id = request.match_info['prompt_id']
-
-        prompt_storage, mapping_storage, _, _ = get_storage()
-        prompt = prompt_storage.get_prompt_by_id(prompt_id)
-        if not prompt:
-            return web.json_response({"error": "Prompt不存在"}, status=404)
-
-        mappings = mapping_storage.get_mappings_by_prompt(prompt.get("value"))
-
-        # 构建图片信息
-        images = []
-        for mapping in mappings:
-            images.append({
-                "path": mapping.get("imagePath"),
-                "type": mapping.get("type", "local"),
-                "savedAt": mapping.get("fileInfo", {}).get("createdAt"),
-                "fileInfo": mapping.get("fileInfo", {}),
-                "promptString": mapping.get("promptString", ""),
-            })
-
-        # 按时间倒序排序
-        images.sort(key=lambda x: x.get("savedAt", 0), reverse=True)
-
-        return web.json_response({"images": images, "totalCount": len(images)})
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 

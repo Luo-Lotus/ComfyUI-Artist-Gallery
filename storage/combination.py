@@ -145,31 +145,6 @@ class CombinationStorage(SplitJsonStorage):
                 return True
             return False
 
-    def duplicate_combination(self, combination_id: str, new_name: str = None) -> Optional[dict]:
-        """复制组合（独立副本）"""
-        with self._lock:
-            data = self._read_data()
-
-            source = None
-            for c in data["combinations"]:
-                if c.get("id") == combination_id:
-                    source = c
-                    break
-
-            if not source:
-                return None
-
-            new_combination = {
-                **source,
-                "id": str(uuid.uuid4()),
-                "name": new_name or f"{source['name']} (副本)",
-                "createdAt": int(time.time() * 1000),
-            }
-
-            data["combinations"].append(new_combination)
-            self._write_data(data)
-            return new_combination
-
     def move_combination(self, combination_id: str, new_category_id: str) -> bool:
         """移动组合到新分类"""
         result = self.update_combination(combination_id, categoryId=new_category_id)

@@ -327,8 +327,6 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
         comparison = a.value.localeCompare(b.value, 'zh-CN');
       } else if (sortBy === 'created_at') {
         comparison = a.createdAt - b.createdAt;
-      } else if (sortBy === 'image_count') {
-        comparison = (a.imageCount || 0) - (b.imageCount || 0);
       }
       return sortOrder === 'asc' ? comparison : -comparison;
     });
