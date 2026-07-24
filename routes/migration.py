@@ -11,8 +11,8 @@ from ..storage import migrate_to_composite_key, _resolve_storage_dir
 @server.PromptServer.instance.routes.post("/prompt_gallery/migrate")
 async def migrate_data(request):
     """
-    迁移数据到组合键架构
-    从 UUID 架构迁移到 (categoryId, name) 组合键架构
+    迁移数据到复合键架构
+    从 UUID 架构迁移到 (categoryId, name) 复合键架构
     """
     try:
         # 获取存储目录

@@ -1,6 +1,6 @@
 /**
  * 移动对话框组件
- * 用于移动分类、Prompt 或组合到其他分类
+ * 用于移动分类或 Prompt 到其他分类
  */
 import { h } from '../lib/preact.mjs';
 import { useState, useMemo } from '../lib/hooks.mjs';
@@ -11,7 +11,7 @@ import { Icon } from '../lib/icons.mjs';
 
 export function MoveDialog({
   isOpen,
-  itemType, // 'category' | 'prompt' | 'combination'
+  itemType, // 'category' | 'prompt'
   item,
   categories,
   onClose,
@@ -35,9 +35,6 @@ export function MoveDialog({
         });
       };
       collectChildren(item?.id);
-    } else if (itemType === 'combination') {
-      // 排除组合当前所在的分类
-      ids.push(item?.categoryId);
     }
 
     return ids;
@@ -64,7 +61,6 @@ export function MoveDialog({
     const titles = {
       category: `移动分类 "${item?.name}"`,
       prompt: `移动Prompt "${item?.name || item?.value}"`,
-      combination: `移动组合 "${item?.name}"`,
     };
     return titles[itemType] || '移动';
   };

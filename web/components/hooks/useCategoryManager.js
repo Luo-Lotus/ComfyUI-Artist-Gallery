@@ -12,7 +12,7 @@ import {
 import { deleteCategory } from '../../services/promptApi.js';
 import { showToast } from '../Toast.js';
 
-export function useCategoryManager({ viewMode, currentPrompt, viewModeCombination, onNavigateToGallery }) {
+export function useCategoryManager({ viewMode, currentPrompt, onNavigateToGallery }) {
   const [categories, setCategories] = useState([]);
   const [currentCategory, setCurrentCategory] = useState('root');
   const [categoryPath, setCategoryPath] = useState([]);
@@ -51,20 +51,9 @@ export function useCategoryManager({ viewMode, currentPrompt, viewModeCombinatio
         ];
       }
 
-      if (viewMode === 'combination' && viewModeCombination) {
-        path = [
-          ...path,
-          {
-            id: viewModeCombination.id,
-            name: viewModeCombination.name,
-            type: 'combination',
-          },
-        ];
-      }
-
       setCategoryPath(path);
     }
-  }, [currentCategory, categories, viewMode, currentPrompt, viewModeCombination]);
+  }, [currentCategory, categories, viewMode, currentPrompt]);
 
   // 获取当前分类的子分类
   const currentCategoryChildren = useMemo(() => {
@@ -95,7 +84,7 @@ export function useCategoryManager({ viewMode, currentPrompt, viewModeCombinatio
   };
 
   const handleBreadcrumbNavigate = (item) => {
-    if (item.type === 'prompt' || item.type === 'combination') {
+    if (item.type === 'prompt') {
       return;
     }
     setCurrentCategory(item.id);

@@ -24,7 +24,7 @@ export async function addPrompt(promptData) {
 }
 
 /**
- * 更新Prompt（使用组合键）
+ * 更新 Prompt（使用复合键）
  */
 export async function updatePromptByKey(categoryId, value, promptData) {
   return await requestJson(
@@ -86,7 +86,7 @@ export async function deleteImage(imagePath) {
 }
 
 /**
- * 删除分类（级联删除子分类、Prompt、组合）
+ * 删除分类（级联删除子分类和 Prompt）
  */
 export async function deleteCategory(categoryId) {
   return await requestJson(`/prompt_gallery/categories/${encodeURIComponent(categoryId)}`, {
@@ -95,22 +95,13 @@ export async function deleteCategory(categoryId) {
 }
 
 /**
- * 删除组合
+ * 批量删除（分类、Prompt、图片）
  */
-export async function deleteCombination(id) {
-  return await requestJson(`/prompt_gallery/combinations/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-  }, '删除组合失败');
-}
-
-/**
- * 批量删除（分类、Prompt、组合、图片）
- */
-export async function batchDelete({ categories = [], prompts = [], combinations = [], images = [] }) {
+export async function batchDelete({ categories = [], prompts = [], images = [] }) {
   return await requestJson('/prompt_gallery/batch/delete', {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ categories, prompts, combinations, images }),
+    body: JSON.stringify({ categories, prompts, images }),
   }, '批量删除失败');
 }
 
@@ -145,22 +136,6 @@ export async function updatePromptMetadata(categoryId, value, metadata) {
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || '更新 Prompt metadata 失败');
-  }
-  return await response.json();
-}
-
-/**
- * 更新组合 metadata
- */
-export async function updateCombinationMetadata(id, metadata) {
-  const response = await fetch(`/prompt_gallery/combinations/${encodeURIComponent(id)}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ metadata }),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '更新组合 metadata 失败');
   }
   return await response.json();
 }

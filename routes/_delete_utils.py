@@ -70,35 +70,24 @@ def delete_images_completely_batch(image_paths: list, mapping_storage) -> dict:
 
 def delete_category_cascade(category_id: str,
                              prompt_storage,
-                             category_storage, combination_storage) -> dict:
+                             category_storage) -> dict:
     """
     删除分类：
     1. 递归收集所有子分类 ID
-    2. 删除这些分类下的组合记录
-    3. 删除这些分类下的 prompt 记录
-    4. 删除分类记录
+    2. 删除这些分类下的 prompt 记录
+    3. 删除分类记录
 
-    不再清理图片映射，也不再从其他组合中移除 Prompt 成员。
+    不清理图片映射。
     """
     result = {
         "deleted_categories": [],
         "deleted_prompts": [],
-        "deleted_combinations": 0,
     }
 
     # 1. 递归收集所有子分类
     all_cat_ids = category_storage.get_descendant_ids(category_id)
 
-    # 2. 收集并删除所有分类下的组合
-    all_combinations = combination_storage.get_all_combinations()
-    combo_ids_to_delete = [
-        c["id"] for c in all_combinations
-        if c.get("categoryId") in all_cat_ids
-    ]
-    if combo_ids_to_delete:
-        result["deleted_combinations"] = combination_storage.batch_delete(combo_ids_to_delete)
-
-    # 3. 收集所有分类下的 prompt，批量级联删除
+    # 2. 收集所有分类下的 prompt，批量级联删除
     all_prompts = prompt_storage.get_all_prompts()
     prompts_to_delete = [
         a for a in all_prompts
@@ -111,7 +100,7 @@ def delete_category_cascade(category_id: str,
         for p in prompts_to_delete:
             result["deleted_prompts"].append(p.get("name", p["value"]))
 
-    # 4. 批量删除分类记录（一次写入）
+    # 3. 批量删除分类记录（一次写入）
     try:
         deleted_count = category_storage.batch_delete(all_cat_ids)
         if deleted_count:

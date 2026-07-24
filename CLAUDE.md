@@ -1,657 +1,162 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Overview
-
-Prompt Gallery is a ComfyUI custom node plugin that provides:
-
-- **Floating gallery UI**: Draggable button (🎨) with modal interface for browsing prompt reference images
-- **Storage system**: JSON-based persistence for prompts, categories, combinations, and image-prompt mappings
-- **Custom nodes**: PromptGallery (UI), PromptSelector (workflow integration), SaveToGallery (saving images)
-- **Combination system**: Group multiple prompts into selectable units, auto-create on save
-- **Category system**: Hierarchical prompt categorization with tree navigation
-- **Toast notification system**: Modern, non-blocking user feedback
-- **Dialog components**: Reusable modal dialog system
-- **Automatic detection**: Scans ComfyUI output directory for images matching `@prompt_name,_number.ext` pattern
+Development notes for Prompt Gallery, a ComfyUI custom node extension for organizing reusable prompts, selecting them in workflows, saving generated images, and browsing image history.
 
 ## Architecture
 
-### Backend (Python)
+The active domain model has three primary entities:
 
-**`__init__.py`**: Plugin entry point
+- Category: hierarchical organization.
+- Prompt: identified by `(categoryId, value)`.
+- Image mapping: image path plus `promptString` and generation metadata.
 
-- Registers three node classes via `NODE_CLASS_MAPPINGS` and `NODE_DISPLAY_NAME_MAPPINGS`
-- Sets `WEB_DIRECTORY = "./web"` for frontend assets
-
-**`nodes.py`**: Node classes and output processing logic
-
-- **PromptGallery**: Output node for UI (no workflow output)
-- **PromptSelector**: Workflow node that provides prompt selection widget
-    - Processes partitions, resolves prompts from `orderItems` (unified flat list per partition, each item has `type` + `key`)
-    - Handles random/cycle mode, format templates, auto-create combination
-    - Tracks `partition_used_prompts` (actual prompts after random/cycle filtering)
-    - Tracks `partition_formats` (per-partition format string)
-- **SaveToGallery**: Saves generated images to the gallery system
-    - Uses `prompt_string` to auto-match known prompt names via loop-based substring matching
-    - Writes image mappings and prompt cover updates in a background thread after PNG files are saved
-    - Images are always saved even when no prompts match (prompts list will be empty)
-    - `_match_prompts_from_prompt()`: Loop-based matching (`name.lower() in prompt_string.lower()`), cached at module level with frozenset fingerprint
-    - Uses `collect_prompt()` to register prompt associations for saved images
-- **`_apply_format()`**: Applies format template (e.g., `@{content}`) to prompt names
-
-**`storage/`**: Data persistence layer (split into modules)
-
-| Module             | Class                 | Main Storage File  | Glob Pattern          | Purpose                                        |
-| ------------------ | --------------------- | ------------------ | --------------------- | ---------------------------------------------- |
-| `prompt.py`        | `PromptStorage`       | `prompts.json`     | `*.prompts.json`      | Prompt CRUD, batch operations, import batch    |
-| `category.py`      | `CategoryStorage`     | `categories.json`  | `*.categories.json`   | Hierarchical category tree                     |
-| `combination.py`   | `CombinationStorage`  | `combinations.json`| `*.combinations.json` | Combination CRUD, duplicate, move              |
-| `image_mapping.py` | `ImageMappingStorage` | `images.json`      | `*.images.json`       | Image-prompt relationships, cover image lookup |
-| `migration.py`     | —                     | —                  | —                     | Data migration utilities                       |
-| `_resolve.py`      | —                     | —                  | —                     | Storage directory resolution                   |
-
-All storage classes are thread-safe with locking mechanism. Access via `get_storage()` from `storage/__init__.py`.
-
-**Multi-file glob storage**: Each storage class reads from its main file + all glob-matched shard files (e.g., `import_20260506_120000.prompts.json`), merges items on read, and splits back by `_source_file` tag on write. This supports the "separate storage" import option — imported data writes to new shard files instead of appending to the main file.
-
-**`routes/`**: HTTP API endpoints (split into modules)
-
-| Module             | Endpoints                                                                                        |
-| ------------------ | ------------------------------------------------------------------------------------------------ |
-| `gallery.py`       | `GET /data` — returns prompts + combinations with `coverImagePath` (no full `images` array)      |
-| `prompts.py`       | Prompt CRUD, batch operations, `GET /prompt_images` (lazy-load prompt images), `POST /batch_resolve` (resolve mixed prompt/category/combination keys) |
-| `categories.py`    | Category CRUD, move (supports `metadata` field update)                                           |
-| `combinations.py`  | Combination CRUD, duplicate, move, images (intersection of member prompts), batch delete         |
-| `images.py`        | Image info, save to gallery, delete/move/copy image, restore from metadata                       |
-| `batch.py`         | Batch delete, move, copy operations                                                              |
-| `import_export.py` | Data import/export (batch import, ZIP import, JSON export)                                       |
-| `history.py`       | `GET /images_grouped` — images grouped by date, with prompt/combination filtering                |
-| `init.py`          | `GET /init` — combined init data (categories + prompts + combinations) for faster frontend load  |
-| `cycle_state.py`   | Cycle mode state persistence                                                                     |
-| `migration.py`     | Data migration endpoints                                                                         |
-| `_utils.py`        | Shared utilities (`is_remote_path()`)                                                            |
-
-**Key design decisions**:
-
-- Gallery list API (`/data`) returns `coverImagePath` only (no `images` array) for performance
-- Prompt images are lazy-loaded via `/prompt_images?value=` when entering detail view
-- `coverImageId` is the internal storage field; API responses compute and expose only `coverImagePath`
-- Combination images endpoint returns intersection of all member prompts' images
-- Remote images (`type: "remote"`, imagePath is URL) are supported across all endpoints via `is_remote_path()` check
-- Init endpoint (`/init`) returns categories + prompts + combinations in one call for faster frontend initialization
-- Batch resolve endpoint (`POST /batch_resolve`) resolves mixed entity keys (prompts, categories, combinations) in one call, used for hydrating selected items from non-root categories
-
-### Frontend (JavaScript/Preact)
-
-**Architecture**:
-
-- **Standard ES6 modules**: Uses `import/export`
-- **Component-based**: Modular, reusable components
-- **Custom Hooks**: Business logic extracted into hooks
-- **Service Layer**: API calls centralized in services
-- **Toast Notifications**: Replaces native `alert()`
-- **Dialog Components**: Reusable modal system
-
-#### File Structure
-
-```
-web/
-├── prompt_gallery.js              # Main entry point
-├── utils.js                       # Shared utilities (buildImageUrl, fetchPromptImages, setPromptCover, batchResolve, fetchCovers)
-├── Draggable.js                   # Drag-and-drop
-├── lib/                           # Third-party libraries
-│   ├── preact.mjs                 # Preact core
-│   ├── hooks.mjs                  # Preact hooks
-│   ├── icons.mjs                  # SVG icon system (Icon component + iconToSvg helper)
-│   └── gilbert.mjs                # Gilbert curve algorithm (pixel shuffling for image obfuscation)
-├── components/                    # Preact components
-│   ├── GalleryModal.js            # Main gallery container (lazy-loads prompt images, "set as cover" menu)
-│   ├── GalleryContext.js           # Shared gallery state (context provider)
-│   ├── GalleryHeader.js           # Gallery header with actions
-│   ├── GalleryGrid.js             # Prompt grid layout
-│   ├── GalleryCard.js             # Individual prompt card (uses coverImagePath)
-│   ├── GalleryFilterBar.js        # Filter/search bar
-│   ├── CombinationCard.js         # Combination card (uses coverImagePath)
-│   ├── CombinationDialog.js       # Create/edit combination dialog
-│   ├── CombinationDetailView.js   # Combination detail view
-│   ├── Lightbox.js                # Full-screen image viewer with edit mode (obfuscation, brush, mosaic)
-│   ├── BaseCard.js                # Card base component (selection, context menu)
-│   ├── ContextMenu.js             # Right-click context menu
-│   ├── LazyList.js                # Virtual scroll list
-│   ├── Toast.js                   # Toast notification system
-│   ├── Dialog.js                  # Reusable modal dialog
-│   ├── AddPromptDialog.js         # Add/Edit prompt dialog
-│   ├── DeleteConfirmDialog.js     # Delete confirmation dialog
-│   ├── CopyDialog.js              # Copy to category dialog
-│   ├── MoveDialog.js              # Move to category dialog
-│   ├── CategoryDialog.js          # Category CRUD dialog
-│   ├── ImportImagesDialog.js      # Batch image import dialog (with separate storage option)
-│   ├── ImportZipDialog.js         # ZIP file import dialog (drag/drop + separate storage)
-│   ├── ExportDialog.js            # Export dialog
-│   ├── HistoryView.js             # History view (images grouped by date)
-│   ├── ImageGroupView.js          # Image group display
-│   ├── PromptDetailModal.js       # Prompt detail modal
-│   ├── PromptDetailView.js        # Prompt detail view
-│   ├── Breadcrumb.js              # Breadcrumb navigation
-│   ├── BatchActionBar.js          # Batch action bar
-│   ├── BatchConfirmDialog.js      # Batch confirmation dialog
-│   ├── CategoryCard.js            # Category card component
-│   ├── FileUploader.js            # File upload component
-│   ├── FlatSelector.js            # Flat selector
-│   ├── TreeSelector.js            # Tree selector
-│   ├── ImportPreview.js           # Import preview
-│   ├── SizePresets.js             # Size preset options
-│   └── hooks/
-│       ├── useGalleryData.js      # Data fetching & caching
-│       ├── useFilteredPrompts.js  # Filtering & sorting
-│       ├── useCategoryManager.js  # Category management
-│       ├── useSelection.js        # Selection state
-│       ├── useItemOperations.js   # Item CRUD operations
-│       └── useLightboxEditor.js   # Lightbox edit mode state (canvas, undo, brush, mosaic, obfuscation)
-├── nodes/                         # Node-specific components
-│   ├── PromptSelector.js          # Node extension entry (beforeRegisterNodeDef)
-│   └── components/
-│       ├── PromptSelectorWidget.js    # Preact widget (hover preview, itemsByPartition, drag-reorder)
-│       ├── PartitionList.js           # Partition list with drag-drop
-│       ├── PartitionItem.js           # Individual partition item
-│       ├── PartitionHeader.js         # Partition header (shows link icon badge for auto-create)
-│       ├── PartitionConfigPanel.js    # Per-partition config (format, random, cycle, saveToGallery, autoCreateCombination, autoSaveCombinationCategoryId with searchable category selector)
-│       └── hooks/
-│           ├── usePromptSelector.js   # Core selection logic (loads data via /init, derives selection from orderItems)
-│           ├── useImagePreview.js     # Cover image hover preview (direct DOM, no fetch)
-│           ├── useNodeSync.js         # Node value synchronization
-│           ├── usePartitionPreview.js # Partition content hover preview popup
-│           ├── useBodyRender.js       # Portal rendering hook (renders to document.body)
-│           └── usePartitionState.js   # Partition state, orderItems management & persistence
-├── services/
-│   └── promptApi.js               # API call functions
-└── styles/                        # Component styles
-    ├── gallery.css                # Gallery modal styles
-    ├── gallery-card.css           # Card styles
-    ├── gallery-grid.css           # Grid layout styles
-    ├── lightbox.css               # Lightbox styles (viewer, info panel, edit toolbar, brush/mosaic panel)
-    ├── prompt-selector.css        # Selector styles
-    ├── combination.css            # Combination styles
-    ├── toast.css                  # Notification styles
-    ├── dialogs.css                # Dialog styles
-    ├── context-menu.css           # Context menu styles
-    ├── variables.css              # CSS variables
-    └── ...                        # Other style files
-```
-
-#### Key Components
-
-**Dialog System**:
-
-- `Dialog.js`: Reusable modal with title, content, footer
-- `DialogButton`: Styled button (default/primary/danger variants)
-
-**Toast Notifications**:
-
-- Replaces `alert()` calls
-- Types: success, error, warning, info
-- Auto-dismiss after 3 seconds
-
-**Custom Hooks**:
-
-- `useGalleryData`: Fetches and caches gallery data
-- `useFilteredPrompts`: Filters and sorts prompt list with `useMemo`
-- `usePromptSelector`: Core selection state, loads data from `/init` endpoint, uses `hydrateAll` + `batchResolve` for selected items from non-root categories
-- `useImagePreview`: Direct DOM preview popup using `coverImagePath` (no API fetch)
-- `usePartitionState`: Partition CRUD, `orderItems` management (unified member list per partition), persistence
-- `useLightboxEditor`: Lightbox edit mode — canvas rendering, undo stack, brush/mosaic/obfuscation tools
-
-**Lightbox Editor**:
-
-The Lightbox (`Lightbox.js`) has an edit mode for image manipulation. Click the "编辑" button above the image to enter edit mode.
-
-- **混淆 (Obfuscate)**: Scrambles pixels using Gilbert curve space-filling curve + golden ratio offset (`gilbert.mjs`). The same image dimensions always produce the same shuffling, so it's reversible
-- **还原 (Restore)**: Restores the original image, clearing all edits (obfuscation + brush + mosaic)
-- **画笔 (Brush)**: Freehand drawing with configurable color and size. Supports touch
-- **马赛克 (Mosaic)**: Paints mosaic blocks — averages pixel colors in the brush area. Size slider controls block size (1–80px). No color picker (uses image's own colors)
-- **撤销 (Undo)**: Reverts last operation (up to 20 steps). Ctrl+Z shortcut
-- All edits are preview-only — closing the Lightbox discards changes, original files are not modified
-- Right-click on canvas opens browser context menu (for copying), does not trigger drawing
-- Edit mode uses `<canvas>` instead of `<img>`, image loaded via `buildImageUrl()` with `crossOrigin='anonymous'`
-- Navigating to a different image automatically exits edit mode
-
-**Cover Image System**:
-
-- Storage field: `coverImageId` (path stored in JSON)
-- API response field: `coverImagePath` (computed: `coverImageId || first_mapping_image`)
-- Frontend uses only `coverImagePath` — `coverImageId` is not exposed in API responses
-- Set via right-click menu → "设为封面", calls `setPromptCover()` or `updateCombinationApi()`
-
-**Combination System**:
-
-- `CombinationStorage`: CRUD in `combinations.json`
-- Fields: `id`, `name`, `categoryId`, `prompts[]`, `outputContent`, `coverImageId`
-- Auto-create: When partition has `autoCreateCombination` enabled, `SaveToGallery` creates a combination with:
-    - `name` = comma-joined prompt names
-    - `outputContent` = formatted content (e.g., `@prompt_one,@prompt_two` if format is `@{content}`)
-    - `prompts` = actually used prompts (after random/cycle filtering)
-    - `categoryId` = `autoSaveCombinationCategoryId` from partition config (defaults to `"root"`)
-- Auto-create requires `saveToGallery` enabled on the partition
-
-**Partition System**:
-
-- Each partition has independent config: `format`, `randomMode`, `randomCount`, `cycleMode`, `saveToGallery`, `autoCreateCombination`, `autoSaveCombinationCategoryId`
-- Each partition has `orderItems[]` — a unified flat list of members: `[{ type: 'prompt'|'category'|'combination', key: '...' }]`. This is the single source of truth for partition membership and ordering
-- Tags within a partition support drag-reorder (intra-partition sort via `reorderPartitionItems`)
-- Cross-partition drag-move is also supported
-- `autoCreateCombination` is disabled when `saveToGallery` is off
-- `autoSaveCombinationCategoryId`: target category for auto-created combinations (empty = root category). Configured via searchable category selector in partition config panel
-- Partition header shows link icon badge when auto-create is enabled
-- `batchResolve` endpoint (`POST /prompt_gallery/batch_resolve`) resolves mixed prompt/category/combination keys in one call, used by `hydrateAll` on frontend init
-
-## Development Workflow
-
-### Testing Changes
-
-1. **Python files**: Requires **ComfyUI restart**
-2. **JavaScript/Preact files**: Requires **browser refresh** (hard refresh: Ctrl+Shift+R)
-3. **CSS files**: Requires **browser refresh**
-
-### Code Style
-
-- Use standard ES6 `import/export` for modules
-- Import Preact from `'../lib/preact.mjs'` and hooks from `'../lib/hooks.mjs'`
-- Components should be small (<200 lines) and focused
-- Extract business logic into custom hooks
-- Use render functions within components for complex JSX
-- Use Toast instead of `alert()` for user feedback
-
-### Styling
-
-- **Style Guide**: See [`STYLE_GUIDE.md`](STYLE_GUIDE.md) for the complete design system (colors, typography, spacing, component patterns)
-- **Gallery UI**: Uses pink/light theme (`#ff6b9d` / `#ffb6c1` / `#fff5f8`)
-- **Node Widgets**: Uses dark theme (`#1e1e1e` / `#6c5ce7`) matching ComfyUI editor
-- **Always check `STYLE_GUIDE.md` before writing new CSS or creating new components**
-- Each component has its own CSS file under `web/styles/`, imported via `gallery.css`
-- CSS class naming: `gallery-` prefix for gallery UI, `prompt-selector-` for node widgets
-
-### Debugging
-
-- **Backend errors**: Check ComfyUI console/terminal output
-- **Frontend errors**: Open browser DevTools (F12) → Console tab
-- **Network issues**: DevTools → Network tab, filter by `/prompt_gallery/`
-
-## Common Tasks
-
-### Adding a New Dialog
-
-Use the reusable Dialog component:
-
-```javascript
-import { Dialog, DialogButton } from './components/Dialog.js';
-
-export function MyDialog({ isOpen, onClose, onConfirm }) {
-    return h(
-        Dialog,
-        {
-            isOpen,
-            onClose,
-            title: 'Dialog Title',
-            titleIcon: '📝',
-            maxWidth: '500px',
-            footer: [
-                h(DialogButton, { onClick: onClose }, '取消'),
-                h(
-                    DialogButton,
-                    {
-                        variant: 'primary',
-                        onClick: onConfirm,
-                    },
-                    '确定',
-                ),
-            ],
-        },
-        'Dialog content here',
-    );
-}
-```
-
-### Adding a New Hook
-
-Create hooks in `components/hooks/` or `nodes/components/hooks/`:
-
-```javascript
-import { useState, useEffect } from '../../lib/hooks.mjs';
-
-export function useMyHook() {
-    const [data, setData] = useState(null);
-
-    useEffect(() => {
-        // Your logic here
-    }, []);
-
-    return { data, setData };
-}
-```
-
-### Adding API Endpoints
-
-**Backend** (`routes/`):
+There is no persisted Image-to-Prompt ID relation. Prompt images are derived at query time with a case-insensitive substring check:
 
 ```python
-@server.PromptServer.instance.routes.get("/prompt_gallery/your-endpoint")
-async def your_handler(request):
-    # For query params:
-    param = request.query.get("param", "")
-    # For body:
-    data = await request.json()
-    return web.json_response({"status": "success"})
+prompt.value.lower() in image.promptString.lower()
 ```
 
-**Frontend** (`utils.js` or `services/`):
+`coverImageId` is a persisted display optimization. It does not establish image ownership.
+
+## Backend
+
+### Nodes
+
+`nodes.py` defines:
+
+- `PromptGallery`: legacy utility node; the gallery is normally opened with the floating button.
+- `PromptSelector`: selects direct Prompt entries or categories, applies partition formatting, random/cycle modes, and weights.
+- `SaveToGallery`: writes PNG files synchronously, then registers image mappings and fills empty Prompt covers in a daemon thread.
+- `SavePrompt`: creates Prompt entries from workflow text.
+- `ReadPromptFromCategory`: reads Prompt values from a category.
+
+`SaveToGallery.prompt_string` is required. The node does not consume `PromptSelector.metadata_json`.
+
+### Storage
+
+`storage.get_storage()` returns:
+
+```python
+(PromptStorage, ImageMappingStorage, CategoryStorage)
+```
+
+| Module | Main file | Shards | Responsibility |
+| --- | --- | --- | --- |
+| `storage/prompt.py` | `prompts.json` | `*.prompts.json` | Prompt CRUD, indexes, cover updates |
+| `storage/image_mapping.py` | `images.json` | `*.images.json` | Image index and promptString matching |
+| `storage/category.py` | `categories.json` | `*.categories.json` | Category tree and CRUD |
+
+`SplitJsonStorage` merges the main file and enabled shards, caches parsed data, and preserves `_source_file` only in memory to route writes back to the source shard.
+
+`comfy_output*.images.json` is intentionally excluded from normal image mapping reads. History view loads it explicitly when requested.
+
+### Routes
+
+| Module | Main responsibility |
+| --- | --- |
+| `routes/gallery.py` | Category-scoped Prompt and child-category listing |
+| `routes/prompts.py` | Prompt CRUD, copy, search, batch resolve, detail image lookup |
+| `routes/categories.py` | Category CRUD and movement |
+| `routes/images.py` | Image registration, deletion, restore, metadata |
+| `routes/history.py` | Grouped history image query |
+| `routes/import_export.py` | ZIP and local image import/export |
+| `routes/import_output.py` | SSE-based ComfyUI output indexing |
+| `routes/batch.py` | Batch delete, move, and copy |
+| `routes/settings.py` | Storage shards, backups, cleanup, cover backfill, FAQ |
+| `routes/custom_filters.py` | User-defined image filters |
+| `routes/image_fields.py` | Extracted image fields and grouping |
+
+Shared SSE helpers are in `routes/_sse.py`; the frontend client is `web/services/sseClient.js`.
+
+### Startup migrations
+
+`storage/_resolve.py` runs versioned migrations once before storage singletons are created. Migrations must be idempotent and must not perform full image scans during normal startup.
+
+The current legacy data migration converts old grouped Prompt records into normal Prompt records, preserves category/name/cover/createdAt/metadata, merges duplicate `(categoryId, value)` records by only filling an empty cover, and removes the legacy files after Prompt writes succeed.
+
+Cover backfill is manual from Settings because it scans normal image mappings. It uses `pyahocorasick` and does not overwrite existing covers.
+
+## Frontend
+
+The frontend uses Preact-compatible modules from `web/lib/`.
+
+### Gallery
+
+- `GalleryContext.js`: shared state and operations.
+- `GalleryModal.js`: view routing and dialog composition.
+- `GalleryGrid.js`: mixed Category and Prompt card list.
+- `GalleryCard.js`: Prompt card.
+- `CategoryCard.js`: Category card.
+- `PromptDetailView.js`: lazy grouped image detail.
+- `ImageGroupView.js`: grouped image list shared with history.
+- `Lightbox.js`: image details, workflow copy, API prompt copy, and preview editing.
+
+Gallery list responses contain persisted cover paths but not full image arrays. Prompt images load only when entering detail view.
+
+### Prompt selector
+
+`web/nodes/components/PromptSelectorWidget.js` renders the custom node UI.
+
+Partition state is stored in the hidden `metadata` widget:
 
 ```javascript
-export async function yourApiCall(data) {
-    const response = await fetch('/prompt_gallery/your-endpoint', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    });
-    return await response.json();
+{
+  version: 1,
+  partitions: [{
+    id: 'partition-default',
+    enabled: true,
+    config: {
+      format: '{content}',
+      randomMode: false,
+      randomCount: 3,
+      cycleMode: false,
+    },
+    orderItems: [
+      { type: 'prompt', key: 'categoryId:value' },
+      { type: 'category', key: 'categoryId' },
+    ],
+  }],
+  promptWeights: {},
+  globalConfig: {},
 }
 ```
 
-### Creating a New Component
+Key modules:
 
-1. Create component file in `web/components/`
-2. Import dependencies:
+- `usePromptSelector.js`: browsing, search, selection, hydration, cover cache.
+- `usePartitionState.js`: partition/member state and ordering.
+- `useNodeSync.js`: writes state back to ComfyUI widgets.
+- `usePartitionPreview.js`: on-demand cover preview.
 
-```javascript
-import { h } from '../lib/preact.mjs';
-import { useState, useEffect } from '../lib/hooks.mjs';
-import { Icon } from '../lib/icons.mjs'; // For SVG icons — see Icon System section
+## Import formats
+
+- v1: Prompt and images imported into the selected category.
+- v2: Category tree, Prompt, and images.
+
+See `IMPORT_FORMAT.md`. Legacy v2 fields outside the current schema are ignored. Imported images use `promptString`; old `prompts` or `promptNames` arrays are only a fallback source for constructing that string.
+
+## Performance rules
+
+- Never scan all images in gallery list APIs.
+- Keep `promptString` matching out of synchronous PNG save latency.
+- Prefer one storage lock and one write for batch operations.
+- Preserve lazy parsing of `comfy_output` shards.
+- Use structured JSON handling rather than string rewriting.
+- Do not restore `imageCount` as a maintained field.
+- Do not introduce persisted Prompt IDs into image mappings.
+
+## Validation
+
+Run focused tests with:
+
+```bash
+python3 -m pytest -q
 ```
 
-3. Use render functions for complex JSX:
+For Python syntax without writing project `__pycache__` files:
 
-```javascript
-export function MyComponent({ prop1, prop2 }) {
-    const [state, setState] = useState(null);
-
-    const renderSection = () => {
-        return h('div', { class: 'my-section' }, 'Content');
-    };
-
-    return h('div', { class: 'my-component' }, [renderSection()]);
-}
+```bash
+PYTHONPYCACHEPREFIX=/tmp/prompt-gallery-pycache python3 -m compileall -q nodes.py routes storage tests
 ```
 
-### Showing Toast Notifications
-
-```javascript
-import { showToast } from './components/Toast.js';
-
-showToast('操作成功', 'success');
-showToast('操作失败: ' + error.message, 'error');
-showToast('请填写必填项', 'warning');
-showToast('数据已更新', 'info');
-```
-
-## Key Integration Points
-
-- **ComfyUI Server**: Uses `server.PromptServer.instance.routes` decorator for HTTP endpoints
-- **Output Directory**: Uses `folder_paths.get_output_directory()` to locate ComfyUI's output folder
-- **Frontend Loading**: ComfyUI auto-loads ES modules from `WEB_DIRECTORY` path
-- **Preact Integration**: Loads from `./lib/` directory with standard ES6 imports
-- **Node Widgets**: Uses `app.registerExtension()` with `beforeRegisterNodeDef()` hook for custom widgets
-- **collect_prompt()**: Registers prompt associations for SaveToGallery images, handles combination prompt expansion
-
-## Data Persistence
-
-The plugin maintains JSON files in the plugin storage directory. Each storage class uses a main file + glob-matched shard files (e.g., `import_20260506_120000.prompts.json`).
-
-**`prompts.json`** (glob: `*.prompts.json`): Prompt metadata (PromptStorage)
-
-- Fields: `value`, `name`, `alias`, `categoryId`, `coverImageId`, `createdAt`, `metadata`
-
-**`categories.json`** (glob: `*.categories.json`): Category tree (CategoryStorage)
-
-- Fields: `id`, `name`, `parentId`, `order`, `createdAt`, `metadata`
-
-**`combinations.json`** (glob: `*.combinations.json`): Combination data (CombinationStorage)
-
-- Fields: `id`, `name`, `categoryId`, `prompts[]`, `outputContent`, `coverImageId`, `createdAt`
-
-**`images.json`** (glob: `*.images.json`): Image-to-prompt mappings (ImageMappingStorage)
-
-- Fields: `type` ("local"/"remote"), `imagePath`, `prompts[]`, `fileInfo`, `promptString`, `generatePrompt`
-
-**Remote images**: When `type` is `"remote"`, `imagePath` is a URL. All endpoints use `is_remote_path()` to skip local file I/O for remote images.
-
-## Image Filename Pattern
-
-Images are automatically detected by filename pattern:
-
-```
-@prompt_name,_number.extension
-```
-
-Examples: `@mike,_1.png`, `@sarah,_2.jpg`, `@prompt_name,_1.webp`
-
-Supported formats: `.png`, `.jpg`, `.jpeg`, `.webp`
-
-The regex pattern (`ARTIST_REGEX` in `nodes.py`): `r'^@([^,]+?)(?:,+\s*)?(?:_\d+)?\.(png|jpg|jpeg|webp)$'`
-
-## Icon System
-
-All UI icons use SVG via the self-built icon library at `web/lib/icons.mjs`. **Never use emoji or Unicode symbols as icons.**
-
-### Architecture
-
-- **`Icon` Preact component** — For use in Preact JSX (`h(Icon, { name: 'search', size: 16 })`)
-- **`iconToSvg(name, size)` function** — Returns SVG HTML string for non-Preact contexts (e.g., native DOM in `ContextMenu.js`)
-
-### Usage
-
-```javascript
-// Preact component context
-import { Icon } from '../lib/icons.mjs';
-h(Icon, { name: 'search', size: 16 }); // basic usage
-h(Icon, { name: 'trash-2', size: 14, color: '#f44' }); // with color
-h(Icon, { name: 'loader', size: 14, class: 'spin' }); // with CSS class (spinning animation)
-
-// Native DOM context (ContextMenu, vanilla JS)
-import { iconToSvg } from '../lib/icons.mjs';
-element.innerHTML = iconToSvg('trash-2', 16);
-```
-
-### Available Icons
-
-| Icon Name                        | Use Case                                   |
-| -------------------------------- | ------------------------------------------ |
-| `search`                         | Search input                               |
-| `x`                              | Close / dismiss buttons                    |
-| `plus`                           | Add actions                                |
-| `minus`                          | Remove actions                             |
-| `star`                           | Favorites                                  |
-| `image`                          | Image-related actions                      |
-| `trash-2`                        | Delete actions                             |
-| `copy`                           | Copy / duplicate actions                   |
-| `edit`                           | Edit actions                               |
-| `move`                           | Move actions                               |
-| `link`                           | Combinations / link-related                |
-| `folder`                         | Category / folder display                  |
-| `folder-plus`                    | Create new category                        |
-| `settings`                       | Configuration / settings                   |
-| `power`                          | Enable / disable toggle                    |
-| `ban`                            | Disabled / prohibited state                |
-| `bookmark`                       | Auto-save category indicator               |
-| `repeat`                         | Cycle mode indicator                       |
-| `shuffle`                        | Random mode indicator                      |
-| `download`                       | Import / download actions                  |
-| `upload`                         | Export / upload actions                    |
-| `refresh-cw`                     | Refresh / reload                           |
-| `loader`                         | Loading spinner (use with `class: 'spin'`) |
-| `check-circle`                   | Success state                              |
-| `x-circle`                       | Error state                                |
-| `alert-triangle`                 | Warning / orphaned items                   |
-| `info-circle`                    | Info / help                                |
-| `lightbulb`                      | Hints / tips                               |
-| `package`                        | Move / batch operations                    |
-| `clipboard-list`                 | Batch / selection mode                     |
-| `palette`                        | Empty gallery placeholder                  |
-| `arrow-left`                     | Back / navigation                          |
-| `arrow-up` / `arrow-down`        | Sort order                                 |
-| `chevron-left` / `chevron-right` | Navigation arrows                          |
-| `minus`                          | Collapse / reduce                          |
-| `undo`                           | Undo actions                               |
-| `brush`                          | Brush / draw tool                          |
-| `grid`                           | Mosaic tool                                |
-| `bookmark`                       | Bookmark / save                            |
-| `unlink`                         | Unlink / disconnect                        |
-
-### Adding New Icons
-
-1. Find the Lucide icon SVG path data (MIT license): https://lucide.dev/icons/
-2. Add to the `ICONS` object in `web/lib/icons.mjs`:
-    - Single path: `'icon-name': ['M...path data...']`
-    - Multiple paths: `'icon-name': ['M...path1...', 'M...path2...']`
-3. Use immediately via `h(Icon, { name: 'icon-name' })` or `iconToSvg('icon-name')`
-
-### CSS Alignment for SVG Icons
-
-Buttons and containers with SVG icons must use flex alignment:
-
-```css
-/* Buttons with icons */
-.my-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    line-height: 1;
-}
-.my-btn svg {
-    display: block;
-    flex-shrink: 0;
-}
-
-/* Inline icon badges */
-.my-badge {
-    display: inline-flex;
-    align-items: center;
-    line-height: 1;
-}
-.my-badge svg {
-    display: block;
-}
-
-/* Spinning animation for loading */
-@keyframes icon-spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-svg.spin {
-    animation: icon-spin 1s linear infinite;
-}
-```
-
-### Exceptions (Emoji Allowed)
-
-- **Floating button label**: `'🎨'` in `prompt_gallery.js` entry point
-- **Modal title**: `'🎨 Prompt图库'` in `GalleryModal.js` header
-
-## Component Guidelines
-
-### When to Create Files
-
-**New Component** (`components/MyComponent.js`):
-
-- Reusable UI with its own state
-- Complex rendering logic
-- Used in multiple places
-
-**New Hook** (`components/hooks/useMyHook.js`):
-
-- Reusable stateful logic
-- Data fetching or synchronization
-- Used by multiple components
-
-**New Service** (`services/myApi.js`):
-
-- API calls to backend
-- External service integrations
-- Data transformation logic
-
-**New Dialog** (using `Dialog.js`):
-
-- Simple modal with confirm/cancel
-- Form input dialogs
-- Confirmation messages
-
-### File Size Guidelines
-
-- **Components**: Aim for <200 lines, split if larger
-- **Hooks**: Keep focused on single responsibility
-- **Services**: Group related API calls together
-
-## Performance Optimizations
-
-### Implemented
-
-- **Gallery list API**: Returns persisted `coverImagePath` without full image arrays
-- **Lazy image loading**: Prompt images fetched on-demand when entering detail view
-- **Cover image preview**: Hover preview uses `coverImagePath` directly (no API call)
-- **Single data endpoint**: `/prompt_gallery/data` returns both prompts and combinations in one call
-- **Batch resolve**: `POST /prompt_gallery/batch_resolve` resolves mixed prompt/category/combination keys in one call for hydration
-- **Pre-computed maxTime**: Calculated during data fetch for faster sorting
-- **Memoized filtering**: `useFilteredPrompts` with `useMemo`
-- **Image lazy loading**: `loading="lazy"` attribute on images
-- **Event listener cleanup**: Proper cleanup in `useEffect` return functions
-- **Virtual scroll**: `LazyList` component for large lists
-- **Prompt string prompt matching**: SaveToGallery matches prompt names via cached, longest-first substring matching and updates missing covers asynchronously
-- **Batch import methods**: `add_prompts_import()` and `add_mappings_import()` do single read → batch append → single write (O(1) instead of O(N) storage writes)
-- **Multi-file glob storage**: Read merges all shard files, write splits by `_source_file` tag
-- **Remote image support**: All endpoints use `is_remote_path()` to handle remote images (URL-based) consistently, skipping local file I/O
-
-### Best Practices
-
-- Use `useCallback` for event handlers passed to child components
-- Use `useMemo` for expensive computations
-- Avoid inline object/array creation in JSX
-- Debounce rapid API calls (search, hover previews)
-
-## API Reference
-
-### Toast Notifications
-
-```javascript
-showToast(message, type, duration);
-// message: string
-// type: 'success' | 'error' | 'warning' | 'info'
-// duration: number (ms), default 3000
-```
-
-### Dialog Component
-
-```javascript
-Dialog({
-  isOpen: boolean,
-  onClose: function,
-  title: string,
-  titleIcon: vnode,  // Preact vnode from h(Icon, { name: 'settings', size: 18 })
-  children: node,
-  footer: node,
-  maxWidth: string,
-  showCloseButton: boolean,
-  closeOnOverlayClick: boolean,
-  className: string
-})
-```
-
-### DialogButton
-
-```javascript
-DialogButton({
-  children: node,
-  onClick: function,
-  variant: 'default' | 'primary' | 'danger',
-  className: string
-})
-```
+JavaScript files are browser ES modules. Syntax checking must use module mode.

@@ -4,6 +4,150 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 
+def _write_json_atomic(file_path: Path, data: dict) -> None:
+    """Write JSON through a sibling temporary file to avoid partial migration output."""
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = file_path.with_name(f".{file_path.name}.tmp")
+    with open(temp_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    temp_path.replace(file_path)
+
+
+def migrate_combinations_to_prompts(storage_dir: Path) -> dict:
+    """Convert legacy combination records into normal Prompt records."""
+    main_combinations = storage_dir / "combinations.json"
+    combination_files = []
+    if main_combinations.exists():
+        combination_files.append(main_combinations)
+    combination_files.extend(
+        file_path
+        for file_path in sorted(storage_dir.glob("*.combinations.json"))
+        if file_path.resolve() != main_combinations.resolve()
+    )
+    if not combination_files:
+        return {"success": True, "created": 0, "merged": 0, "skipped": 0, "files": 0}
+
+    main_prompts = storage_dir / "prompts.json"
+    prompt_files = []
+    if main_prompts.exists():
+        prompt_files.append(main_prompts)
+    prompt_files.extend(
+        file_path
+        for file_path in sorted(storage_dir.glob("*.prompts.json"))
+        if file_path.resolve() != main_prompts.resolve()
+    )
+
+    prompt_data_by_path = {}
+    prompt_index = {}
+    prompt_source_by_id = {}
+    for file_path in prompt_files:
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        data.setdefault("prompts", [])
+        prompt_data_by_path[file_path] = data
+        for prompt in data["prompts"]:
+            key = (prompt.get("categoryId", "root"), prompt.get("value", ""))
+            prompt_index.setdefault(key, prompt)
+            prompt_source_by_id[id(prompt)] = file_path
+
+    def target_prompt_file(combination_file: Path) -> Path:
+        if combination_file.resolve() == main_combinations.resolve():
+            return main_prompts
+        prefix = combination_file.name.removesuffix(".combinations.json")
+        return storage_dir / f"{prefix}.prompts.json"
+
+    created = 0
+    merged = 0
+    skipped = 0
+    touched_prompt_files = set()
+
+    for combination_file in combination_files:
+        with open(combination_file, "r", encoding="utf-8") as f:
+            combination_data = json.load(f)
+        prompt_file = target_prompt_file(combination_file)
+        target_data = prompt_data_by_path.setdefault(prompt_file, {"prompts": []})
+
+        for combination in combination_data.get("combinations", []):
+            value = str(combination.get("outputContent") or "").strip()
+            if not value:
+                members = combination.get("prompts") or combination.get("artistKeys") or []
+                if not isinstance(members, (list, tuple)):
+                    members = [members]
+                value = ",".join(
+                    str(member).strip()
+                    for member in members
+                    if member is not None and str(member).strip()
+                )
+            if not value:
+                skipped += 1
+                continue
+
+            category_id = combination.get("categoryId") or "root"
+            cover_image_id = combination.get("coverImageId")
+            if isinstance(cover_image_id, str) and cover_image_id.startswith("artist_gallery/"):
+                cover_image_id = cover_image_id.replace("artist_gallery/", "prompt_gallery/", 1)
+            key = (category_id, value)
+            existing = prompt_index.get(key)
+            if existing is not None:
+                if not existing.get("coverImageId") and cover_image_id:
+                    existing["coverImageId"] = cover_image_id
+                    touched_prompt_files.add(prompt_source_by_id[id(existing)])
+                merged += 1
+                continue
+
+            metadata = combination.get("metadata")
+            if not isinstance(metadata, dict):
+                metadata = {}
+            prompt = {
+                "value": value,
+                "name": str(combination.get("name") or value).strip() or value,
+                "alias": "",
+                "categoryId": category_id,
+                "coverImageId": cover_image_id,
+                "createdAt": combination.get("createdAt", 0),
+                "metadata": metadata,
+            }
+            target_data["prompts"].append(prompt)
+            prompt_index[key] = prompt
+            prompt_source_by_id[id(prompt)] = prompt_file
+            touched_prompt_files.add(prompt_file)
+            created += 1
+
+    for file_path in touched_prompt_files:
+        _write_json_atomic(file_path, prompt_data_by_path[file_path])
+
+    config_path = storage_dir / "storage_config.json"
+    if config_path.exists():
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        disabled = set(config.get("disabled_files", []))
+        changed = False
+        for combination_file in combination_files:
+            if combination_file.name not in disabled:
+                continue
+            disabled.discard(combination_file.name)
+            disabled.add(target_prompt_file(combination_file).name)
+            changed = True
+        if changed:
+            config["disabled_files"] = sorted(disabled)
+            _write_json_atomic(config_path, config)
+
+    for combination_file in combination_files:
+        combination_file.unlink()
+
+    print(
+        "[Migration-Combination] converted to Prompt: "
+        f"created={created}, merged={merged}, skipped={skipped}, files={len(combination_files)}"
+    )
+    return {
+        "success": True,
+        "created": created,
+        "merged": merged,
+        "skipped": skipped,
+        "files": len(combination_files),
+    }
+
+
 def _fix_image_path_prefix(mappings_file: Path):
     """修复 image_prompts.json 中的旧 imagePath 前缀 artist_gallery/ → prompt_gallery/"""
     if not mappings_file.exists():
@@ -59,9 +203,8 @@ def _rename_output_subdir():
 
 
 def _fix_cover_image_paths(storage_dir: Path):
-    """修复 prompts.json 和 combinations.json 中 coverImageId 的旧路径前缀"""
+    """修复 prompts.json 中 coverImageId 的旧路径前缀。"""
     prompts_file = storage_dir / "prompts.json"
-    combinations_file = storage_dir / "combinations.json"
 
     # 修复 prompts.json
     if prompts_file.exists():
@@ -83,33 +226,11 @@ def _fix_cover_image_paths(storage_dir: Path):
         except Exception as e:
             print(f"[Migration-PromptSchema] 修复 prompts.json coverImageId 失败: {e}")
 
-    # 修复 combinations.json
-    if combinations_file.exists():
-        try:
-            with open(combinations_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-
-            changed = False
-            for comb in data.get("combinations", []):
-                cover = comb.get("coverImageId", "")
-                if cover and cover.startswith("artist_gallery/"):
-                    comb["coverImageId"] = cover.replace("artist_gallery/", "prompt_gallery/", 1)
-                    changed = True
-
-            if changed:
-                with open(combinations_file, 'w', encoding='utf-8') as f:
-                    json.dump(data, f, ensure_ascii=False, indent=2)
-                print(f"[Migration-PromptSchema] 修复 combinations.json coverImageId 前缀")
-        except Exception as e:
-            print(f"[Migration-PromptSchema] 修复 combinations.json coverImageId 失败: {e}")
-
-
 def migrate_to_prompt_schema(storage_dir: Path) -> dict:
     """
     迁移数据从旧字段命名到新 prompt schema：
     - artists.json → prompts.json: name→value, displayName→name, 新增 alias
     - image_artists.json → image_prompts.json: artistNames→prompts
-    - combinations.json: artistKeys→prompts
     """
     from datetime import datetime
 
@@ -117,7 +238,6 @@ def migrate_to_prompt_schema(storage_dir: Path) -> dict:
     new_artists_file = storage_dir / "prompts.json"
     old_mappings_file = storage_dir / "image_artists.json"
     new_mappings_file = storage_dir / "image_prompts.json"
-    combinations_file = storage_dir / "combinations.json"
 
     # 如果新文件已存在且有数据，说明 prompt 结构已迁移
     # 但仍需检查 imagePath 前缀是否需要修复
@@ -157,7 +277,7 @@ def migrate_to_prompt_schema(storage_dir: Path) -> dict:
         backup_dir = storage_dir / f"backup_prompt_schema_{timestamp}"
         backup_dir.mkdir(exist_ok=True)
 
-        files_to_backup = [old_artists_file, old_mappings_file, combinations_file]
+        files_to_backup = [old_artists_file, old_mappings_file]
         for f in files_to_backup:
             if f.exists():
                 shutil.copy2(f, backup_dir / f.name)
@@ -212,22 +332,6 @@ def migrate_to_prompt_schema(storage_dir: Path) -> dict:
 
             old_mappings_file.unlink()
             print(f"[Migration-PromptSchema] image_artists.json → image_prompts.json: {len(mapping_data.get('mappings', []))} 条映射")
-
-        # 4. 迁移 combinations.json
-        if combinations_file.exists():
-            with open(combinations_file, 'r', encoding='utf-8') as f:
-                comb_data = json.load(f)
-
-            for comb in comb_data.get("combinations", []):
-                old_keys = comb.get("artistKeys", [])
-                comb["prompts"] = old_keys
-                if "artistKeys" in comb:
-                    del comb["artistKeys"]
-
-            with open(combinations_file, 'w', encoding='utf-8') as f:
-                json.dump(comb_data, f, ensure_ascii=False, indent=2)
-
-            print(f"[Migration-PromptSchema] combinations.json: {len(comb_data.get('combinations', []))} 条组合")
 
         return {
             "success": True,
@@ -284,7 +388,7 @@ def migrate_prompt_data(prompt_storage) -> bool:
 
 def migrate_to_composite_key(storage_dir: Path) -> dict:
     """
-    将现有数据从 UUID 架构迁移到组合键架构
+    将现有数据从 UUID 架构迁移到复合键架构
     :param storage_dir: 存储目录
     :return: 迁移结果 {success: bool, message: str, backup_dir: str}
     """
@@ -684,9 +788,8 @@ def _migration_image_exists(mapping: dict, output_dir: Path | None) -> bool:
 def _migrate_covers_legacy(storage_dir: Path, output_dir: Path | None = None) -> dict:
     """
     [legacy] O(P×M) 封面回填——仅在 ahocorasick 不可用时作为兜底。
-    为没有 coverImageId 的 Prompt 和组合补封面：
+    为没有 coverImageId 的 Prompt 补封面：
     - Prompt 从 images*.json 的 promptString 按字符串包含匹配 Prompt value
-    - 组合从成员 Prompt value 匹配图片
     - 取 fileInfo.createdAt 最大的图片作为 coverImageId
     - 已有封面的记录不修改
     """
@@ -713,7 +816,7 @@ def _migrate_covers_legacy(storage_dir: Path, output_dir: Path | None = None) ->
     if not mappings:
         return {
             "success": True,
-            "message": "Prompt/组合封面迁移完成: files=0, prompts=0, combinations=0",
+            "message": "Prompt 封面迁移完成: files=0, prompts=0",
             "migrated": False,
         }
 
@@ -767,39 +870,9 @@ def _migrate_covers_legacy(storage_dir: Path, output_dir: Path | None = None) ->
         except Exception as e:
             print(f"[Migration-PromptCover] 处理 {file_path.name} 失败: {e}")
 
-    combination_files = []
-    main_combinations = storage_dir / "combinations.json"
-    if main_combinations.exists():
-        combination_files.append(main_combinations)
-    for f in sorted(storage_dir.glob("*.combinations.json")):
-        if f.resolve() != main_combinations.resolve():
-            combination_files.append(f)
-
-    changed_combinations = 0
-
-    for file_path in combination_files:
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            changed = False
-            for combination in data.get("combinations", []):
-                if combination.get("coverImageId"):
-                    continue
-                cover_path = latest_cover_for_values(combination.get("prompts") or [])
-                if cover_path:
-                    combination["coverImageId"] = cover_path
-                    changed = True
-                    changed_combinations += 1
-            if changed:
-                with open(file_path, "w", encoding="utf-8") as f:
-                    json.dump(data, f, ensure_ascii=False, indent=2)
-                changed_files += 1
-        except Exception as e:
-            print(f"[Migration-PromptCover] 处理 {file_path.name} 失败: {e}")
-
     return {
         "success": True,
-        "message": f"Prompt/组合封面迁移完成: files={changed_files}, prompts={changed_prompts}, combinations={changed_combinations}",
+        "message": f"Prompt 封面迁移完成: files={changed_files}, prompts={changed_prompts}",
         "migrated": changed_files > 0,
     }
 
@@ -861,14 +934,13 @@ def migrate_prompt_covers_from_prompt_string(
     *,
     allow_legacy_fallback: bool = True,
     prompt_storage=None,
-    combination_storage=None,
 ) -> dict:
     """
-    为没有 coverImageId 的 Prompt 和组合补封面（高性能版）。
+    为没有 coverImageId 的 Prompt 补封面（高性能版）。
 
     用 ahocorasick 在所有图片 promptString 上单次扫描，匹配「无封面 prompt value」，
     取 fileInfo.createdAt 最大的图片作为 coverImageId，经 PromptStorage.set_cover_batch
-    一次写回；组合从成员 value 取最新封面。复杂度 O(总文本长度)，较旧 O(P×M) 实现快数万倍。
+    一次写回。复杂度 O(总文本长度)，较旧 O(P×M) 实现快数万倍。
     已有封面的记录不修改。ahocorasick 不可用时，手动调用默认回退到 legacy；
     启动后台回填会关闭 fallback，避免大数据环境偷偷跑 O(P×M)。
     """
@@ -880,7 +952,7 @@ def migrate_prompt_covers_from_prompt_string(
             return _migrate_covers_legacy(storage_dir, output_dir)
         return {
             "success": True,
-            "message": "Prompt/组合封面迁移已跳过: 缺少 pyahocorasick，请安装 requirements.txt 后重启",
+            "message": "Prompt 封面迁移已跳过: 缺少 pyahocorasick，请安装 requirements.txt 后重启",
             "migrated": False,
             "skipped": True,
         }
@@ -891,7 +963,7 @@ def migrate_prompt_covers_from_prompt_string(
     if not mappings or not coverless_values:
         return {
             "success": True,
-            "message": f"Prompt/组合封面迁移完成: prompts=0, combinations=0 (mappings={len(mappings)}, coverless={len(coverless_values)})",
+            "message": f"Prompt 封面迁移完成: prompts=0 (mappings={len(mappings)}, coverless={len(coverless_values)})",
             "migrated": False,
         }
 
@@ -928,30 +1000,10 @@ def migrate_prompt_covers_from_prompt_string(
     if prompt_storage is None:
         from .prompt import PromptStorage
         prompt_storage = PromptStorage(storage_dir)
-    if combination_storage is None:
-        from .combination import CombinationStorage
-        combination_storage = CombinationStorage(storage_dir)
     changed_prompts = prompt_storage.set_cover_batch(covers_by_value) if covers_by_value else 0
-
-    # 4. 组合（数量少）：取成员 value 中最新封面
-    changed_combinations = 0
-    if covers_by_value:
-        for comb in combination_storage.get_all_combinations():
-            if comb.get("coverImageId"):
-                continue
-            best = None
-            for member in comb.get("prompts", []) or []:
-                m = best_by_value.get(member)
-                if m is None:
-                    continue
-                if best is None or sort_key(m) > sort_key(best):
-                    best = m
-            if best and best.get("imagePath"):
-                combination_storage.update_combination(comb.get("id"), coverImageId=best.get("imagePath"))
-                changed_combinations += 1
 
     return {
         "success": True,
-        "message": f"Prompt/组合封面迁移完成: prompts={changed_prompts}, combinations={changed_combinations}",
-        "migrated": changed_prompts > 0 or changed_combinations > 0,
+        "message": f"Prompt 封面迁移完成: prompts={changed_prompts}",
+        "migrated": changed_prompts > 0,
     }

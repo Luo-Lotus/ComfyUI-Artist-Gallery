@@ -9,9 +9,9 @@
 1. Prompt 以 `(categoryId, value)` 标识，独立存储在 `prompts.json`。
 2. Image 独立存储在 `images.json`，只保存图片路径、`promptString`、生成信息和文件信息。
 3. 查询某个 Prompt 的图片时，在运行时判断 Prompt `value` 是否包含在图片的 `promptString` 中。
-4. `coverImageId` 是 Prompt 或组合上的持久化封面路径，用于列表快速展示，不代表图片归属关系。
+4. `coverImageId` 是 Prompt 上的持久化封面路径，用于列表快速展示，不代表图片归属关系。
 5. `imageCount` 不再读取或维护；旧数据中的字段可以保留，但不是有效数据源。
-6. 删除或移动 Prompt 不修改图片索引；删除 Prompt 也不修改组合成员。
+6. 删除或移动 Prompt 不修改图片索引。
 
 因此，Prompt 与 Image 的关系是可派生关系：
 
@@ -27,7 +27,7 @@ Image.promptString
 
 ```text
 Prompt 选择节点
-  前端选择 Prompt / 分类 / 组合
+  前端选择 Prompt / 分类
         |
         v
   metadata widget 随工作流保存
@@ -48,7 +48,7 @@ Prompt 选择节点
                                            +--> 后台匹配 Prompt 并补空封面
 
 图库查询
-  Prompt.value / 组合 prompts[]
+  Prompt.value
         |
         v
   扫描 Image.promptString
@@ -82,9 +82,9 @@ Prompt 选择节点
 
 选择器按需加载数据，避免首次打开时获取全部 Prompt：
 
-- 当前分类：读取当前分类直属 Prompt、组合和子分类。
-- 全局搜索：输入停止 200ms 后搜索 Prompt 与组合。
-- 已选项补全：工作流恢复后，批量解析当前分类之外的 Prompt、分类和组合。
+- 当前分类：读取当前分类直属 Prompt 和子分类。
+- 全局搜索：输入停止 200ms 后搜索 Prompt。
+- 已选项补全：工作流恢复后，批量解析当前分类之外的 Prompt 和分类。
 - 封面：按当前可见或预览项批量读取持久化 `coverImageId`。
 
 分类列表接口和封面接口都不会扫描图片索引。
@@ -106,14 +106,11 @@ Prompt 选择节点
         format: '{content}',
         randomMode: false,
         randomCount: 3,
-        cycleMode: false,
-        autoCreateCombination: false,
-        autoSaveCombinationCategoryId: ''
+        cycleMode: false
       },
       orderItems: [
         { type: 'prompt', key: 'root:prompt_a' },
-        { type: 'category', key: 'category-id' },
-        { type: 'combination', key: 'combination:uuid' }
+        { type: 'category', key: 'category-id' }
       ]
     }
   ],
@@ -127,12 +124,12 @@ Prompt 选择节点
 关键约束：
 
 - Prompt key 是 `categoryId:value`，不是数据库 ID。
-- 组合 key 是 `combination:id`。
 - 同一个项目只存在于一个分区；分区内顺序由 `orderItems` 决定。
 - 删除非默认分区时，成员去重后转移到默认分区。
 - 权重只应用于直接选择的 Prompt。
 - 分区配置中不再有 `saveToGallery`；图片保存由独立节点决定。
-- 旧工作流中的 `promptKeys`、`categoryIds` 和 `combinationKeys` 仍可转换为 `orderItems`。
+- 旧工作流中的 `promptKeys` 和 `categoryIds` 仍可转换为 `orderItems`。
+- 旧工作流中的组合项不兼容，加载时直接丢弃。
 
 ### 3.4 同步到工作流
 
@@ -158,13 +155,12 @@ Prompt 选择节点
 
 1. 解析并校验 `metadata.version == 1`。
 2. 跳过禁用分区。
-3. 按 `orderItems` 解析直接 Prompt、分类和组合。
+3. 按 `orderItems` 解析直接 Prompt 和分类。
 4. 分类展开为该分类及全部后代分类中的 Prompt。
-5. 对 Prompt 去重，并与组合合并为工作列表。
+5. 对 Prompt 去重并构建工作列表。
 6. 应用循环或随机模式。
-7. 对 Prompt 应用格式和权重；组合直接使用 `outputContent`。
-8. 可选地根据本次实际输出创建组合。
-9. 返回 `prompts_string` 和 `metadata_json`。
+7. 对 Prompt 应用格式和权重。
+8. 返回 `prompts_string` 和 `metadata_json`。
 
 输出格式支持：
 
@@ -239,7 +235,7 @@ PNG 中写入：
 
 Prompt 匹配表带有模块级缓存。只有 Prompt `value`、别名或分类集合变化时才重建。
 
-后台失败不会撤销已经写入磁盘的 PNG，错误会输出到 ComfyUI 日志。当前后台补封面只处理 Prompt，不创建或更新组合封面。
+后台失败不会撤销已经写入磁盘的 PNG，错误会输出到 ComfyUI 日志。
 
 ### 4.4 图片索引格式
 
@@ -263,15 +259,13 @@ Prompt 匹配表带有模块级缓存。只有 Prompt `value`、别名或分类�
 
 ## 五、图片查询
 
-### 5.1 Prompt 与组合详情
+### 5.1 Prompt 详情
 
 Prompt 图片查询规则：
 
 ```python
 prompt.value.lower() in image.promptString.lower()
 ```
-
-组合图片查询要求图片的 `promptString` 同时包含组合的全部成员值，即交集语义。
 
 这意味着修改 Prompt `value` 后，旧图片不会被改写；如果旧 `promptString` 不包含新值，旧图片将不再匹配该 Prompt。复制相同 `value` 的 Prompt 到其他分类时，两者会看到相同的派生图片集合。
 
@@ -280,18 +274,17 @@ prompt.value.lower() in image.promptString.lower()
 分类列表只读取：
 
 - 当前分类直属 Prompt。
-- 当前分类直属组合。
 - 当前分类直属子分类。
-- Prompt 和组合上持久化的 `coverImageId`。
+- Prompt 上持久化的 `coverImageId`。
 
-列表不扫描 `images.json`，也不计算图片数量。进入 Prompt 或组合详情后才查询图片。
+列表不扫描 `images.json`，也不计算图片数量。进入 Prompt 详情后才查询图片。
 
 ### 5.3 历史分组
 
 历史图片查询会：
 
 1. 加载图片索引。
-2. 按 `promptString` 执行 Prompt、组合、搜索和自定义筛选。
+2. 按 `promptString` 执行 Prompt、搜索和自定义筛选。
 3. 通过所选图片字段的 `extractCode` 计算分组值。
 4. 组内和分组均按降序排列，`未分类` 固定在最后。
 5. 构建完整 JSON 响应。
@@ -307,11 +300,11 @@ ZIP v1 和 v2 均以 `promptString` 作为图片关联来源。兼容旧包时�
 导入过程按批次执行：
 
 1. 创建分类和 Prompt。
-2. 创建组合（v2）。
-3. 解压本地图片或登记远程 URL。
-4. 一次写入本批次图片索引。
-5. 只扫描本次导入的 `mapping_specs`，为没有封面的 Prompt 补封面。
-6. v2 同时为没有封面的组合选择成员中最新匹配图片。
+2. 解压本地图片或登记远程 URL。
+3. 一次写入本批次图片索引。
+4. 只扫描本次导入的 `mapping_specs`，为没有封面的 Prompt 补封面。
+
+旧 v2 包中的 `combinations` 字段直接忽略。
 
 封面候选按 `fileInfo.createdAt` 选择最新图片。安装 `pyahocorasick` 时使用 Aho-Corasick 单次扫描，否则回退为逐值字符串匹配。
 
@@ -341,8 +334,8 @@ ZIP v1 和 v2 均以 `promptString` 作为图片关联来源。兼容旧包时�
 | --- | --- | --- |
 | 新建 Prompt | 全部普通图片索引 | 查找最新有效匹配图片 |
 | SaveToGallery | 本次保存第一张图片 | 为本次匹配到的空封面 Prompt 设置封面 |
-| ZIP 导入 | 本次导入图片 | 为新导入 Prompt 和组合补空封面 |
-| 手动自动匹配封面 | 全部普通图片索引 | 为所有空封面 Prompt 和组合选择最新图片 |
+| ZIP 导入 | 本次导入图片 | 为新导入 Prompt 补空封面 |
+| 手动自动匹配封面 | 全部普通图片索引 | 为所有空封面 Prompt 选择最新图片 |
 
 启动迁移不会自动扫描全量图片补封面。历史数据需要在设置页手动执行 `自动匹配封面`。
 
@@ -355,6 +348,9 @@ ZIP v1 和 v2 均以 `promptString` 作为图片关联来源。兼容旧包时�
 1. 旧 Artist schema 到 Prompt schema 的字段与文件迁移。
 2. 旧图片 schema 到 `images.json` 的迁移。
 3. 对缺少 `promptString` 的旧图片索引，从 `prompts` 或 `promptIds` 生成逗号分隔文本。
+4. 将旧组合按 `value = outputContent`、`name = 组合名称` 转成普通 Prompt；空输出回退为成员逗号拼接，同分类同 value 只补空封面。
+
+组合迁移完成后删除旧组合文件。旧工作流中的组合 ID 不做兼容，图片索引也不会因迁移而改写。
 
 迁移完成后写入 `.migration_version`，后续启动不重复执行。旧 `imageCount` 可以保留，但系统不再读取、更新或迁移它。
 
@@ -366,7 +362,6 @@ ZIP v1 和 v2 均以 `promptString` 作为图片关联来源。兼容旧包时�
 | --- | --- |
 | `prompts.json` / `*.prompts.json` | Prompt |
 | `categories.json` / `*.categories.json` | 分类 |
-| `combinations.json` / `*.combinations.json` | 组合 |
 | `images.json` / `*.images.json` | 普通图片索引 |
 | `comfy_output*.images.json` | 仅历史视图使用的 Output 导入索引 |
 | `image_fields.json` | 图片自定义字段 |

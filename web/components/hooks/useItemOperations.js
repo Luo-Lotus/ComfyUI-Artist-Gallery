@@ -54,48 +54,20 @@ export function useItemOperations({
       // 批量复制
       if (batchOperation === 'copy') {
         const details = getSelectedDetails();
-        const allItems = [
-          ...details.prompts.map((a) => ({
-            type: 'prompt',
-            item: a,
-          })),
-          ...details.combinations.map((c) => ({
-            type: 'combination',
-            item: c,
-          })),
-        ];
+        const allItems = details.prompts;
         if (allItems.length === 0) return;
 
         let failCount = 0;
-        for (const { type, item: it } of allItems) {
+        for (const it of allItems) {
           try {
-            let res;
-            if (type === 'prompt') {
-              res = await fetch(
-                `/prompt_gallery/prompts/${encodeURIComponent(it.categoryId)}/${encodeURIComponent(it.value)}/copy`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    targetCategoryId: target.id,
-                    newName: undefined,
-                  }),
-                },
-              );
-            } else if (type === 'combination') {
-              res = await fetch('/prompt_gallery/combinations', {
+            const res = await fetch(
+              `/prompt_gallery/prompts/${encodeURIComponent(it.categoryId)}/${encodeURIComponent(it.value)}/copy`,
+              {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  name: `${it.name} (副本)`,
-                  categoryId: target.id,
-                  promptKeys: it.prompts || [],
-                  outputContent: it.outputContent || '',
-                }),
-              });
-            }
+                body: JSON.stringify({ targetCategoryId: target.id }),
+              },
+            );
             const data = await res.json();
             if (!res.ok || !data.success) failCount++;
           } catch {
@@ -129,17 +101,6 @@ export function useItemOperations({
             }),
           },
         );
-      } else if (copyItemType === 'combination') {
-        response = await fetch('/prompt_gallery/combinations', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: newName || `${item.name} (副本)`,
-            categoryId: target.id,
-            promptKeys: item.prompts || [],
-            outputContent: item.outputContent || '',
-          }),
-        });
       }
 
       const data = await response.json();
@@ -174,16 +135,11 @@ export function useItemOperations({
             value: a.value,
             newCategoryId: target.id,
           })),
-          combinations: details.combinations.map((c) => ({
-            id: c.id,
-            newCategoryId: target.id,
-          })),
         };
 
         if (
           batchPayload.categories.length > 0 ||
-          batchPayload.prompts.length > 0 ||
-          batchPayload.combinations.length > 0
+          batchPayload.prompts.length > 0
         ) {
           try {
             const res = await fetch('/prompt_gallery/batch/move', {
@@ -195,20 +151,17 @@ export function useItemOperations({
             if (res.ok && data.success) {
               successCount +=
                 (data.movedCategories?.length || 0) +
-                (data.movedPrompts?.length || 0) +
-                (data.movedCombinations?.length || 0);
+                (data.movedPrompts?.length || 0);
               if (data.errors?.length > 0) failCount += data.errors.length;
             } else {
               failCount +=
                 batchPayload.categories.length +
-                batchPayload.prompts.length +
-                batchPayload.combinations.length;
+                batchPayload.prompts.length;
             }
           } catch {
             failCount +=
               batchPayload.categories.length +
-              batchPayload.prompts.length +
-              batchPayload.combinations.length;
+              batchPayload.prompts.length;
           }
         }
 
@@ -249,12 +202,6 @@ export function useItemOperations({
             body: JSON.stringify({ categoryId: target.id }),
           },
         );
-      } else if (moveItemType === 'combination') {
-        response = await fetch(`/prompt_gallery/combinations/${item.id}/move`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ targetCategoryId: target.id }),
-        });
       }
 
       const data = await response.json();

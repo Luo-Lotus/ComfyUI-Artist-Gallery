@@ -15,8 +15,8 @@ import { showToast } from '../../components/Toast.js';
 import { useBodyRender } from './hooks/useBodyRender.js';
 import { AddPromptDialog } from '../../components/AddPromptDialog.js';
 import { CategoryDialog } from '../../components/CategoryDialog.js';
-import { addCategory, batchResolve, searchAll, Storage } from '../../utils.js';
-import { updateCategoryMetadata, updateCombinationMetadata, updatePromptMetadata } from '../../services/promptApi.js';
+import { addCategory, Storage } from '../../utils.js';
+import { updateCategoryMetadata, updatePromptMetadata } from '../../services/promptApi.js';
 
 // 辅助函数：构建面包屑路径
 function buildBreadcrumbPath(categoryId, categories) {
@@ -49,12 +49,8 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
   const {
     prompts,
     categories,
-    combinations,
     selectedKeys,
     selectedCategories,
-    selectedCombinationKeys,
-    selectedPromptsCache,
-    setSelectedPromptsCache,
     loading,
     searchQuery,
     sortBy,
@@ -62,7 +58,6 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
     currentCategory,
     filteredPrompts,
     filteredCategories,
-    filteredCombinations,
     refreshing,
     breadcrumbPath,
     partitionData,
@@ -77,17 +72,14 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
     togglePartition,
     setAsDefaultPartition,
     reorderPartitions,
-    isItemSelected,
     setSearchQuery,
     setSortBy,
     setSortOrder,
     toggleSelection,
     toggleCategorySelection,
-    toggleCombinationSelection,
     handleCategoryChange,
     handleRefresh,
     makePromptKey,
-    searchResults,
     coversCache,
     fetchCoversByIds,
   } = usePromptSelector(nodeInstance, selectedInput, metadataInput);
@@ -292,8 +284,6 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
         await updateCategoryMetadata(item.id, { pinned });
       } else if (type === 'prompt') {
         await updatePromptMetadata(item.categoryId, item.value, { pinned });
-      } else if (type === 'combination') {
-        await updateCombinationMetadata(item.id, { pinned });
       }
       showToast(pinned ? '已置顶' : '已取消置顶', 'success');
       handleRefresh();
@@ -593,118 +583,6 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
   };
 
   /**
-   * 渲染组合项
-   */
-  const renderCombinationItem = (combination) => {
-    const key = `combination:${combination.id}`;
-    const isSelected = selectedCombinationKeys.has(key);
-    return h(
-      'div',
-      {
-        key: key,
-        class: `prompt-selector-item combination-item ${isSelected ? 'selected' : ''}`,
-        onClick: (e) => toggleCombinationSelection(combination.id, e.shiftKey),
-        onMouseEnter: (e) => handleMouseEnter(combination, e),
-        onMouseLeave: () => handleMouseLeave(),
-        onContextMenu: (e) => {
-          e.preventDefault();
-          showContextMenu(e, [
-            {
-              icon: 'bookmark',
-              label: combination.metadata?.pinned ? '取消置顶' : '置顶',
-              action: () => handleTogglePinned('combination', combination),
-            },
-            {
-              icon: 'copy',
-              label: '复制文本',
-              action: async () => {
-                let text = combination.outputContent;
-                if (!text) {
-                  // 按需获取 outputContent
-                  try {
-                    const result = await searchAll(combination.name, 1);
-                    const found = (result.combinations || []).find((c) => c.id === combination.id);
-                    text = found?.outputContent || (combination.prompts || []).join(',');
-                  } catch {
-                    text = (combination.prompts || []).join(',');
-                  }
-                }
-                navigator.clipboard.writeText(text);
-                showToast('已复制', 'success');
-              },
-            },
-            {
-              icon: 'image',
-              label: '在画廊中打开',
-              action: () => {
-                if (window.__openPromptGalleryTo) {
-                  window.__openPromptGalleryTo({
-                    type: 'combination',
-                    categoryId: combination.categoryId || currentCategory,
-                    combinationId: combination.id,
-                  });
-                }
-              },
-            },
-            {
-              icon: 'unlink',
-              label: '拆分选择',
-              action: async () => {
-                // 通过 batchResolve 获取各 prompt 的完整数据（含真实 categoryId）
-                // 响应 key 格式为 "categoryId:value"
-                let resolvedByValue = {};
-                try {
-                  const result = await batchResolve({ prompts: combination.prompts || [] });
-                  for (const [key, prompt] of Object.entries(result.prompts || {})) {
-                    resolvedByValue[prompt.value] = prompt;
-                  }
-                } catch {
-                  // fallback: 使用 combination.categoryId
-                }
-
-                // 预填充 selectedPromptsCache，确保后续显示不丢失
-                const cacheUpdates = {};
-                (combination.prompts || []).forEach((promptValue) => {
-                  const resolved = resolvedByValue[promptValue];
-                  const categoryId = resolved ? resolved.categoryId : combination.categoryId || 'root';
-                  const key = makePromptKey(categoryId, promptValue);
-                  if (resolved) {
-                    cacheUpdates[key] = resolved;
-                  }
-                });
-                if (Object.keys(cacheUpdates).length > 0) {
-                  setSelectedPromptsCache((prev) => ({ ...cacheUpdates, ...prev }));
-                }
-
-                (combination.prompts || []).forEach((promptValue) => {
-                  const resolved = resolvedByValue[promptValue];
-                  const categoryId = resolved ? resolved.categoryId : combination.categoryId || 'root';
-                  const resolvedKey = makePromptKey(categoryId, promptValue);
-                  if (!isItemSelected('prompt', resolvedKey)) {
-                    toggleSelection(categoryId, promptValue);
-                  }
-                });
-                if (isItemSelected('combination', `combination:${combination.id}`)) {
-                  toggleCombinationSelection(combination.id);
-                }
-                showToast(`已拆分组合「${combination.name}」`, 'success');
-              },
-            },
-          ]);
-        },
-      },
-      [
-        h('span', { class: 'prompt-selector-item-icon' }, h(Icon, { name: 'link', size: 14 })),
-        h('span', { class: 'prompt-selector-item-name' }, [
-          combination.metadata?.pinned && h(Icon, { name: 'bookmark', size: 10 }),
-          combination.name,
-        ]),
-        h('span', { class: 'prompt-selector-combination-count' }, `${(combination.prompts || []).length}人`),
-      ],
-    );
-  };
-
-  /**
    * 渲染Prompt列表（包含分类和Prompt）- 使用 LazyList 懒加载
    */
   const renderPromptList = () => {
@@ -720,10 +598,6 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
         type: 'category',
         data: cat,
       })),
-      ...[...filteredCombinations].sort(comparePinned).map((comb) => ({
-        type: 'combination',
-        data: comb,
-      })),
       ...filteredPrompts.map((prompt) => ({
         type: 'prompt',
         data: prompt,
@@ -732,7 +606,6 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
 
     const renderListItem = (item, index) => {
       if (item.type === 'category') return renderCategoryCard(item.data, isSearching);
-      if (item.type === 'combination') return renderCombinationItem(item.data);
       return renderPromptItem(item.data, isSearching);
     };
 

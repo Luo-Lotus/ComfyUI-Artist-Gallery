@@ -10,15 +10,12 @@ async def get_covers(request):
     try:
         # 解析查询参数
         prompts_param = request.query.get("prompts", "").strip()
-        combinations_param = request.query.get("combinations", "").strip()
-
         prompt_keys = [k.strip() for k in prompts_param.split(",") if k.strip()] if prompts_param else []
-        combination_ids = [k.strip() for k in combinations_param.split(",") if k.strip()] if combinations_param else []
 
-        if not prompt_keys and not combination_ids:
+        if not prompt_keys:
             return web.json_response({"covers": {}})
 
-        prompt_storage, _, _, combination_storage = get_storage()
+        prompt_storage, _, _ = get_storage()
 
         covers = {}
 
@@ -34,16 +31,6 @@ async def get_covers(request):
                 cover_path = p.get("coverImageId")
                 if cover_path:
                     covers[key] = cover_path
-
-        # 处理 combination 封面
-        if combination_ids:
-            for cid in combination_ids:
-                c = combination_storage.get_combination_by_id(cid)
-                if not c:
-                    continue
-                cover_path = c.get("coverImageId")
-                if cover_path:
-                    covers[f"combination:{cid}"] = cover_path
 
         return web.json_response({"covers": covers})
     except Exception as e:

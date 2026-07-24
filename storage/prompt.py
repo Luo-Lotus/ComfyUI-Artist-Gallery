@@ -51,7 +51,7 @@ class PromptStorage(SplitJsonStorage):
 
     def get_prompt(self, category_id: str, value: str) -> Optional[dict]:
         """
-        根据分类ID和值获取Prompt（组合键，O(1) 索引查找）
+        根据分类ID和值获取 Prompt（复合键，O(1) 索引查找）
         :param category_id: 分类 ID
         :param value: Prompt值
         :return: Prompt对象或 None
@@ -219,7 +219,7 @@ class PromptStorage(SplitJsonStorage):
 
     def update_prompt(self, category_id: str, old_value: str, **kwargs) -> bool:
         """
-        更新Prompt信息（使用组合键）
+        更新 Prompt 信息（使用复合键）
         :param category_id: 分类 ID
         :param old_value: Prompt值（旧值）
         :param kwargs: 要更新的字段（value, name, alias, categoryId, coverImageId 等）
@@ -337,7 +337,7 @@ class PromptStorage(SplitJsonStorage):
 
     def delete_prompt(self, category_id: str, value: str) -> bool:
         """
-        删除Prompt（使用组合键）
+        删除 Prompt（使用复合键）
         :param category_id: 分类 ID
         :param value: Prompt值
         :return: 是否删除成功

@@ -1,6 +1,6 @@
 /**
  * 通用删除确认对话框
- * 支持 Prompt、分类、组合、图片的删除确认，展示详细影响说明
+ * 支持 Prompt、分类和图片的删除确认，展示详细影响说明
  */
 import { h } from '../lib/preact.mjs';
 import { useState } from '../lib/hooks.mjs';
@@ -27,19 +27,8 @@ function getDeleteConfig(type, target, context) {
         const name = target?.name || '';
         return [
           `确定要删除分类 "${name}" 吗？`,
-          '将递归删除所有子分类、分类下的 Prompt 和组合。',
+          '将递归删除所有子分类和分类下的 Prompt。',
           '此操作不可撤销。',
-        ];
-      },
-    },
-    combination: {
-      icon: 'link',
-      title: '确认删除组合',
-      getMessage: () => {
-        const name = target?.name || '';
-        return [
-          `确定要删除组合 "${name}" 吗？`,
-          '不会影响成员 Prompt 和匹配到的图片。',
         ];
       },
     },
@@ -58,13 +47,10 @@ function getDeleteConfig(type, target, context) {
       getMessage: () => {
         const lines = ['将批量删除以下内容：'];
         if (target?.categories?.length > 0) {
-          lines.push(`- ${target.categories.length} 个分类（含子分类、分类下的 Prompt 和组合）`);
+          lines.push(`- ${target.categories.length} 个分类（含子分类和分类下的 Prompt）`);
         }
         if (target?.prompts?.length > 0) {
           lines.push(`- ${target.prompts.length} 个 Prompt`);
-        }
-        if (target?.combinations?.length > 0) {
-          lines.push(`- ${target.combinations.length} 个组合`);
         }
         if (target?.images?.length > 0) {
           lines.push(`- ${target.images.length} 张图片`);

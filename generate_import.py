@@ -29,7 +29,6 @@ manifest = {
         {"id": CATEGORY_ID, "name": "Artists", "parentId": None, "order": 0}
     ],
     "prompts": [],
-    "combinations": [],
     "images": [],
 }
 

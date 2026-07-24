@@ -1,10 +1,14 @@
 import json
 
 from storage.category import CategoryStorage
-from storage.combination import CombinationStorage
+from storage._resolve import _run_startup_migrations
 from storage.image_mapping import ImageMappingStorage
 from storage.import_cover import apply_import_covers
-from storage.migration import migrate_prompt_covers_from_prompt_string, migrate_prompt_string_image_index
+from storage.migration import (
+    migrate_combinations_to_prompts,
+    migrate_prompt_covers_from_prompt_string,
+    migrate_prompt_string_image_index,
+)
 from storage.prompt import PromptStorage
 
 
@@ -46,18 +50,12 @@ def test_prompt_category_index_invalidates_after_write(tmp_path):
     assert [p["value"] for p in storage.get_prompts_by_category("root")] == ["new-value"]
 
 
-def test_category_and_combination_indexes_invalidate_after_write(tmp_path):
+def test_category_indexes_invalidate_after_write(tmp_path):
     categories = CategoryStorage(tmp_path)
     child = categories.add_category("Child", parent_id="root")
 
     assert categories.get_category_by_id(child["id"])["name"] == "Child"
     assert [c["id"] for c in categories.get_children("root")] == [child["id"]]
-
-    combinations = CombinationStorage(tmp_path)
-    created = combinations.add_combination("Combo", "root", ["new-value"])
-
-    assert combinations.get_combination_by_id(created["id"])["name"] == "Combo"
-    assert [c["id"] for c in combinations.get_combinations_by_category("root")] == [created["id"]]
 
 
 def test_image_mapping_prompt_index_invalidates_after_write(tmp_path):
@@ -129,13 +127,6 @@ def test_batch_move_updates_indexes(tmp_path):
     assert categories.get_category_by_id(child["id"])["parentId"] is None
     assert child["id"] not in [c["id"] for c in categories.get_children("root")]
 
-    combinations = CombinationStorage(tmp_path)
-    combination = combinations.add_combination("Combo", "root", ["a"])
-    combinations.batch_move([combination["id"]], "cat-2")
-    assert combinations.get_combination_by_id(combination["id"])["categoryId"] == "cat-2"
-    assert combinations.get_combinations_by_category("root") == []
-    assert [c["id"] for c in combinations.get_combinations_by_category("cat-2")] == [combination["id"]]
-
 
 def test_prompt_string_migration_removes_old_mapping_fields_and_keeps_prompt_data(tmp_path):
     write_json(tmp_path / "images.json", {
@@ -179,14 +170,6 @@ def test_prompt_cover_migration_uses_latest_matching_prompt_string_image(tmp_pat
             {"value": "missing", "categoryId": "root", "coverImageId": None},
         ],
     })
-    write_json(tmp_path / "combinations.json", {
-        "combinations": [
-            {"name": "alpha beta", "prompts": ["alpha", "beta"], "coverImageId": None},
-            {"name": "manual", "prompts": ["gamma"], "coverImageId": "comb-manual.png"},
-            {"name": "missing", "prompts": ["missing"], "coverImageId": None},
-        ],
-    })
-
     result = migrate_prompt_covers_from_prompt_string(tmp_path)
 
     assert result["success"] is True
@@ -196,22 +179,13 @@ def test_prompt_cover_migration_uses_latest_matching_prompt_string_image(tmp_pat
         {"value": "beta", "categoryId": "root", "coverImageId": "manual.png"},
         {"value": "missing", "categoryId": "root", "coverImageId": None},
     ]
-    migrated_combinations = json.loads((tmp_path / "combinations.json").read_text(encoding="utf-8"))["combinations"]
-    assert migrated_combinations == [
-        {"name": "alpha beta", "prompts": ["alpha", "beta"], "coverImageId": "new.png"},
-        {"name": "manual", "prompts": ["gamma"], "coverImageId": "comb-manual.png"},
-        {"name": "missing", "prompts": ["missing"], "coverImageId": None},
-    ]
 
-
-def test_apply_import_covers_updates_prompt_and_combination_without_global_scan(tmp_path):
+def test_apply_import_covers_updates_prompts_without_global_scan(tmp_path):
     prompt_storage = PromptStorage(tmp_path)
-    combination_storage = CombinationStorage(tmp_path)
     prompt_storage.add_prompt("alpha", category_id="root")
     prompt_storage.add_prompt("beta", category_id="root")
     prompt_storage.add_prompt("manual", category_id="root")
     prompt_storage.update_prompt("root", "manual", coverImageId="manual.png")
-    combo = combination_storage.add_combination("combo", "root", ["alpha", "beta"])
 
     prompt_specs = [
         {"categoryId": "root", "value": "alpha"},
@@ -224,10 +198,111 @@ def test_apply_import_covers_updates_prompt_and_combination_without_global_scan(
         {"image_path": "manual-new.png", "prompt_string": "manual", "file_info": {"createdAt": 300}},
     ]
 
-    result = apply_import_covers(prompt_storage, combination_storage, prompt_specs, mapping_specs, [combo])
+    result = apply_import_covers(prompt_storage, prompt_specs, mapping_specs)
 
-    assert result == {"prompts": 2, "combinations": 1}
+    assert result == {"prompts": 2}
     assert prompt_storage.get_prompt("root", "alpha")["coverImageId"] == "new.png"
     assert prompt_storage.get_prompt("root", "beta")["coverImageId"] == "new.png"
     assert prompt_storage.get_prompt("root", "manual")["coverImageId"] == "manual.png"
-    assert combination_storage.get_combination_by_id(combo["id"])["coverImageId"] == "new.png"
+
+
+def test_combination_migration_converts_and_merges_prompts(tmp_path):
+    write_json(tmp_path / "prompts.json", {
+        "prompts": [
+            {"value": "@alpha,@beta", "name": "Existing", "categoryId": "root", "coverImageId": None},
+        ],
+    })
+    write_json(tmp_path / "combinations.json", {
+        "combinations": [
+            {
+                "id": "merge",
+                "name": "Merged Combo",
+                "categoryId": "root",
+                "prompts": ["alpha", "beta"],
+                "outputContent": "@alpha,@beta",
+                "coverImageId": "merged.png",
+            },
+            {
+                "id": "new",
+                "name": "New Combo",
+                "categoryId": "cat-1",
+                "prompts": ["alpha", "beta"],
+                "outputContent": "custom output",
+                "coverImageId": "artist_gallery/new.png",
+                "createdAt": 123,
+                "metadata": {"pinned": True},
+            },
+            {
+                "id": "fallback",
+                "name": "Fallback Combo",
+                "categoryId": "root",
+                "prompts": ["one", None, "", "two"],
+                "outputContent": "",
+            },
+        ],
+    })
+
+    result = migrate_combinations_to_prompts(tmp_path)
+
+    assert result == {"success": True, "created": 2, "merged": 1, "skipped": 0, "files": 1}
+    assert not (tmp_path / "combinations.json").exists()
+    prompts = json.loads((tmp_path / "prompts.json").read_text(encoding="utf-8"))["prompts"]
+    assert prompts[0]["name"] == "Existing"
+    assert prompts[0]["coverImageId"] == "merged.png"
+    assert prompts[1] == {
+        "value": "custom output",
+        "name": "New Combo",
+        "alias": "",
+        "categoryId": "cat-1",
+        "coverImageId": "prompt_gallery/new.png",
+        "createdAt": 123,
+        "metadata": {"pinned": True},
+    }
+    assert prompts[2]["value"] == "one,two"
+    assert migrate_combinations_to_prompts(tmp_path)["created"] == 0
+
+
+def test_combination_migration_preserves_shard_disabled_state(tmp_path):
+    write_json(tmp_path / "dataset.prompts.json", {
+        "prompts": [{"value": "existing", "name": "Existing", "categoryId": "root"}],
+    })
+    write_json(tmp_path / "dataset.combinations.json", {
+        "combinations": [
+            {"name": "Imported", "categoryId": "root", "outputContent": "imported", "prompts": []},
+        ],
+    })
+    write_json(tmp_path / "storage_config.json", {
+        "disabled_files": ["dataset.prompts.json", "dataset.combinations.json"],
+    })
+
+    result = migrate_combinations_to_prompts(tmp_path)
+
+    assert result["created"] == 1
+    assert not (tmp_path / "dataset.combinations.json").exists()
+    prompts = json.loads((tmp_path / "dataset.prompts.json").read_text(encoding="utf-8"))["prompts"]
+    assert [prompt["value"] for prompt in prompts] == ["existing", "imported"]
+    config = json.loads((tmp_path / "storage_config.json").read_text(encoding="utf-8"))
+    assert config["disabled_files"] == ["dataset.prompts.json"]
+
+
+def test_startup_migration_converts_artists_before_legacy_groups(tmp_path):
+    write_json(tmp_path / "artists.json", {
+        "artists": [
+            {"name": "artist value", "displayName": "Artist Name", "categoryId": "root"},
+        ],
+    })
+    write_json(tmp_path / "combinations.json", {
+        "combinations": [
+            {"name": "Group Name", "categoryId": "root", "outputContent": "group output"},
+        ],
+    })
+
+    _run_startup_migrations(tmp_path)
+
+    prompts = json.loads((tmp_path / "prompts.json").read_text(encoding="utf-8"))["prompts"]
+    assert [(prompt["value"], prompt["name"]) for prompt in prompts] == [
+        ("artist value", "Artist Name"),
+        ("group output", "Group Name"),
+    ]
+    assert not (tmp_path / "artists.json").exists()
+    assert not (tmp_path / "combinations.json").exists()

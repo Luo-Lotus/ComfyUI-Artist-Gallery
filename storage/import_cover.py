@@ -57,15 +57,15 @@ def _best_imported_covers_by_value(prompt_values, mapping_specs):
     return best
 
 
-def apply_import_covers(prompt_storage, combination_storage, prompt_specs, mapping_specs, combinations=None):
+def apply_import_covers(prompt_storage, prompt_specs, mapping_specs):
     """
     为本次导入的数据批量补封面。
 
     只基于本次导入的 mapping_specs 做 promptString 匹配，避免每个 Prompt 都扫描全量映射。
-    Prompt 只补空 coverImageId；组合同样只补空 coverImageId。
+    Prompt 只补空 coverImageId。
     """
     if not prompt_specs or not mapping_specs:
-        return {"prompts": 0, "combinations": 0}
+        return {"prompts": 0}
 
     prompt_values = [spec.get("value") for spec in prompt_specs if spec.get("value")]
     best_by_value = _best_imported_covers_by_value(prompt_values, mapping_specs)
@@ -81,21 +81,4 @@ def apply_import_covers(prompt_storage, combination_storage, prompt_specs, mappi
 
     changed_prompts = prompt_storage.set_cover_batch_by_key(prompt_updates)
 
-    changed_combinations = 0
-    if combination_storage is not None and combinations:
-        combination_updates = {}
-        for combination in combinations:
-            if not combination or combination.get("coverImageId"):
-                continue
-            best = None
-            for value in combination.get("prompts") or []:
-                match = best_by_value.get(value)
-                if match and (best is None or match["score"] > best["score"]):
-                    best = match
-            if best and combination.get("id"):
-                combination_updates[combination["id"]] = best["imagePath"]
-
-        if combination_updates:
-            changed_combinations = combination_storage.set_cover_batch(combination_updates)
-
-    return {"prompts": changed_prompts, "combinations": changed_combinations}
+    return {"prompts": changed_prompts}

@@ -1,6 +1,6 @@
 /**
  * 复制对话框组件
- * 用于复制Prompt、分类或组合到其他分类
+ * 用于复制 Prompt 或分类到其他分类
  */
 import { h } from '../lib/preact.mjs';
 import { useState, useMemo } from '../lib/hooks.mjs';
@@ -11,7 +11,7 @@ import { Icon } from '../lib/icons.mjs';
 
 export function CopyDialog({
   isOpen,
-  itemType, // 'category' | 'prompt' | 'combination'
+  itemType, // 'category' | 'prompt'
   item,
   categories,
   onClose,
@@ -47,7 +47,6 @@ export function CopyDialog({
   const targetType = useMemo(() => {
     if (itemType === 'category') return 'category';
     if (itemType === 'prompt') return 'category';
-    if (itemType === 'combination') return 'category';
     return 'category';
   }, [itemType]);
 
@@ -71,11 +70,8 @@ export function CopyDialog({
   const handleTargetSelect = (target) => {
     setSelectedTarget(target);
 
-    // 如果是复制Prompt或组合，可以修改名称
+    // 复制 Prompt 时可以修改名称
     if (itemType === 'prompt') {
-      setShowNameInput(true);
-      setNewName(item.name);
-    } else if (itemType === 'combination') {
       setShowNameInput(true);
       setNewName(item.name);
     } else {
@@ -88,14 +84,12 @@ export function CopyDialog({
   const getTitle = () => {
     if (itemType === 'category') return '复制分类';
     if (itemType === 'prompt') return '复制Prompt';
-    if (itemType === 'combination') return '复制组合';
     return '复制';
   };
 
   const getTitleIcon = () => {
     if (itemType === 'category') return h(Icon, { name: 'folder-plus', size: 18 });
     if (itemType === 'prompt') return h(Icon, { name: 'plus', size: 18 });
-    if (itemType === 'combination') return h(Icon, { name: 'link', size: 18 });
     return h(Icon, { name: 'copy', size: 18 });
   };
 
@@ -103,7 +97,6 @@ export function CopyDialog({
     if (!item) return '';
     if (itemType === 'category') return item.name;
     if (itemType === 'prompt') return item.name || item.value;
-    if (itemType === 'combination') return item.name;
     return '';
   };
 

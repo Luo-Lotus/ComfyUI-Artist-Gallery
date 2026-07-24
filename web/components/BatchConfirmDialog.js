@@ -12,7 +12,7 @@ export function BatchConfirmDialog({
   isOpen,
   onClose,
   operation, // 'delete' | 'move' | 'copy'
-  items, // { categories, prompts, combinations, images }
+  items, // { categories, prompts, images }
   onConfirm,
 }) {
   const [loading, setLoading] = useState(false);
@@ -31,7 +31,6 @@ export function BatchConfirmDialog({
     const counts = {
       categories: items.categories?.length || 0,
       prompts: items.prompts?.length || 0,
-      combinations: items.combinations?.length || 0,
       images: imageCount,
     };
 
@@ -43,10 +42,6 @@ export function BatchConfirmDialog({
 
     if (counts.prompts > 0) {
       summary.push(`${counts.prompts} 个Prompt`);
-    }
-
-    if (counts.combinations > 0) {
-      summary.push(`${counts.combinations} 个组合`);
     }
 
     if (counts.images > 0) {
@@ -84,7 +79,7 @@ export function BatchConfirmDialog({
 
   const getConfirmationLevel = () => {
     const imageCount = operation === 'delete' ? (Array.isArray(items.images) ? items.images.length : items.images || 0) : 0;
-    const totalItems = (items.categories?.length || 0) + (items.prompts?.length || 0) + (items.combinations?.length || 0) + imageCount;
+    const totalItems = (items.categories?.length || 0) + (items.prompts?.length || 0) + imageCount;
 
     if (totalItems <= 5) return 'low';
     if (totalItems <= 20) return 'medium';
@@ -94,7 +89,7 @@ export function BatchConfirmDialog({
   const renderWarning = () => {
     const level = getConfirmationLevel();
     const imageCount = operation === 'delete' ? (Array.isArray(items.images) ? items.images.length : items.images || 0) : 0;
-    const totalItems = (items.categories?.length || 0) + (items.prompts?.length || 0) + (items.combinations?.length || 0) + imageCount;
+    const totalItems = (items.categories?.length || 0) + (items.prompts?.length || 0) + imageCount;
 
     if (level === 'low') {
       return null; // 少量项目，无需特殊警告
@@ -156,7 +151,6 @@ export function BatchConfirmDialog({
             {},
             items.categories?.length > 0 && h('li', {}, `• ${items.categories.length} 个分类`),
             items.prompts?.length > 0 && h('li', {}, `• ${items.prompts.length} 个Prompt`),
-            items.combinations?.length > 0 && h('li', {}, `• ${items.combinations.length} 个组合`),
             operation === 'delete' && (Array.isArray(items.images) ? items.images.length : 0) > 0 &&
               h('li', {}, `• ${items.images.length} 张图片`),
           ),

@@ -66,7 +66,7 @@ async def _iter_import_output(filter_mode: str, folders: list):
     import folder_paths
 
     output_dir = Path(folder_paths.get_output_directory())
-    _, mapping_storage, _, _ = get_storage()
+    _, mapping_storage, _ = get_storage()
     storage_dir = Path(mapping_storage.storage_dir)
     target_file = str(storage_dir / COMFY_OUTPUT_SHARD)
 

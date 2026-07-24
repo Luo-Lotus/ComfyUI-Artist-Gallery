@@ -11,8 +11,16 @@ const DEFAULT_CONFIG = {
   randomMode: false,
   randomCount: 3,
   cycleMode: false,
-  autoCreateCombination: false,
 };
+
+function sanitizeConfig(config = {}) {
+  return {
+    format: config.format ?? DEFAULT_CONFIG.format,
+    randomMode: config.randomMode === true,
+    randomCount: Number.isFinite(config.randomCount) ? config.randomCount : DEFAULT_CONFIG.randomCount,
+    cycleMode: config.cycleMode === true,
+  };
+}
 
 const DEFAULT_PARTITION = {
   id: 'partition-default',
@@ -52,7 +60,7 @@ function validatePartitionData(data) {
 /**
  * 从 nodeInstance metadata widget 值解析分区数据
  * v1 格式: { version:1, partitions:[{id, orderItems[], ...}], globalConfig }
- * 向后兼容旧格式: promptKeys[], categoryIds[], combinationKeys[]
+ * 向后兼容旧格式: promptKeys[], categoryIds[]
  */
 function parseWidgetMetadata(widgetValue) {
   try {
@@ -61,12 +69,11 @@ function parseWidgetMetadata(widgetValue) {
       return null;
     }
     const partitions = data.partitions.map((p, i) => {
-      let orderItems = p.orderItems || [];
+      let orderItems = (p.orderItems || []).filter((item) => item.type === 'prompt' || item.type === 'category');
 
-      // 向后兼容：旧格式无 orderItems，从三个数组构建
-      if (!p.orderItems && (p.promptKeys || p.categoryIds || p.combinationKeys)) {
+      // 向后兼容：旧格式无 orderItems，从两个数组构建
+      if (!p.orderItems && (p.promptKeys || p.categoryIds)) {
         orderItems = [
-          ...(p.combinationKeys || []).map((key) => ({ type: 'combination', key })),
           ...(p.categoryIds || []).map((key) => ({ type: 'category', key })),
           ...(p.promptKeys || []).map((key) => ({ type: 'prompt', key })),
         ];
@@ -77,7 +84,7 @@ function parseWidgetMetadata(widgetValue) {
         name: p.name,
         isDefault: p.isDefault,
         enabled: p.enabled,
-        config: p.config,
+        config: sanitizeConfig(p.config),
         order: i,
         createdAt: p.createdAt || Date.now(),
         orderItems,
@@ -86,14 +93,14 @@ function parseWidgetMetadata(widgetValue) {
     return validatePartitionData({
       partitions,
       promptWeights: data.promptWeights || {},
-      globalConfig: data.globalConfig || { ...DEFAULT_CONFIG },
+      globalConfig: sanitizeConfig(data.globalConfig),
     });
   } catch {
     return null;
   }
 }
 
-export function usePartitionState({ selectedPromptsCache, categories, combinations, metadataInput }) {
+export function usePartitionState({ selectedPromptsCache, categories, metadataInput }) {
   const [partitionData, setPartitionData] = useState(() => {
     if (metadataInput?.value) {
       const parsed = parseWidgetMetadata(metadataInput.value);
@@ -130,13 +137,6 @@ export function usePartitionState({ selectedPromptsCache, categories, combinatio
             data = { id: key, name: key };
             orphaned = true;
           }
-        } else if (type === 'combination') {
-          const combId = key.replace('combination:', '');
-          data = (combinations || []).find((c) => c.id === combId);
-          if (!data) {
-            data = { id: combId, name: key };
-            orphaned = true;
-          }
         }
 
         items.push({ type, key, data, orphaned });
@@ -145,7 +145,7 @@ export function usePartitionState({ selectedPromptsCache, categories, combinatio
     });
 
     return { itemsByPartition };
-  }, [partitionData, selectedPromptsCache, categories, combinations]);
+  }, [partitionData, selectedPromptsCache, categories]);
 
   const { itemsByPartition } = partitionViews;
 
@@ -342,16 +342,6 @@ export function usePartitionState({ selectedPromptsCache, categories, combinatio
     });
   }, []);
 
-  // 辅助：检查某项是否在任意分区中
-  const isItemSelected = useCallback(
-    (type, key) => {
-      return partitionData.partitions.some((p) =>
-        p.orderItems.some((item) => item.type === type && item.key === key),
-      );
-    },
-    [partitionData],
-  );
-
   return {
     partitionData,
     setPartitionData,
@@ -367,6 +357,5 @@ export function usePartitionState({ selectedPromptsCache, categories, combinatio
     togglePartition,
     setAsDefaultPartition,
     reorderPartitions,
-    isItemSelected,
   };
 }

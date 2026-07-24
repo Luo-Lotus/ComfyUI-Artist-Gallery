@@ -9,7 +9,6 @@ import { batchDelete } from '../../services/promptApi.js';
 export function useSelection({
   categories,
   filteredPrompts,
-  currentCombinations,
   currentPrompt,
   currentCategory,
   loadData,
@@ -85,9 +84,6 @@ export function useSelection({
     flatCategories.forEach((cat) => {
       newSet.add(`category:${cat.id}`);
     });
-    currentCombinations.forEach((comb) => {
-      newSet.add(`combination:${comb.id}`);
-    });
     filteredPrompts.forEach((prompt) => {
       newSet.add(`prompt:${prompt.categoryId}:${prompt.value}`);
     });
@@ -102,11 +98,10 @@ export function useSelection({
     const items = Array.from(selectedItems);
     const types = new Set(items.map((key) => key.split(':')[0]));
 
-    const typeCount = ['prompt', 'category', 'combination', 'image'].filter((t) => types.has(t)).length;
+    const typeCount = ['prompt', 'category', 'image'].filter((t) => types.has(t)).length;
     if (typeCount > 1) return 'mixed';
     if (types.has('image')) return 'image';
     if (types.has('prompt')) return 'prompt';
-    if (types.has('combination')) return 'combination';
     if (types.has('category')) return 'category';
     return 'empty';
   };
@@ -116,7 +111,6 @@ export function useSelection({
     const result = {
       categories: [],
       prompts: [],
-      combinations: [],
       images: [],
     };
 
@@ -133,9 +127,6 @@ export function useSelection({
         if (prompt) {
           result.prompts.push(prompt);
         }
-      } else if (type === 'combination') {
-        const comb = currentCombinations.find((c) => c.id === id);
-        if (comb) result.combinations.push(comb);
       } else if (type === 'image') {
         if (currentPrompt && currentPrompt.images) {
           const img = currentPrompt.images.find((i) => i.path === id);
@@ -149,7 +140,7 @@ export function useSelection({
 
   const handleBatchDelete = () => {
     const details = getSelectedDetails();
-    const totalSelected = details.categories.length + details.prompts.length + details.combinations.length + details.images.length;
+    const totalSelected = details.categories.length + details.prompts.length + details.images.length;
     if (totalSelected === 0) return;
 
     setBatchOperation('delete');
@@ -158,13 +149,13 @@ export function useSelection({
 
   const handleBatchMove = ({ setMoveItem, setMoveItemType, setShowMoveDialog }) => {
     const details = getSelectedDetails();
-    const totalMovable = details.categories.length + details.prompts.length + details.combinations.length;
+    const totalMovable = details.categories.length + details.prompts.length;
     if (totalMovable === 0) {
       showToast('图片不能移动到其他 Prompt', 'warning');
       return;
     }
     if (details.images.length > 0) {
-      showToast('已忽略选中的图片，仅移动分类、Prompt 和组合', 'warning');
+      showToast('已忽略选中的图片，仅移动分类和 Prompt', 'warning');
     }
 
     setBatchOperation('move');
@@ -174,31 +165,25 @@ export function useSelection({
     } else if (details.prompts.length > 0) {
       setMoveItemType('prompt');
       setMoveItem(details.prompts[0]);
-    } else if (details.combinations.length > 0) {
-      setMoveItemType('combination');
-      setMoveItem(details.combinations[0]);
     }
     setShowMoveDialog(true);
   };
 
   const handleBatchCopy = ({ setCopyItem, setCopyItemType, setShowCopyDialog }) => {
     const details = getSelectedDetails();
-    const totalCopyable = details.prompts.length + details.combinations.length;
+    const totalCopyable = details.prompts.length;
     if (totalCopyable === 0) {
-      showToast('请选择Prompt或组合后复制', 'warning');
+      showToast('请选择 Prompt 后复制', 'warning');
       return;
     }
     if (details.images.length > 0) {
-      showToast('已忽略选中的图片，仅复制 Prompt 和组合', 'warning');
+      showToast('已忽略选中的图片，仅复制 Prompt', 'warning');
     }
 
     setBatchOperation('copy');
     if (details.prompts.length > 0) {
       setCopyItemType('prompt');
       setCopyItem(details.prompts[0]);
-    } else if (details.combinations.length > 0) {
-      setCopyItemType('combination');
-      setCopyItem(details.combinations[0]);
     }
     setShowCopyDialog(true);
   };
@@ -226,7 +211,6 @@ export function useSelection({
             categoryId: a.categoryId,
             value: a.value,
           })),
-          combinations: details.combinations.map((c) => c.id),
           images: details.images.map((img) => ({ path: img.path })),
         });
         showToast('批量删除成功', 'success');

@@ -12,14 +12,12 @@ from ._prompt_cover import ensure_prompt_cover
 
 @server.PromptServer.instance.routes.post("/prompt_gallery/batch_resolve")
 async def batch_resolve(request):
-    """批量解析混合类型（prompts + categories + combinations）"""
+    """批量解析 Prompt 和分类。"""
     try:
         data = await request.json()
         prompt_keys = data.get("prompts", [])
         category_ids = data.get("categories", [])
-        combination_ids = data.get("combinations", [])
-
-        prompt_storage, _, category_storage, combination_storage = get_storage()
+        prompt_storage, _, category_storage = get_storage()
 
         result = {}
 
@@ -58,22 +56,6 @@ async def batch_resolve(request):
                     }
             result["categories"] = categories_result
 
-        # 解析 combinations
-        if combination_ids:
-            combinations_result = {}
-            for comb_id in combination_ids:
-                c = combination_storage.get_combination_by_id(comb_id)
-                if c:
-                    combinations_result[comb_id] = {
-                        "id": c.get("id"),
-                        "name": c.get("name"),
-                        "categoryId": c.get("categoryId", "root"),
-                        "prompts": c.get("prompts", []),
-                        "outputContent": c.get("outputContent", ""),
-                        "metadata": c.get("metadata", {}),
-                    }
-            result["combinations"] = combinations_result
-
         return web.json_response(result)
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
@@ -81,20 +63,19 @@ async def batch_resolve(request):
 
 @server.PromptServer.instance.routes.get("/prompt_gallery/search")
 async def search_prompts(request):
-    """跨分类搜索 Prompt 和 Combination"""
+    """跨分类搜索 Prompt。"""
     try:
         q = request.query.get("q", "").strip()
         if not q:
-            return web.json_response({"prompts": [], "combinations": [], "totalCount": 0})
+            return web.json_response({"prompts": [], "totalCount": 0})
 
         limit = min(int(request.query.get("limit", "50")), 100)
         query = q.lower()
 
-        prompt_storage, _, _, combination_storage = get_storage()
+        prompt_storage, _, _ = get_storage()
 
         # 搜索 Prompts（封面只取持久化 coverImageId）
         all_prompts = prompt_storage.get_all_prompts()
-        all_combinations = combination_storage.get_all_combinations()
 
         matched_prompts = []
         for p in all_prompts:
@@ -112,27 +93,9 @@ async def search_prompts(request):
                 if len(matched_prompts) >= limit:
                     break
 
-        # 搜索 Combinations（封面只取持久化 coverImageId）
-        matched_combinations = []
-        for c in all_combinations:
-            if (query in (c.get("name") or "").lower()
-                    or query in (c.get("outputContent") or "").lower()):
-                matched_combinations.append({
-                    "id": c.get("id"),
-                    "name": c.get("name"),
-                    "categoryId": c.get("categoryId", "root"),
-                    "prompts": c.get("prompts", []),
-                    "outputContent": c.get("outputContent", ""),
-                    "coverImagePath": c.get("coverImageId"),
-                    "metadata": c.get("metadata", {}),
-                })
-                if len(matched_combinations) >= limit:
-                    break
-
         return web.json_response({
             "prompts": matched_prompts,
-            "combinations": matched_combinations,
-            "totalCount": len(matched_prompts) + len(matched_combinations),
+            "totalCount": len(matched_prompts),
         })
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
@@ -152,7 +115,7 @@ async def add_prompt(request):
             return web.json_response({"error": "Prompt值不能为空"}, status=400)
 
         import folder_paths
-        prompt_storage, mapping_storage, category_storage, _ = get_storage()
+        prompt_storage, mapping_storage, category_storage = get_storage()
 
         # 验证分类存在
         category = category_storage.get_category_by_id(category_id)
@@ -181,7 +144,7 @@ async def add_prompts_batch(request):
             return web.json_response({"error": "Prompt列表不能为空"}, status=400)
 
         import folder_paths
-        prompt_storage, mapping_storage, _, _ = get_storage()
+        prompt_storage, mapping_storage, _ = get_storage()
         success_prompts, failed_names = prompt_storage.add_prompts_batch(prompts_data, category_id)
         output_dir = Path(folder_paths.get_output_directory())
         for prompt in success_prompts:
@@ -200,13 +163,13 @@ async def add_prompts_batch(request):
 
 @server.PromptServer.instance.routes.put(r"/prompt_gallery/prompts/{category_id}/{value:[\s\S]+}")
 async def update_prompt_composite(request):
-    """更新Prompt信息（使用组合键）"""
+    """更新 Prompt 信息（使用复合键）。"""
     try:
         category_id = request.match_info['category_id']
         old_value = request.match_info['value']
         data = await request.json()
 
-        prompt_storage, _, category_storage, _ = get_storage()
+        prompt_storage, _, category_storage = get_storage()
 
         # 检查是否要修改值
         new_value = data.get("value", old_value)
@@ -307,12 +270,12 @@ async def update_prompt_composite(request):
 
 @server.PromptServer.instance.routes.delete(r"/prompt_gallery/prompts/{category_id}/{value:[\s\S]+}")
 async def delete_prompt_composite(request):
-    """删除Prompt（不清理图片映射和组合成员）"""
+    """删除 Prompt，不清理图片映射。"""
     try:
         category_id = request.match_info['category_id']
         value = request.match_info['value']
 
-        prompt_storage, _, _, _ = get_storage()
+        prompt_storage, _, _ = get_storage()
 
         prompt = prompt_storage.get_prompt(category_id, value)
         if not prompt:
@@ -344,7 +307,7 @@ async def copy_prompt(request):
         if not target_category_id:
             return web.json_response({"error": "缺少目标分类ID"}, status=400)
 
-        prompt_storage, _, category_storage, _ = get_storage()
+        prompt_storage, _, category_storage = get_storage()
 
         # 验证源Prompt存在
         source_prompt = prompt_storage.get_prompt(category_id, value)

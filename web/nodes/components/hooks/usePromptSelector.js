@@ -40,10 +40,6 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
   const [sortOrder, setSortOrder] = useState('asc');
   const [currentCategory, setCurrentCategory] = useState('root');
   const [refreshing, setRefreshing] = useState(false);
-  const [combinations, setCombinations] = useState([]);
-  // 已选组合的完整数据（来自 batchResolve，不受当前分类筛选影响）
-  const [selectedCombinationsData, setSelectedCombinationsData] = useState({});
-
   // 搜索结果状态
   const [searchResults, setSearchResults] = useState(null);
 
@@ -52,17 +48,6 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
 
   // 封面缓存（key -> coverImagePath）
   const coversCacheRef = useRef({});
-
-  // 合并浏览列表和已选组合数据，供 usePartitionState 解析分区内的组合项
-  const allCombinations = useMemo(() => {
-    if (Object.keys(selectedCombinationsData).length === 0) return combinations;
-    const map = new Map();
-    for (const c of combinations) map.set(c.id, c);
-    for (const [id, c] of Object.entries(selectedCombinationsData)) {
-      if (!map.has(id)) map.set(id, c);
-    }
-    return Array.from(map.values());
-  }, [combinations, selectedCombinationsData]);
 
   // 分区系统状态（由 usePartitionState hook 管理）
   const {
@@ -79,11 +64,9 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
     togglePartition,
     setAsDefaultPartition,
     reorderPartitions,
-    isItemSelected,
   } = usePartitionState({
     selectedPromptsCache,
     categories,
-    combinations: allCombinations,
     metadataInput,
   });
 
@@ -108,33 +91,22 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
     return keys;
   }, [partitionData]);
 
-  const selectedCombinationKeys = useMemo(() => {
-    const keys = new Set();
-    for (const p of partitionData.partitions) {
-      for (const item of p.orderItems) {
-        if (item.type === 'combination') keys.add(item.key);
-      }
-    }
-    return keys;
-  }, [partitionData]);
-
   // 计算面包屑路径
   const breadcrumbPath = useMemo(() => {
     return buildBreadcrumbPath(currentCategory, categories);
   }, [currentCategory, categories]);
 
-  // 辅助函数：生成组合键
+  // 辅助函数：生成 Prompt key
   const makePromptKey = (categoryId, value) => `${categoryId}:${value}`;
 
   // 批量获取封面
-  const fetchCoversByIds = useCallback(async (promptKeys, combinationIds) => {
+  const fetchCoversByIds = useCallback(async (promptKeys) => {
     const uncachedPromptKeys = promptKeys.filter((k) => !(k in coversCacheRef.current));
-    const uncachedCombinationIds = combinationIds.filter((id) => !(`combination:${id}` in coversCacheRef.current));
 
-    if (uncachedPromptKeys.length === 0 && uncachedCombinationIds.length === 0) return;
+    if (uncachedPromptKeys.length === 0) return;
 
     try {
-      const result = await fetchCovers(uncachedPromptKeys, uncachedCombinationIds);
+      const result = await fetchCovers(uncachedPromptKeys);
       Object.assign(coversCacheRef.current, result.covers || {});
     } catch (err) {
       console.error('[PromptSelector] Failed to fetch covers:', err);
@@ -172,7 +144,6 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
         const data = await loadCategories();
         if (data) {
           setPrompts(data.prompts || []);
-          setCombinations(data.combinations || []);
         }
       } catch (error) {
         console.error('[PromptSelector] Failed to load init data:', error);
@@ -183,22 +154,17 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
     loadInitData();
   }, []);
 
-  // 补全缓存中缺失的画师、分类、组合信息
+  // 补全缓存中缺失的画师和分类信息
   const hydrateAll = useCallback(
     async () => {
       const missingPrompts = Array.from(selectedKeys).filter((key) => !selectedPromptsCache[key]);
       const missingCategories = Array.from(selectedCategories).filter((catId) => !categories.find((c) => c.id === catId));
-      const missingCombinations = Array.from(selectedCombinationKeys)
-        .map((key) => key.replace('combination:', ''))
-        .filter((id) => !(combinations || []).find((c) => c.id === id));
-
-      if (missingPrompts.length === 0 && missingCategories.length === 0 && missingCombinations.length === 0) return;
+      if (missingPrompts.length === 0 && missingCategories.length === 0) return;
 
       try {
         const result = await batchResolve({
           prompts: missingPrompts,
           categories: missingCategories,
-          combinations: missingCombinations,
         });
 
         if (result.prompts) {
@@ -222,33 +188,17 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
           }
         }
 
-        if (result.combinations) {
-          const resolvedCombs = Object.values(result.combinations);
-          if (resolvedCombs.length > 0) {
-            setSelectedCombinationsData((prev) => {
-              const next = { ...prev };
-              let changed = false;
-              for (const c of resolvedCombs) {
-                if (!next[c.id]) {
-                  next[c.id] = c;
-                  changed = true;
-                }
-              }
-              return changed ? next : prev;
-            });
-          }
-        }
       } catch (err) {
         console.error('[PromptSelector] Failed to hydrate cache:', err);
       }
     },
-    [selectedKeys, selectedPromptsCache, selectedCategories, selectedCombinationKeys, categories, mergeCategories],
+    [selectedKeys, selectedPromptsCache, selectedCategories, categories, mergeCategories],
   );
 
   // 当选中项变化时，补全缓存中缺失的信息
   useEffect(() => {
     hydrateAll();
-  }, [selectedKeys, selectedCategories, selectedCombinationKeys]);
+  }, [selectedKeys, selectedCategories]);
 
   // 加载画师列表（根据分类筛选）
   useEffect(() => {
@@ -258,7 +208,6 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
         const response = await fetch(`/prompt_gallery/data?category=${currentCategory}`);
         const data = await response.json();
         setPrompts(data.prompts || []);
-        setCombinations(data.combinations || []);
         if (data.childCategories) {
           mergeCategories(data.childCategories);
         }
@@ -281,10 +230,7 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
     const doSearch = async () => {
       try {
         const result = await searchAll(searchQuery);
-        setSearchResults({
-          prompts: result.prompts || [],
-          combinations: result.combinations || [],
-        });
+        setSearchResults({ prompts: result.prompts || [] });
         const coverKeys = (result.prompts || [])
           .filter((p) => p.coverImagePath)
           .map((p) => `${p.categoryId}:${p.value}`);
@@ -294,7 +240,7 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
         }
       } catch (err) {
         console.error('[PromptSelector] Search failed:', err);
-        setSearchResults({ prompts: [], combinations: [] });
+        setSearchResults({ prompts: [] });
       }
     };
 
@@ -340,34 +286,18 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
     return categories.filter((c) => c.name.toLowerCase().includes(query));
   }, [categories, searchQuery, currentCategory]);
 
-  const filteredCombinations = useMemo(() => {
-    if (searchResults) return searchResults.combinations;
-    if (!searchQuery) return combinations;
-    const query = searchQuery.toLowerCase();
-    return combinations.filter(
-      (c) =>
-        (c.name && c.name.toLowerCase().includes(query)) ||
-        (c.outputContent && c.outputContent.toLowerCase().includes(query)),
-    );
-  }, [combinations, searchResults, searchQuery]);
-
-  // Shift 范围选择：构建当前视图的有序键列表（与渲染顺序一致：置顶优先 → 分类 → 组合 → Prompt）
+  // Shift 范围选择：构建当前视图的有序键列表（置顶分类 → Prompt）
   const orderedKeys = useMemo(() => {
     const keys = [];
     // 分类（置顶优先）
     const sortedCats = [...filteredCategories].sort(
       (a, b) => Number(!!b?.metadata?.pinned) - Number(!!a?.metadata?.pinned),
     );
-    for (const cat of sortedCats) keys.push(`category:${cat.id}`);
-    // 组合（置顶优先）
-    const sortedCombs = [...filteredCombinations].sort(
-      (a, b) => Number(!!b?.metadata?.pinned) - Number(!!a?.metadata?.pinned),
-    );
-    for (const comb of sortedCombs) keys.push(`combination:${comb.id}`);
+    for (const cat of sortedCats) keys.push(cat.id);
     // Prompt
     for (const prompt of filteredPrompts) keys.push(makePromptKey(prompt.categoryId, prompt.value));
     return keys;
-  }, [filteredCategories, filteredCombinations, filteredPrompts]);
+  }, [filteredCategories, filteredPrompts]);
 
   // 辅助函数：将范围内的项批量添加到默认分区
   const addRangeToDefaultPartition = useCallback(
@@ -378,7 +308,6 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
       // 缓存 prompt 信息
       const cacheUpdates = {};
       for (const key of keysToAdd) {
-        if (key.startsWith('combination:')) continue;
         if (key.includes(':')) {
           // prompt key 格式为 categoryId:value
           const prompt = prompts.find((a) => makePromptKey(a.categoryId, a.value) === key);
@@ -391,9 +320,7 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
 
       // 批量添加到默认分区
       for (const key of keysToAdd) {
-        if (key.startsWith('combination:')) {
-          addItemToPartition('combination', key, defaultPartition.id);
-        } else if (key.includes(':')) {
+        if (key.includes(':')) {
           addItemToPartition('prompt', key, defaultPartition.id);
         } else {
           addItemToPartition('category', key, defaultPartition.id);
@@ -419,13 +346,11 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
           for (let i = from; i <= to; i++) {
             // 只添加尚未选中的项
             const k = orderedKeys[i];
-            const type = k.startsWith('combination:') ? 'combination' : k.includes(':') ? 'prompt' : 'category';
+            const type = k.includes(':') ? 'prompt' : 'category';
             const isSelected =
               type === 'prompt'
                 ? selectedKeys.has(k)
-                : type === 'category'
-                  ? selectedCategories.has(k)
-                  : selectedCombinationKeys.has(k);
+                : selectedCategories.has(k);
             if (!isSelected) keysToAdd.push(k);
           }
           if (keysToAdd.length > 0) addRangeToDefaultPartition(keysToAdd);
@@ -450,7 +375,7 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
       }
       lastSelectedItemRef.current = key;
     },
-    [selectedKeys, selectedCategories, selectedCombinationKeys, prompts, partitionData, addItemToPartition, removeItemGlobally, orderedKeys, addRangeToDefaultPartition],
+    [selectedKeys, selectedCategories, prompts, partitionData, addItemToPartition, removeItemGlobally, orderedKeys, addRangeToDefaultPartition],
   );
 
   // 切换分类选择状态
@@ -466,13 +391,11 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
           const keysToAdd = [];
           for (let i = from; i <= to; i++) {
             const k = orderedKeys[i];
-            const type = k.startsWith('combination:') ? 'combination' : k.includes(':') ? 'prompt' : 'category';
+            const type = k.includes(':') ? 'prompt' : 'category';
             const isSelected =
               type === 'prompt'
                 ? selectedKeys.has(k)
-                : type === 'category'
-                  ? selectedCategories.has(k)
-                  : selectedCombinationKeys.has(k);
+                : selectedCategories.has(k);
             if (!isSelected) keysToAdd.push(k);
           }
           if (keysToAdd.length > 0) addRangeToDefaultPartition(keysToAdd);
@@ -493,52 +416,7 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
       }
       lastSelectedItemRef.current = categoryId;
     },
-    [selectedKeys, selectedCategories, selectedCombinationKeys, partitionData, addItemToPartition, removeItemGlobally, orderedKeys, addRangeToDefaultPartition],
-  );
-
-  // 切换组合选择状态
-  const toggleCombinationSelection = useCallback(
-    (combinationId, shiftKey = false) => {
-      const combinationKey = `combination:${combinationId}`;
-
-      // Shift 范围选择
-      if (shiftKey && lastSelectedItemRef.current && orderedKeys.length > 0) {
-        const startIdx = orderedKeys.indexOf(lastSelectedItemRef.current);
-        const endIdx = orderedKeys.indexOf(combinationKey);
-        if (startIdx >= 0 && endIdx >= 0) {
-          const from = Math.min(startIdx, endIdx);
-          const to = Math.max(startIdx, endIdx);
-          const keysToAdd = [];
-          for (let i = from; i <= to; i++) {
-            const k = orderedKeys[i];
-            const type = k.startsWith('combination:') ? 'combination' : k.includes(':') ? 'prompt' : 'category';
-            const isSelected =
-              type === 'prompt'
-                ? selectedKeys.has(k)
-                : type === 'category'
-                  ? selectedCategories.has(k)
-                  : selectedCombinationKeys.has(k);
-            if (!isSelected) keysToAdd.push(k);
-          }
-          if (keysToAdd.length > 0) addRangeToDefaultPartition(keysToAdd);
-          lastSelectedItemRef.current = combinationKey;
-          return;
-        }
-      }
-
-      // 普通切换
-      const isAdding = !selectedCombinationKeys.has(combinationKey);
-      if (isAdding) {
-        const defaultPartition = partitionData.partitions.find((p) => p.isDefault);
-        if (defaultPartition) {
-          addItemToPartition('combination', combinationKey, defaultPartition.id);
-        }
-      } else {
-        removeItemGlobally('combination', combinationKey);
-      }
-      lastSelectedItemRef.current = combinationKey;
-    },
-    [selectedKeys, selectedCategories, selectedCombinationKeys, partitionData, addItemToPartition, removeItemGlobally, orderedKeys, addRangeToDefaultPartition],
+    [selectedKeys, selectedCategories, partitionData, addItemToPartition, removeItemGlobally, orderedKeys, addRangeToDefaultPartition],
   );
 
   // 节点同步
@@ -565,7 +443,6 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
       const response = await fetch(`/prompt_gallery/data?category=${currentCategory}`);
       const data = await response.json();
       setPrompts(data.prompts || []);
-      setCombinations(data.combinations || []);
       if (data.childCategories) {
         mergeCategories(data.childCategories);
       }
@@ -583,8 +460,6 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
     categories,
     selectedKeys,
     selectedCategories,
-    selectedPromptsCache,
-    setSelectedPromptsCache,
     loading,
     searchQuery,
 
@@ -593,21 +468,12 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
     currentCategory,
     filteredPrompts,
     filteredCategories,
-    filteredCombinations,
     refreshing,
     breadcrumbPath,
-
-    // 搜索结果
-    searchResults,
 
     // 封面缓存和获取函数
     coversCache: coversCacheRef.current,
     fetchCoversByIds,
-
-    // 组合系统
-    combinations,
-    selectedCombinationKeys,
-    toggleCombinationSelection,
 
     // 分区系统状态和操作
     partitionData,
@@ -623,7 +489,6 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
     togglePartition,
     setAsDefaultPartition,
     reorderPartitions,
-    isItemSelected,
 
     // 操作
     setSearchQuery,

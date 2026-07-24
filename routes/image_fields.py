@@ -169,7 +169,7 @@ async def extract_field_options(request):
         if not extract_fn:
             return web.json_response({"error": "提取函数必须定义 extract_func"}, status=400)
 
-        _, mapping_storage, _, _ = get_storage()
+        _, mapping_storage, _ = get_storage()
         items = mapping_storage.get_all_mappings()
 
         options_set = set()
@@ -209,7 +209,7 @@ async def evaluate_fields(request):
             return web.json_response({"error": "参数不完整"}, status=400)
 
         storage = get_image_field_storage()
-        _, mapping_storage, _, _ = get_storage()
+        _, mapping_storage, _ = get_storage()
 
         # 查找目标图片的 mapping（O(1) 索引）
         target_mapping = mapping_storage.get_mappings_by_image(image_path)

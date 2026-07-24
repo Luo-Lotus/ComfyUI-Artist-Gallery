@@ -89,8 +89,7 @@ export function PartitionItem({
     // 从 items 按 type 分拣传给预览
     const prompts = items.filter((item) => item.type === 'prompt').map((item) => item.data);
     const cats = items.filter((item) => item.type === 'category').map((item) => item.data);
-    const combs = items.filter((item) => item.type === 'combination').map((item) => item.data);
-    onPreviewToggle(e, partition, prompts, cats, combs, coversCache);
+    onPreviewToggle(e, partition, prompts, cats, coversCache);
   };
 
   // 当标签被删除时清除悬浮状态
@@ -226,12 +225,10 @@ export function PartitionItem({
     const { type, key, data, orphaned } = item;
     const isPrompt = type === 'prompt';
     const isCategory = type === 'category';
-    const isCombination = type === 'combination';
 
     const tagClasses = [
       'prompt-selector-tag',
       isCategory ? 'category-tag' : '',
-      isCombination ? 'combination-tag' : '',
       orphaned ? 'orphaned' : '',
       hoveredKey === key ? 'weight-focused' : '',
     ]
@@ -242,13 +239,11 @@ export function PartitionItem({
     const showWeight = isPrompt && !orphaned && Math.abs(weight - 1.0) > 0.001;
     const tagStyle = isPrompt && !orphaned ? { background: getWeightColor(weight) } : {};
 
-    const icon = isCategory ? 'folder' : isCombination ? 'link' : orphaned ? 'alert-triangle' : null;
+    const icon = isCategory ? 'folder' : orphaned ? 'alert-triangle' : null;
 
     const displayName = isCategory
       ? (data.name || key)
-      : isCombination
-        ? (data.name || key)
-        : ((data.name || data.value || key) + (orphaned ? ' (未找到)' : ''));
+      : ((data.name || data.value || key) + (orphaned ? ' (未找到)' : ''));
 
     // 插入指示线
     const showIndicatorBefore = dragOverIndex === index;
@@ -281,9 +276,6 @@ export function PartitionItem({
           showWeight && h('span', { class: 'prompt-weight-value' }, weight.toFixed(1)),
           icon && h('span', { class: 'prompt-selector-tag-icon' }, h(Icon, { name: icon, size: 12 })),
           h('span', { class: 'prompt-name' }, displayName),
-          // 分类特殊 badge
-          isCategory && partition.config?.autoSaveCombinationCategoryId === key &&
-            h('span', { class: 'prompt-selector-tag-badge auto-save-badge', title: '组合自动保存到此分类' }, h(Icon, { name: 'bookmark', size: 10 })),
           h(
             'button',
             {

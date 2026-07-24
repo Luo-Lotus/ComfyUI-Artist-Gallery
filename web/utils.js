@@ -175,10 +175,9 @@ export async function searchAll(query, limit = 50) {
   return await response.json();
 }
 
-export async function fetchCovers(promptKeys = [], combinationIds = []) {
+export async function fetchCovers(promptKeys = []) {
   const params = new URLSearchParams();
   if (promptKeys.length > 0) params.set('prompts', promptKeys.join(','));
-  if (combinationIds.length > 0) params.set('combinations', combinationIds.join(','));
   const response = await fetch(`/prompt_gallery/covers?${params.toString()}`);
   if (!response.ok) {
     throw new Error('获取封面失败');
@@ -186,11 +185,11 @@ export async function fetchCovers(promptKeys = [], combinationIds = []) {
   return await response.json();
 }
 
-export async function batchResolve({ prompts = [], categories = [], combinations = [] } = {}) {
+export async function batchResolve({ prompts = [], categories = [] } = {}) {
   const response = await fetch('/prompt_gallery/batch_resolve', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompts, categories, combinations }),
+    body: JSON.stringify({ prompts, categories }),
   });
   if (!response.ok) {
     throw new Error('批量解析失败');
@@ -224,47 +223,6 @@ export function buildBreadcrumbPath(categoryId, categories) {
   }
 
   return path;
-}
-
-// ============ Combination API ============
-
-export async function createCombination(data) {
-  const response = await fetch('/prompt_gallery/combinations', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '创建组合失败');
-  }
-  return await response.json();
-}
-
-export async function updateCombination(id, data) {
-  const response = await fetch(`/prompt_gallery/combinations/${encodeURIComponent(id)}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '更新组合失败');
-  }
-  return await response.json();
-}
-
-export async function moveCombination(id, targetCategoryId) {
-  const response = await fetch(`/prompt_gallery/combinations/${encodeURIComponent(id)}/move`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ targetCategoryId }),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '移动组合失败');
-  }
-  return await response.json();
 }
 
 // ============ Grouped Images ============

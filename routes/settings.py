@@ -20,17 +20,16 @@ from ..storage._resolve import clear_all_caches, _resolve_storage_dir, get_stora
 from ..storage.backup import BackupManager
 from ..storage.migration import migrate_prompt_covers_from_prompt_string
 
-MAIN_FILES = {"prompts.json", "categories.json", "combinations.json", "images.json"}
+MAIN_FILES = {"prompts.json", "categories.json", "images.json"}
 
 STORAGE_TYPES = [
     {"key": "prompts", "main": "prompts.json", "glob": "*.prompts.json"},
     {"key": "categories", "main": "categories.json", "glob": "*.categories.json"},
-    {"key": "combinations", "main": "combinations.json", "glob": "*.combinations.json"},
     {"key": "images", "main": "images.json", "glob": "*.images.json"},
 ]
 
 # 匹配 prefix.type.json 中的 prefix 部分
-_PREFIX_RE = re.compile(r'^(.+)\.(prompts|categories|combinations|images)\.json$')
+_PREFIX_RE = re.compile(r'^(.+)\.(prompts|categories|images)\.json$')
 
 
 def _format_size(size_bytes):
@@ -171,7 +170,7 @@ async def cleanup_ghost_image_mappings(request):
         import folder_paths
 
         output_dir = Path(folder_paths.get_output_directory())
-        _, mapping_storage, _, _ = get_storage()
+        _, mapping_storage, _ = get_storage()
         result = mapping_storage.cleanup_missing_local_mappings(output_dir)
 
         return web.json_response({
@@ -184,20 +183,19 @@ async def cleanup_ghost_image_mappings(request):
 
 @server.PromptServer.instance.routes.post("/prompt_gallery/settings/backfill_covers")
 async def backfill_prompt_covers(request):
-    """手动扫描所有图片映射，为没有封面的 Prompt/组合补封面。"""
+    """手动扫描所有图片映射，为没有封面的 Prompt 补封面。"""
     try:
         import folder_paths
 
         storage_dir = _resolve_storage_dir()
         output_dir = Path(folder_paths.get_output_directory())
-        prompt_storage, _, _, combination_storage = get_storage()
+        prompt_storage, _, _ = get_storage()
 
         result = migrate_prompt_covers_from_prompt_string(
             storage_dir,
             output_dir,
             allow_legacy_fallback=False,
             prompt_storage=prompt_storage,
-            combination_storage=combination_storage,
         )
         if result.get("migrated"):
             clear_all_caches()

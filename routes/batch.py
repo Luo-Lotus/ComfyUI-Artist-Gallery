@@ -17,7 +17,6 @@ async def batch_delete(request):
     请求体: {
       "categories": ["cat1", "cat2"],
       "prompts": [{"categoryId": "xxx", "value": "yyy"}],
-      "combinations": ["comb_id1", "comb_id2"],
       "images": [{"path": "prompt_gallery/xxx.png"}]
     }
     """
@@ -25,16 +24,14 @@ async def batch_delete(request):
         data = await request.json()
         category_ids = data.get("categories", [])
         prompts = data.get("prompts", [])
-        combination_ids = data.get("combinations", [])
         images = data.get("images", [])
 
-        prompt_storage, mapping_storage, category_storage, combination_storage = get_storage()
+        prompt_storage, mapping_storage, category_storage = get_storage()
 
         result = {
             "deleted_categories": [],
             "deleted_prompts": [],
             "deleted_files": [],
-            "deleted_combinations": 0,
             "errors": [],
         }
 
@@ -51,11 +48,10 @@ async def batch_delete(request):
                 cat_result = delete_category_cascade(
                     cat_id,
                     prompt_storage,
-                    category_storage, combination_storage,
+                    category_storage,
                 )
                 result["deleted_categories"].extend(cat_result["deleted_categories"])
                 result["deleted_prompts"].extend(cat_result["deleted_prompts"])
-                result["deleted_combinations"] += cat_result["deleted_combinations"]
                 deleted_category_set.update(cat_result["deleted_categories"])
             except Exception as e:
                 result["errors"].append(f"删除分类 {cat_id} 失败: {str(e)}")
@@ -82,23 +78,6 @@ async def batch_delete(request):
             if valid_keys:
                 prompt_storage.batch_delete_prompts(valid_keys)
 
-        # 删除组合（批量删除，一次写入）
-        if combination_ids:
-            all_combinations = combination_storage.get_all_combinations()
-            existing_ids = {c.get("id") for c in all_combinations}
-            valid_ids = []
-            seen_ids = set()
-            for comb_id in combination_ids:
-                if comb_id in seen_ids:
-                    continue
-                seen_ids.add(comb_id)
-                if comb_id not in existing_ids:
-                    result["errors"].append(f"组合 {comb_id} 不存在")
-                    continue
-                valid_ids.append(comb_id)
-            if valid_ids:
-                result["deleted_combinations"] += combination_storage.batch_delete(valid_ids)
-
         # 删除图片（显式图片删除仍然删除文件和映射，但批量写 images.json）
         image_paths = []
         for img_data in images:
@@ -119,7 +98,6 @@ async def batch_delete(request):
             len(result["deleted_categories"]) > 0
             or len(result["deleted_prompts"]) > 0
             or len(result["deleted_files"]) > 0
-            or result["deleted_combinations"] > 0
         )
 
         return web.json_response({
@@ -127,7 +105,6 @@ async def batch_delete(request):
             "deletedCategories": result["deleted_categories"],
             "deletedPrompts": result["deleted_prompts"],
             "deletedFiles": result["deleted_files"],
-            "deletedCombinations": result["deleted_combinations"],
             "errors": result["errors"],
         })
 
@@ -143,21 +120,17 @@ async def batch_move(request):
     批量移动分类和Prompt
     请求体: {
       "categories": [{"id": "xxx", "newParentId": "yyy"}],
-      "prompts": [{"categoryId": "xxx", "value": "yyy", "newCategoryId": "zzz"}],
-      "combinations": [{"id": "xxx", "newCategoryId": "zzz"}]
+      "prompts": [{"categoryId": "xxx", "value": "yyy", "newCategoryId": "zzz"}]
     }
     """
     try:
         data = await request.json()
         categories = data.get("categories", [])
         prompts = data.get("prompts", [])
-        combinations = data.get("combinations", [])
-
-        prompt_storage, _, category_storage, combination_storage = get_storage()
+        prompt_storage, _, category_storage = get_storage()
 
         moved_categories = []
         moved_prompts = []
-        moved_combinations = []
         errors = []
 
         # 移动分类
@@ -251,43 +224,10 @@ async def batch_move(request):
             moved = prompt_storage.batch_move_to_categories(valid_prompt_moves)
             moved_prompts.extend([prompt.get("name", prompt.get("value")) for prompt in moved])
 
-        # 移动组合
-        combination_moves_by_target = {}
-        seen_combination_ids = set()
-        for comb_data in combinations:
-            try:
-                comb_id = comb_data.get("id")
-                new_category_id = comb_data.get("newCategoryId", comb_data.get("targetCategoryId", "root"))
-                if not comb_id:
-                    errors.append(f"无效的组合数据: {comb_data}")
-                    continue
-                if comb_id in seen_combination_ids:
-                    continue
-                seen_combination_ids.add(comb_id)
-
-                target_cat = category_storage.get_category_by_id(new_category_id)
-                if not target_cat:
-                    errors.append(f"目标分类 {new_category_id} 不存在")
-                    continue
-
-                combination = combination_storage.get_combination_by_id(comb_id)
-                if not combination:
-                    errors.append(f"组合 {comb_id} 不存在")
-                    continue
-
-                combination_moves_by_target.setdefault(new_category_id, []).append(comb_id)
-            except Exception as e:
-                errors.append(f"移动组合 {comb_data.get('id')} 失败: {str(e)}")
-
-        for target_id, ids in combination_moves_by_target.items():
-            for combination in combination_storage.batch_move(ids, target_id):
-                moved_combinations.append(combination.get("name", combination.get("id")))
-
         return web.json_response({
             "success": True,
             "movedCategories": moved_categories,
             "movedPrompts": moved_prompts,
-            "movedCombinations": moved_combinations,
             "errors": errors
         })
 
@@ -309,7 +249,7 @@ async def batch_copy(request):
         data = await request.json()
         prompts = data.get("prompts", [])
 
-        prompt_storage, _, category_storage, _ = get_storage()
+        prompt_storage, _, category_storage = get_storage()
 
         copied_prompts = []
         errors = []

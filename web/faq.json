@@ -1,7 +1,7 @@
 [
   {
     "question": "如何导入 Prompt？",
-    "answer": "两种方式：\n\n1. **ZIP 包导入**：点击画廊头部「导入」→「导入ZIP」，支持 v1（Prompt+图片）和 v2（分类+Prompt+组合+图片）两种格式。ZIP 内包含 manifest.json 描述元数据，images/ 目录存放图片。\n\n2. **批量导入图片**：点击「导入」→「批量导入图片」，选择本地图片文件夹，系统会自动扫描并导入。支持勾选「单独存储」将导入数据写入独立的分片文件，不影响主数据。"
+    "answer": "两种方式：\n\n1. **ZIP 包导入**：点击画廊头部「导入」→「导入ZIP」，支持 v1（Prompt+图片）和 v2（分类+Prompt+图片）两种格式。ZIP 内包含 manifest.json 描述元数据，images/ 目录存放图片。\n\n2. **批量导入图片**：点击「导入」→「批量导入图片」，选择本地图片文件夹，系统会自动扫描并导入。支持勾选「单独存储」将导入数据写入独立的分片文件，不影响主数据。"
   },
   {
     "question": "什么是「单独存储」（分离存储）？",
@@ -13,11 +13,11 @@
   },
   {
     "question": "数据存储在哪里？",
-    "answer": "默认路径：ComfyUI 用户目录下的 `default/prompt_gallery/` 文件夹。\n\n如果 ComfyUI 用户目录不可用，会回退到插件目录。首次启动时如果旧位置有数据会自动迁移到新位置。\n\n所有数据文件均为 JSON 格式：prompts.json（Prompt）、categories.json（分类）、combinations.json（组合）、images.json（图片映射）。"
+    "answer": "默认路径：ComfyUI 用户目录下的 `default/prompt_gallery/` 文件夹。\n\n如果 ComfyUI 用户目录不可用，会回退到插件目录。首次启动时如果旧位置有数据会自动迁移到新位置。\n\n所有数据文件均为 JSON 格式：prompts.json（Prompt）、categories.json（分类）、images.json（图片索引）。"
   },
   {
     "question": "如何手动构造导入数据？",
-    "answer": "可以参考项目中的 IMPORT_FORMAT.md 文档，让 AI 读取该文档后帮你生成符合格式的 ZIP 导入包。\n\n基本结构：ZIP 根目录包含 manifest.json（描述 Prompt、分类、组合、图片关联）和 images/ 目录（存放图片文件）。\n\n简化流程：\n1. 把你的图片整理到一个文件夹\n2. 告诉 AI：「请读取 IMPORT_FORMAT.md，帮我把这些图片生成 Prompt Gallery 的导入 ZIP」\n3. AI 会生成 Python 脚本，自动构建 manifest.json 并打包\n4. 在画廊中使用「导入ZIP」功能导入\n\n也支持纯 URL 远程图片，不需要在 ZIP 中包含实际图片文件。"
+    "answer": "可以参考项目中的 IMPORT_FORMAT.md 文档，让 AI 读取该文档后帮你生成符合格式的 ZIP 导入包。\n\n基本结构：ZIP 根目录包含 manifest.json（描述 Prompt、分类和图片）以及可选的 images/ 目录。\n\n简化流程：\n1. 把你的图片整理到一个文件夹\n2. 告诉 AI：「请读取 IMPORT_FORMAT.md，帮我把这些图片生成 Prompt Gallery 的导入 ZIP」\n3. AI 会生成 Python 脚本，自动构建 manifest.json 并打包\n4. 在画廊中使用「导入ZIP」功能导入\n\n也支持纯 URL 远程图片，不需要在 ZIP 中包含实际图片文件。"
   },
   {
     "question": "保存图片时卡顿怎么办？",

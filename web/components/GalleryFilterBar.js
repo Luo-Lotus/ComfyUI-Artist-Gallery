@@ -26,7 +26,6 @@ export function GalleryFilterBar() {
   }, []);
   const isGallery = ctx.viewMode === 'gallery';
   const isPrompt = ctx.viewMode === 'prompt';
-  const isCombination = ctx.viewMode === 'combination';
   const isHistory = ctx.viewMode === 'history';
 
   // 返回按钮逻辑
@@ -136,8 +135,8 @@ export function GalleryFilterBar() {
         ]),
       ]),
 
-    // Prompt / 组合 / 历史视图：搜索 + 计数 + 卡片大小
-    (isPrompt || isCombination || isHistory) &&
+    // Prompt / 历史视图：搜索 + 计数 + 卡片大小
+    (isPrompt || isHistory) &&
       h('div', { class: 'gallery-filter-section' }, [
         h('input', {
           class: 'gallery-search-input',

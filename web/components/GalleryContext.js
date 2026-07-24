@@ -6,18 +6,13 @@ import { h, createContext } from '../lib/preact.mjs';
 import { useState, useEffect, useMemo, useRef, useCallback, useContext } from '../lib/hooks.mjs';
 import {
   Storage,
-  createCombination as createCombinationApi,
-  updateCombination as updateCombinationApi,
-  moveCombination as moveCombinationApi,
   fetchGalleryData,
   exportPrompts,
   exportCategory,
 } from '../utils.js';
 import {
-  deleteCombination as deleteCombinationApi,
   deletePromptByKey,
   updateCategoryMetadata,
-  updateCombinationMetadata,
   updatePromptMetadata,
 } from '../services/promptApi.js';
 import { useCategoryManager } from './hooks/useCategoryManager.js';
@@ -102,15 +97,6 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
     catch {}
   }, [groupByField]);
 
-  // ============ 组合相关状态 ============
-  const [showCombinationDialog, setShowCombinationDialog] = useState(false);
-  const [combinationDialogMode, setCombinationDialogMode] = useState('add');
-  const [editingCombination, setEditingCombination] = useState(null);
-  const [rawViewModeCombination, setViewModeCombination] = useState(null);
-  const [combinationGroups, setCombinationGroups] = useState(null);
-  const [showCombinationDeleteConfirm, setShowCombinationDeleteConfirm] = useState(false);
-  const [combinationToDelete, setCombinationToDelete] = useState(null);
-
   // ============ 导出对话框状态 ============
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [exportPayload, setExportPayload] = useState(null);
@@ -121,7 +107,6 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
   const navigateToGallery = useCallback(() => {
     setViewMode('gallery');
     setCurrentPrompt(null);
-    setViewModeCombination(null);
     setImageSearchQuery('');
     setImageTotalCount(0);
   }, []);
@@ -130,7 +115,6 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
   const navigateToHistory = useCallback(() => {
     setViewMode('history');
     setCurrentPrompt(null);
-    setViewModeCombination(null);
     setImageSearchQuery('');
     setImageTotalCount(0);
   }, []);
@@ -142,28 +126,16 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
     [currentPromptGroups],
   );
 
-  const flatCombinationImages = useMemo(
-    () => (combinationGroups || []).flatMap((g) => g.images || []),
-    [combinationGroups],
-  );
-
-  // 保持 currentPrompt / viewModeCombination 带有 images 字段，供既有的
-  // filteredPromptImages / useSelection / handleSelectAllInView 等消费者免改
+  // 保持 currentPrompt 带有 images 字段，供筛选和批量选择复用。
   const currentPrompt = useMemo(
     () => rawCurrentPrompt ? { ...rawCurrentPrompt, images: flatPromptImages } : null,
     [rawCurrentPrompt, flatPromptImages],
-  );
-
-  const viewModeCombination = useMemo(
-    () => rawViewModeCombination ? { ...rawViewModeCombination, images: flatCombinationImages } : null,
-    [rawViewModeCombination, flatCombinationImages],
   );
 
   // 分类管理
   const categoryMgr = useCategoryManager({
     viewMode,
     currentPrompt,
-    viewModeCombination,
     onNavigateToGallery: navigateToGallery,
   });
 
@@ -198,15 +170,10 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
     setShowExportDialog(true);
   }, []);
 
-  const currentCombinations = useMemo(() => {
-    return data?.combinations || [];
-  }, [data]);
-
   // 多选管理
   const selection = useSelection({
     categories: categoryMgr.categories,
     filteredPrompts,
-    currentCombinations,
     currentPrompt,
     currentCategory,
     loadData,
@@ -252,48 +219,20 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
     return images;
   }, [flatPromptImages, imageSearchQuery, imageSortBy, imageSortOrder]);
 
-  const filteredCombinationImages = useMemo(() => {
-    let images = [...flatCombinationImages];
-    if (imageSearchQuery) {
-      const q = imageSearchQuery.toLowerCase();
-      images = images.filter((img) => {
-        const filename = (img.path || '').split(/[/\\]/).pop().toLowerCase();
-        return filename.includes(q);
-      });
-    }
-    images.sort((a, b) => {
-      let cmp = 0;
-      if (imageSortBy === 'time') {
-        cmp = (a.mtime || 0) - (b.mtime || 0);
-      } else {
-        cmp = (a.path || '').localeCompare(b.path || '');
-      }
-      return imageSortOrder === 'asc' ? cmp : -cmp;
-    });
-    return images;
-  }, [flatCombinationImages, imageSearchQuery, imageSortBy, imageSortOrder]);
-
   const galleryOrderedKeys = useMemo(() => {
     const keys = [];
     categoryMgr.currentCategoryChildren.forEach((cat) => {
       keys.push(`category:${cat.id}`);
     });
-    currentCombinations.forEach((comb) => {
-      keys.push(`combination:${comb.id}`);
-    });
     filteredPrompts.forEach((prompt) => {
       keys.push(`prompt:${prompt.categoryId}:${prompt.value}`);
     });
     return keys;
-  }, [categoryMgr.currentCategoryChildren, currentCombinations, filteredPrompts]);
+  }, [categoryMgr.currentCategoryChildren, filteredPrompts]);
 
   const promptOrderedKeys = useMemo(() => {
     return filteredPromptImages.map((img) => `image:${img.path}`);
   }, [filteredPromptImages]);
-
-  const combinationOrderedKeys = useMemo(() => {
-    return filteredCombinationImages.map((img) => `image:${img.path}`);
-  }, [filteredCombinationImages]);
 
   // ============ 事件处理 ============
 
@@ -314,8 +253,6 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
           await categoryMgr.refreshCategories();
         } else if (type === 'prompt') {
           await updatePromptMetadata(item.categoryId, item.value, { pinned });
-        } else if (type === 'combination') {
-          await updateCombinationMetadata(item.id, { pinned });
         }
         await loadData();
         showToast(pinned ? '已置顶' : '已取消置顶', 'success');
@@ -385,75 +322,6 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
       showToast('删除失败: ' + err.message, 'error');
     }
   }, [promptToDelete, loadData, categoryMgr]);
-
-  // 组合事件
-  const handleCombinationClick = useCallback((combination) => {
-    setViewModeCombination(combination);
-    setCombinationGroups(null);
-    setViewMode('combination');
-    // 图片数据由 CombinationDetailView → ImageGroupView fetch /images_grouped 后
-    // 通过 onGroupedData 上抛到 combinationGroups，再经 flatCombinationImages 派生到 viewModeCombination.images
-  }, []);
-
-  const handleCombinationEdit = useCallback((combination) => {
-    setEditingCombination(combination);
-    setCombinationDialogMode('edit');
-    setShowCombinationDialog(true);
-  }, []);
-
-  const handleCombinationDuplicate = useCallback(
-    (combination) => {
-      itemOps.openCopyDialog(combination, 'combination');
-    },
-    [itemOps],
-  );
-
-  const openCombinationDeleteConfirm = useCallback((combination) => {
-    setCombinationToDelete(combination);
-    setShowCombinationDeleteConfirm(true);
-  }, []);
-
-  const confirmDeleteCombination = useCallback(async () => {
-    if (!combinationToDelete) return;
-    try {
-      await deleteCombinationApi(combinationToDelete.id);
-      showToast('已删除组合', 'success');
-      setShowCombinationDeleteConfirm(false);
-      setCombinationToDelete(null);
-      await loadData();
-    } catch (err) {
-      showToast('删除组合失败: ' + err.message, 'error');
-    }
-  }, [combinationToDelete, loadData]);
-
-  const handleCombinationDialogSave = useCallback(
-    async (data) => {
-      try {
-        if (combinationDialogMode === 'add') {
-          await createCombinationApi({
-            ...data,
-            categoryId: currentCategory,
-          });
-          showToast('组合创建成功', 'success');
-        } else {
-          await updateCombinationApi(editingCombination.id, data);
-          showToast('组合更新成功', 'success');
-        }
-        setShowCombinationDialog(false);
-        setEditingCombination(null);
-        await loadData();
-      } catch (err) {
-        showToast('操作失败: ' + err.message, 'error');
-      }
-    },
-    [combinationDialogMode, currentCategory, editingCombination, loadData],
-  );
-
-  const openCombinationDialog = useCallback((mode, combination = null) => {
-    setCombinationDialogMode(mode);
-    setEditingCombination(combination);
-    setShowCombinationDialog(true);
-  }, []);
 
   // 导出
   const handleExportPrompt = useCallback((prompt) => {
@@ -656,21 +524,6 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
     }));
   }, []);
 
-  // 组合详情回调
-  const handleCombinationDeleteImageSuccess = useCallback(async () => {
-    await loadData();
-    // 图片刷新由 ImageGroupView 自己的 reloadData() 完成（删除回调链已触发，
-    // 会重新 fetch /images_grouped 并经由 onGroupedData 上抛到 combinationGroups）
-  }, [loadData]);
-
-  const handleCombinationSetCoverSuccess = useCallback((imagePath) => {
-    setViewModeCombination((prev) => ({
-      ...prev,
-      coverImageId: imagePath,
-      coverImagePath: imagePath,
-    }));
-  }, []);
-
   // 封装选择处理
   const handleGallerySelect = useCallback(
     (key, shiftKey) => {
@@ -686,27 +539,16 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
     [selection, promptOrderedKeys],
   );
 
-  const handleCombinationSelect = useCallback(
-    (key, shiftKey) => {
-      selection.handleSelectItem(key, shiftKey, combinationOrderedKeys);
-    },
-    [selection, combinationOrderedKeys],
-  );
-
   // 全选（按当前视图）
   const handleSelectAllInView = useCallback(() => {
     if (viewMode === 'prompt' && currentPrompt?.images) {
       const newSet = new Set();
       filteredPromptImages.forEach((img) => newSet.add(`image:${img.path}`));
       selection.setSelectedItems(newSet);
-    } else if (viewMode === 'combination' && viewModeCombination?.images) {
-      const newSet = new Set();
-      filteredCombinationImages.forEach((img) => newSet.add(`image:${img.path}`));
-      selection.setSelectedItems(newSet);
     } else {
       selection.handleSelectAll();
     }
-  }, [viewMode, currentPrompt, viewModeCombination, filteredPromptImages, filteredCombinationImages, selection]);
+  }, [viewMode, currentPrompt, filteredPromptImages, selection]);
 
   // 批量移动/复制（封装 itemOps setter 注入）
   const handleBatchMoveAction = useCallback(() => {
@@ -733,14 +575,6 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
     [categoryMgr],
   );
 
-  // 组合移动
-  const handleCombinationMove = useCallback(
-    (combination) => {
-      itemOps.openMoveDialog(combination, 'combination');
-    },
-    [itemOps],
-  );
-
   // ============ 外部导航处理 ============
   const navRef = useRef(null);
 
@@ -754,7 +588,6 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
     categoryMgr.setCurrentCategory(targetCategoryId);
     setViewMode('gallery');
     setCurrentPrompt(null);
-    setViewModeCombination(null);
     setImageSearchQuery('');
 
     const loadDataAndNavigate = async () => {
@@ -777,11 +610,6 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
           setCurrentPromptGroups(null);
           setViewMode('prompt');
         }
-      } else if (nav.type === 'combination' && nav.combinationId) {
-        const combination = result.combinations?.find((c) => c.id === nav.combinationId);
-        if (combination) {
-          handleCombinationClick(combination);
-        }
       }
     };
 
@@ -796,10 +624,7 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
       setViewMode,
       currentPrompt,
       setCurrentPrompt,
-      viewModeCombination,
-      setViewModeCombination,
       setCurrentPromptGroups,
-      setCombinationGroups,
       currentCategory,
       navigateToGallery,
       navigateToHistory,
@@ -861,8 +686,6 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
       includeComfyOutput,
       setIncludeComfyOutput: handleSetIncludeComfyOutput,
       filteredPromptImages,
-      filteredCombinationImages,
-      currentCombinations,
 
       // Selection
       selectionMode: selection.selectionMode,
@@ -871,7 +694,6 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
       handleToggleSelectionMode: selection.handleToggleSelectionMode,
       handleGallerySelect,
       handlePromptSelect,
-      handleCombinationSelect,
       handleSelectAllInView,
       handleDeselectAll: selection.handleDeselectAll,
       getSelectedDetails: selection.getSelectedDetails,
@@ -948,14 +770,6 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
       setShowExportDialog,
       exportPayload,
       setExportPayload,
-      showCombinationDialog,
-      setShowCombinationDialog,
-      combinationDialogMode,
-      setCombinationDialogMode,
-      editingCombination,
-      setEditingCombination,
-      openCombinationDialog,
-
       // Lightbox
       lightbox,
       openLightbox,
@@ -964,17 +778,6 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
 
       // Business callbacks
       handleCardClick,
-      handleCombinationClick,
-      handleCombinationEdit,
-      handleCombinationDuplicate,
-      handleCombinationDelete: openCombinationDeleteConfirm,
-      showCombinationDeleteConfirm,
-      combinationToDelete,
-      setShowCombinationDeleteConfirm,
-      setCombinationToDelete,
-      confirmDeleteCombination,
-      handleCombinationMove,
-      handleCombinationDialogSave,
       handleExportPrompt,
       handleOpenExportDialog,
       handleOpenBatchExportDialog,
@@ -982,9 +785,6 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
       handleImportPrompts,
       handlePromptDeleteImageSuccess,
       handlePromptSetCoverSuccess,
-      handleCombinationDeleteImageSuccess,
-      handleCombinationSetCoverSuccess,
-
       // Props from parent
       isOpen,
       onClose,
@@ -992,7 +792,6 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
     [
       viewMode,
       currentPrompt,
-      viewModeCombination,
       currentCategory,
       data,
       loading,
@@ -1020,8 +819,6 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
       imageTotalCount,
       includeComfyOutput,
       filteredPromptImages,
-      filteredCombinationImages,
-      currentCombinations,
       selection.selectionMode,
       selection.selectedItems,
       selection.showBatchConfirm,
@@ -1048,11 +845,6 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
       groupByField,
       showExportDialog,
       exportPayload,
-      showCombinationDialog,
-      combinationDialogMode,
-      editingCombination,
-      showCombinationDeleteConfirm,
-      combinationToDelete,
       lightbox,
       isOpen,
       onClose,

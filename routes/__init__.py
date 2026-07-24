@@ -9,7 +9,6 @@ from . import images
 from . import import_export
 from . import batch
 from . import migration
-from . import combinations
 from . import history
 from . import init
 from . import import_output

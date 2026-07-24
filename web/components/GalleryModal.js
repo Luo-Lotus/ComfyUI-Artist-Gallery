@@ -17,13 +17,11 @@ import { ImportZipDialog } from './ImportZipDialog.js';
 import { ImportOutputDialog } from './ImportOutputDialog.js';
 import { CustomFilterEditDialog } from './CustomFilterEditDialog.js';
 import { ExportDialog } from './ExportDialog.js';
-import { CombinationDialog } from './CombinationDialog.js';
 import { BatchActionBar } from './BatchActionBar.js';
 import { BatchConfirmDialog } from './BatchConfirmDialog.js';
 import { GalleryHeader } from './GalleryHeader.js';
 import { GalleryFilterBar } from './GalleryFilterBar.js';
 import { PromptDetailView } from './PromptDetailView.js';
-import { CombinationDetailView } from './CombinationDetailView.js';
 import { HistoryView } from './HistoryView.js';
 import { SettingsDialog } from './SettingsDialog.js';
 
@@ -126,22 +124,6 @@ function GalleryBody() {
         [h(PromptDetailView)],
       ),
 
-    // 组合详情
-    ctx.viewModeCombination &&
-      h(
-        'div',
-        {
-          key: `combination-${ctx.viewModeCombination.id}`,
-          class: 'view-stack-page',
-          style: {
-            display: ctx.viewMode === 'combination' ? '' : 'none',
-            overflow: 'hidden',
-            padding: 0,
-          },
-        },
-        [h(CombinationDetailView)],
-      ),
-
     // 历史视图
     ctx.viewMode === 'history' &&
       h(
@@ -209,17 +191,6 @@ function DialogLayer() {
       onCancel: () => {
         ctx.setShowCategoryDeleteConfirm(false);
         ctx.setCategoryToDelete(null);
-      },
-    }),
-
-    h(DeleteConfirmDialog, {
-      isOpen: ctx.showCombinationDeleteConfirm,
-      type: 'combination',
-      target: ctx.combinationToDelete,
-      onConfirm: ctx.confirmDeleteCombination,
-      onCancel: () => {
-        ctx.setShowCombinationDeleteConfirm(false);
-        ctx.setCombinationToDelete(null);
       },
     }),
 
@@ -310,22 +281,6 @@ function DialogLayer() {
         ctx.setExportPayload(null);
       },
       onConfirm: ctx.handleExportConfirm,
-    }),
-
-    h(CombinationDialog, {
-      isOpen: ctx.showCombinationDialog,
-      mode: ctx.combinationDialogMode,
-      combination: ctx.editingCombination,
-      currentCategoryId: ctx.currentCategory,
-      onClose: () => {
-        ctx.setShowCombinationDialog(false);
-        ctx.setEditingCombination(null);
-      },
-      onSave: async () => {
-        ctx.setShowCombinationDialog(false);
-        ctx.setEditingCombination(null);
-        await ctx.loadData();
-      },
     }),
 
     h(CustomFilterEditDialog, {

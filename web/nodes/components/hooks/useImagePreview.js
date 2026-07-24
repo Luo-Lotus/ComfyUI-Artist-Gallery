@@ -26,18 +26,12 @@ export function useImagePreview(coversCache, fetchCoversByIds) {
 
     // 如果没有封面路径，尝试从缓存获取或按需加载
     if (!coverPath && coversCache && fetchCoversByIds) {
-      const key = prompt.id
-        ? `combination:${prompt.id}`
-        : `${prompt.categoryId || 'root'}:${prompt.value}`;
+      const key = `${prompt.categoryId || 'root'}:${prompt.value}`;
       coverPath = coversCache[key];
 
       if (!coverPath) {
         // 按需获取
-        const isCombination = !!prompt.id;
-        await fetchCoversByIds(
-          isCombination ? [] : [key],
-          isCombination ? [prompt.id] : [],
-        );
+        await fetchCoversByIds([key]);
         coverPath = coversCache[key];
       }
     }

@@ -15,8 +15,8 @@ class BackupManager:
 
     # 存储文件模式
     BACKUP_PATTERNS = [
-        "prompts.json", "images.json", "categories.json", "combinations.json",
-        "*.prompts.json", "*.images.json", "*.categories.json", "*.combinations.json",
+        "prompts.json", "images.json", "categories.json",
+        "*.prompts.json", "*.images.json", "*.categories.json",
     ]
 
     def create_backup(self) -> Optional[Path]:

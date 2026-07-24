@@ -73,7 +73,6 @@ export function ImportZipDialog({ isOpen, onClose, currentCategory, onSuccess })
         const parts = [];
         if (result.addedCategories > 0) parts.push(`${result.addedCategories} 个分类`);
         if (result.addedPrompts > 0) parts.push(`${result.addedPrompts} 个Prompt`);
-        if (result.addedCombinations > 0) parts.push(`${result.addedCombinations} 个组合`);
         if (result.addedImages > 0) parts.push(`${result.addedImages} 张图片`);
         showToast(`导入成功: ${parts.join(', ') || '无新增内容'}`, 'success');
         if (onSuccess) onSuccess();

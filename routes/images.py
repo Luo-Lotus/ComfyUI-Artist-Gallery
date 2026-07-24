@@ -25,7 +25,7 @@ async def get_image_info(request):
 
         remote = is_remote_path(image_path)
 
-        _, mapping_storage, _, _ = get_storage()
+        _, mapping_storage, _ = get_storage()
         mapping = mapping_storage.get_mappings_by_image(image_path)
         result = {
             "pnginfo": {},
@@ -80,7 +80,7 @@ async def save_to_gallery(request):
             file_info["height"] = metadata["height"]
 
         # 创建映射关系
-        _, mapping_storage, _, _ = get_storage()
+        _, mapping_storage, _ = get_storage()
         mapping = mapping_storage.add_mapping(
             image_path=image_path,
             file_info=file_info,
@@ -113,7 +113,7 @@ async def restore_from_metadata(request):
         gallery_dir = output_dir / "prompt_gallery"
 
         # 预先获取存储实例（循环内复用）
-        _, mapping_storage, _, _ = get_storage()
+        _, mapping_storage, _ = get_storage()
 
         restored_count = 0
         errors = []
@@ -182,7 +182,7 @@ async def delete_image(request):
         if not image_path:
             return web.json_response({"error": "缺少imagePath参数"}, status=400)
 
-        _, mapping_storage, _, _ = get_storage()
+        _, mapping_storage, _ = get_storage()
         result = delete_image_completely(image_path, mapping_storage)
         return web.json_response({
             "success": True,

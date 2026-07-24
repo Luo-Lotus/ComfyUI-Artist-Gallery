@@ -1,13 +1,12 @@
 /**
  * Prompt网格组件
- * 支持混合渲染分类卡片、组合卡片和Prompt卡片
+ * 支持混合渲染分类卡片和 Prompt 卡片
  * 使用 LazyList 实现懒加载
  */
 import { h } from '../lib/preact.mjs';
 import { useMemo, useCallback } from '../lib/hooks.mjs';
 import { GalleryCard } from './GalleryCard.js';
 import { CategoryCard } from './CategoryCard.js';
-import { CombinationCard } from './CombinationCard.js';
 import { LazyList } from './LazyList.js';
 import { useGallery } from './GalleryContext.js';
 import { computeSizeVars } from './SizePresets.js';
@@ -19,7 +18,6 @@ export function GalleryGrid() {
   const gridStyle = useMemo(() => computeSizeVars(ctx.cardSize), [ctx.cardSize]);
 
   const allCategories = ctx.currentCategoryChildren;
-  const combinations = ctx.currentCombinations;
   const prompts = ctx.filteredPrompts;
 
   // 搜索时同时过滤分类名称
@@ -44,22 +42,18 @@ export function GalleryGrid() {
     return counts;
   }, [categories, prompts]);
 
-  // 合并为扁平数组（分类 → 组合 → Prompt）
+  // 合并为扁平数组（分类 → Prompt）
   const allItems = useMemo(() => {
     const catItems = categories.map((cat) => ({
       type: 'category',
       data: cat,
     }));
-    const combItems = [...combinations].sort(comparePinned).map((c) => ({
-      type: 'combination',
-      data: c,
-    }));
     const artItems = prompts.map((prompt) => ({
       type: 'prompt',
       data: prompt,
     }));
-    return [...catItems, ...combItems, ...artItems];
-  }, [categories, combinations, prompts]);
+    return [...catItems, ...artItems];
+  }, [categories, prompts]);
 
   // 渲染单个元素
   const renderItem = useCallback(
@@ -84,24 +78,9 @@ export function GalleryGrid() {
           selected: ctx.selectedItems.has(`category:${category.id}`),
           onSelect: ctx.handleGallerySelect,
         });
-      } else if (item.type === 'combination') {
-        const combination = item.data;
-        return h(CombinationCard, {
-          key: `comb-${combination.id}`,
-          combination,
-          onClick: ctx.handleCombinationClick,
-          onEdit: ctx.handleCombinationEdit,
-          onDuplicate: ctx.handleCombinationDuplicate,
-          onMove: () => ctx.openMoveDialog(combination, 'combination'),
-          onDelete: ctx.handleCombinationDelete,
-          onTogglePinned: ctx.handleTogglePinned,
-          selectionMode: ctx.selectionMode,
-          selected: ctx.selectedItems.has(`combination:${combination.id}`),
-          onSelect: ctx.handleGallerySelect,
-        });
       } else {
         const prompt = item.data;
-        const promptIndex = index - categories.length - combinations.length;
+        const promptIndex = index - categories.length;
         return h(GalleryCard, {
           key: prompt.name,
           prompt,
@@ -124,14 +103,9 @@ export function GalleryGrid() {
     [
       categoryPromptCounts,
       categories.length,
-      combinations.length,
       ctx.favorites,
       ctx.handleCardClick,
       ctx.handleCategorySelect,
-      ctx.handleCombinationClick,
-      ctx.handleCombinationDelete,
-      ctx.handleCombinationDuplicate,
-      ctx.handleCombinationEdit,
       ctx.handleDeleteCategory,
       ctx.handleEditCategory,
       ctx.handleExportPrompt,

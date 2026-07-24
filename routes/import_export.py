@@ -12,17 +12,16 @@ from ..storage.import_cover import apply_import_covers
 def _make_shard_targets(storage_dir: Path, separate: bool):
     """
     生成分离存储的目标文件路径。
-    返回 dict: {"prompts": path|None, "images": path|None, "categories": path|None, "combinations": path|None}
+    返回 dict: {"prompts": path|None, "images": path|None, "categories": path|None}
     """
     if not separate:
-        return {"prompts": None, "images": None, "categories": None, "combinations": None}
+        return {"prompts": None, "images": None, "categories": None}
     from datetime import datetime
     prefix = datetime.now().strftime("import_%Y%m%d_%H%M%S")
     return {
         "prompts": str(storage_dir / f"{prefix}.prompts.json"),
         "images": str(storage_dir / f"{prefix}.images.json"),
         "categories": str(storage_dir / f"{prefix}.categories.json"),
-        "combinations": str(storage_dir / f"{prefix}.combinations.json"),
     }
 
 
@@ -66,7 +65,7 @@ async def import_images_batch(request):
             return web.json_response({"error": "没有提供图片"}, status=400)
 
         # 获取存储实例
-        prompt_storage, mapping_storage, category_storage, _ = get_storage()
+        prompt_storage, mapping_storage, category_storage = get_storage()
         shard_targets = _make_shard_targets(prompt_storage.storage_dir, separate_storage)
 
         # 准备输出目录
@@ -178,7 +177,7 @@ async def import_images_batch(request):
                 for r in results
                 if r["success"] and r.get("value")
             ]
-            apply_import_covers(prompt_storage, None, cover_prompt_specs, mapping_specs)
+            apply_import_covers(prompt_storage, cover_prompt_specs, mapping_specs)
 
         imported = sum(1 for r in results if r['success'])
         failed = len(results) - imported
@@ -215,7 +214,7 @@ async def import_preview(request):
         from ..import_handler import parse_prompt_info_from_filename
 
         # 预先获取存储实例（循环内复用）
-        prompt_storage, _, category_storage, _ = get_storage()
+        prompt_storage, _, category_storage = get_storage()
 
         preview = []
 
@@ -275,7 +274,7 @@ async def export_prompts(request):
         include_images = data.get("includeImages", True)
         max_images = data.get("maxImagesPerPrompt", 0)  # 0 = unlimited
 
-        prompt_storage, mapping_storage, _, _ = get_storage()
+        prompt_storage, mapping_storage, _ = get_storage()
         output_dir = Path(folder_paths.get_output_directory())
 
         exported_images = {}
@@ -349,7 +348,7 @@ async def export_prompts(request):
 
 @server.PromptServer.instance.routes.post("/prompt_gallery/export-category")
 async def export_category(request):
-    """导出分类（递归包含子分类、Prompt、组合）为 ZIP 文件"""
+    """导出分类（递归包含子分类和 Prompt）为 ZIP 文件。"""
     import folder_paths
     import zipfile
     import io
@@ -361,7 +360,7 @@ async def export_category(request):
         include_images = data.get("includeImages", True)
         max_images = data.get("maxImagesPerPrompt", 0)  # 0 = unlimited
 
-        prompt_storage, mapping_storage, category_storage, combination_storage = get_storage()
+        prompt_storage, mapping_storage, category_storage = get_storage()
         output_dir = Path(folder_paths.get_output_directory())
 
         # 验证分类存在
@@ -377,10 +376,6 @@ async def export_category(request):
         # 收集这些分类下的所有Prompt
         all_prompts = prompt_storage.get_all_prompts()
         export_prompts_list = [a for a in all_prompts if a.get("categoryId") in set(all_cat_ids)]
-
-        # 收集这些分类下的所有组合
-        all_combinations = combination_storage.get_all_combinations()
-        export_combinations = [c for c in all_combinations if c.get("categoryId") in set(all_cat_ids)]
 
         # 批量构建Prompt → 图片映射索引
         prompt_mapping_index = mapping_storage.build_prompt_index_for_values([p.get("value") for p in export_prompts_list if p.get("value")])
@@ -435,16 +430,6 @@ async def export_category(request):
             for a in export_prompts_list
         ]
 
-        manifest_combinations = [
-            {
-                "name": c.get("name"),
-                "categoryId": c.get("categoryId"),
-                "prompts": c.get("prompts", []),
-                "outputContent": c.get("outputContent", ""),
-            }
-            for c in export_combinations
-        ]
-
         manifest_images = [
             {"path": info["path"], "promptString": info.get("promptString", "")}
             for info in exported_images.values()
@@ -457,7 +442,6 @@ async def export_category(request):
             "rootCategoryName": root_cat.get("name"),
             "categories": manifest_categories,
             "prompts": manifest_prompts,
-            "combinations": manifest_combinations,
             "images": [] if not include_images else manifest_images,
         }
 
@@ -515,7 +499,7 @@ async def import_unified(request):
         target_category_id = request.query.get("categoryId", "root")
         separate_storage = request.query.get("separate", "").lower() in ("1", "true", "yes")
 
-        prompt_storage, mapping_storage, category_storage, combination_storage = get_storage()
+        prompt_storage, mapping_storage, category_storage = get_storage()
         output_dir = Path(folder_paths.get_output_directory()) / "prompt_gallery"
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -526,10 +510,10 @@ async def import_unified(request):
             version = manifest_data.get("version", 1)
 
             if version >= 2:
-                # v2: 分类+Prompt+组合+图片
+                # v2: 分类 + Prompt + 图片；旧包中的 combinations 字段直接忽略。
                 return await _import_v2(
                     zf, manifest_data, target_category_id,
-                    prompt_storage, mapping_storage, category_storage, combination_storage,
+                    prompt_storage, mapping_storage, category_storage,
                     output_dir, separate_storage,
                 )
             else:
@@ -602,12 +586,11 @@ async def _import_v1(zf, manifest_data, target_category_id, prompt_storage, mapp
             })
 
     mapping_storage.add_mappings_import(mapping_specs, target_file=shard_targets["images"])
-    apply_import_covers(prompt_storage, None, prompt_specs, mapping_specs)
+    apply_import_covers(prompt_storage, prompt_specs, mapping_specs)
 
     return web.json_response({
         "success": True,
         "addedPrompts": len(added_prompts_list),
-        "addedCombinations": 0,
         "addedImages": len(mapping_specs),
         "addedCategories": 0,
         "prompts": [p["value"] for p in added_prompts_list],
@@ -615,9 +598,9 @@ async def _import_v1(zf, manifest_data, target_category_id, prompt_storage, mapp
 
 
 async def _import_v2(zf, manifest_data, target_category_id,
-                     prompt_storage, mapping_storage, category_storage, combination_storage, output_dir,
+                     prompt_storage, mapping_storage, category_storage, output_dir,
                      separate_storage=False):
-    """v2 导入：分类树 + Prompt + 组合 + 图片"""
+    """v2 导入：分类树 + Prompt + 图片。"""
     import time
     import random
 
@@ -626,7 +609,6 @@ async def _import_v2(zf, manifest_data, target_category_id,
     print(f"[ImportV2] 开始导入...")
     print(f"  分类: {len(manifest_data.get('categories', []))}")
     print(f"  Prompt: {len(manifest_data.get('prompts', []))}")
-    print(f"  组合: {len(manifest_data.get('combinations', []))}")
     print(f"  图片: {len(manifest_data.get('images', []))}")
 
     # A. 重建分类树（批量，一次读写）
@@ -717,31 +699,7 @@ async def _import_v2(zf, manifest_data, target_category_id,
     added_prompts_list, _ = prompt_storage.add_prompts_import(prompt_specs, target_file=shard_targets["prompts"])
     print(f"[ImportV2] Prompt 导入完成: {len(added_prompts_list)} 个")
 
-    # C. 导入组合（数量通常很少，保持逐条）
-    added_combinations = 0
-    added_combinations_list = []
-    for comb_info in manifest_data.get("combinations", []):
-        name = comb_info.get("name", "").strip()
-        if not name:
-            continue
-        old_cat_id = comb_info.get("categoryId")
-        new_cat_id = old_to_new_cat.get(old_cat_id, target_category_id)
-        prompt_keys = comb_info.get("prompts") or comb_info.get("promptKeys", [])
-        output_content = comb_info.get("outputContent", "")
-        try:
-            combination = combination_storage.add_combination(
-                name=name,
-                category_id=new_cat_id,
-                prompts=prompt_keys,
-                output_content=output_content,
-                target_file=shard_targets["combinations"],
-            )
-            added_combinations += 1
-            added_combinations_list.append(combination)
-        except Exception:
-            pass
-
-    # D. 批量导入图片映射（先提取文件，再一次写入）
+    # C. 批量导入图片映射（先提取文件，再一次写入）
     mapping_specs = []
     for img_info in manifest_data.get("images", []):
         img_path = img_info.get("path")
@@ -778,22 +736,15 @@ async def _import_v2(zf, manifest_data, target_category_id,
 
     print(f"[ImportV2] 批量导入 {len(mapping_specs)} 个图片映射...")
     mapping_storage.add_mappings_import(mapping_specs, target_file=shard_targets["images"])
-    cover_result = apply_import_covers(
-        prompt_storage,
-        combination_storage,
-        prompt_specs,
-        mapping_specs,
-        added_combinations_list,
-    )
-    if cover_result["prompts"] or cover_result["combinations"]:
-        print(f"[ImportV2] 封面补齐: Prompt={cover_result['prompts']}, 组合={cover_result['combinations']}")
-    print(f"[ImportV2] 导入完成! 分类={added_categories}, Prompt={len(added_prompts_list)}, 组合={added_combinations}, 图片={len(mapping_specs)}")
+    cover_result = apply_import_covers(prompt_storage, prompt_specs, mapping_specs)
+    if cover_result["prompts"]:
+        print(f"[ImportV2] 封面补齐: Prompt={cover_result['prompts']}")
+    print(f"[ImportV2] 导入完成! 分类={added_categories}, Prompt={len(added_prompts_list)}, 图片={len(mapping_specs)}")
 
     return web.json_response({
         "success": True,
         "addedCategories": added_categories,
         "addedPrompts": len(added_prompts_list),
-        "addedCombinations": added_combinations,
         "addedImages": len(mapping_specs),
         "prompts": [p["value"] for p in added_prompts_list],
     })

@@ -6,7 +6,6 @@ from typing import Tuple
 from .prompt import PromptStorage
 from .image_mapping import ImageMappingStorage
 from .category import CategoryStorage
-from .combination import CombinationStorage
 from .custom_filter import CustomFilterStorage
 from .image_field import ImageFieldStorage
 from .migration import (
@@ -14,6 +13,7 @@ from .migration import (
     migrate_to_prompt_schema,
     migrate_image_schema,
     migrate_prompt_string_image_index,
+    migrate_combinations_to_prompts,
 )
 
 _storage_instances = None
@@ -93,7 +93,7 @@ def _resolve_storage_dir() -> Path:
 
 # 启动迁移版本号：新增/修改迁移时 +1，旧标记会被判定为过期而重跑一次。
 # 用标记文件保证这些“只需运行一次”的迁移不会在每次启动都重新解析全部数据。
-_STARTUP_MIGRATION_VERSION = 1
+_STARTUP_MIGRATION_VERSION = 2
 
 
 def _run_startup_migrations(storage_dir: Path) -> None:
@@ -113,7 +113,12 @@ def _run_startup_migrations(storage_dir: Path) -> None:
             with open(marker, "r", encoding="utf-8") as f:
                 content = f.read().strip()
             if content and int(content) >= _STARTUP_MIGRATION_VERSION:
-                print(f"[prompt_gallery] 启动迁移已跳过（标记版本 {content}）")
+                try:
+                    # 旧备份恢复后也可能重新出现待转换文件；无文件时这里只做一次 glob。
+                    migrate_combinations_to_prompts(storage_dir)
+                    print(f"[prompt_gallery] 启动迁移已跳过（标记版本 {content}）")
+                except Exception as e:
+                    print(f"[prompt_gallery] 旧分组数据转换失败，下次启动重试: {e}")
                 return
     except Exception:
         pass
@@ -133,6 +138,7 @@ def _run_startup_migrations(storage_dir: Path) -> None:
     migration_ok = _run("to_prompt_schema", migrate_to_prompt_schema) and migration_ok
     migration_ok = _run("image_schema", migrate_image_schema) and migration_ok
     migration_ok = _run("prompt_string_image_index", migrate_prompt_string_image_index) and migration_ok
+    migration_ok = _run("legacy_groups_to_prompts", migrate_combinations_to_prompts) and migration_ok
 
     if not migration_ok:
         print("[prompt_gallery] 启动迁移未全部成功，跳过迁移标记写入，下次启动将重试")
@@ -145,7 +151,7 @@ def _run_startup_migrations(storage_dir: Path) -> None:
         print(f"[prompt_gallery] 写入迁移标记失败: {e}")
 
 
-def get_storage() -> Tuple[PromptStorage, ImageMappingStorage, CategoryStorage, CombinationStorage]:
+def get_storage() -> Tuple[PromptStorage, ImageMappingStorage, CategoryStorage]:
     """获取存储实例（懒加载单例，首次调用时初始化，后续返回缓存实例）"""
     global _storage_instances
     if _storage_instances is not None:
@@ -164,7 +170,6 @@ def get_storage() -> Tuple[PromptStorage, ImageMappingStorage, CategoryStorage, 
         prompt_storage = PromptStorage(storage_dir)
         mapping_storage = ImageMappingStorage(storage_dir)
         category_storage = CategoryStorage(storage_dir)
-        combination_storage = CombinationStorage(storage_dir)
 
         # 自动迁移现有Prompt数据（旧版本兼容）
         try:
@@ -172,7 +177,7 @@ def get_storage() -> Tuple[PromptStorage, ImageMappingStorage, CategoryStorage, 
         except Exception as e:
             print(f"Warning: Failed to migrate prompt data: {e}")
 
-        _storage_instances = (prompt_storage, mapping_storage, category_storage, combination_storage)
+        _storage_instances = (prompt_storage, mapping_storage, category_storage)
 
         return _storage_instances
 
@@ -210,8 +215,8 @@ def clear_all_caches():
     global _storage_instances
     if _storage_instances is None:
         return
-    prompt_storage, mapping_storage, category_storage, combination_storage = _storage_instances
-    for s in (prompt_storage, mapping_storage, category_storage, combination_storage):
+    prompt_storage, mapping_storage, category_storage = _storage_instances
+    for s in (prompt_storage, mapping_storage, category_storage):
         s._cache = None
     prompt_storage._idx_by_key = None
     prompt_storage._idx_by_id = None
@@ -220,5 +225,3 @@ def clear_all_caches():
     mapping_storage._idx_by_prompt = None
     category_storage._idx_by_id = None
     category_storage._idx_by_parent = None
-    combination_storage._idx_by_id = None
-    combination_storage._idx_by_category = None

@@ -63,7 +63,7 @@ function GallerySettings() {
 
   const handleBackfillCovers = useCallback(async () => {
     if (backfillingCovers) return;
-    if (!confirm('确定要自动匹配封面吗？\n会扫描图片索引，为没有封面的 Prompt 和组合补齐封面，不会覆盖已有封面。')) return;
+    if (!confirm('确定要自动匹配封面吗？\n会扫描图片索引，为没有封面的 Prompt 补齐封面，不会覆盖已有封面。')) return;
 
     setBackfillingCovers(true);
     try {
@@ -75,7 +75,7 @@ function GallerySettings() {
         if (res.skipped) {
           showToast(res.message || '缺少依赖，已跳过', 'warning');
         } else {
-          const message = res.message || `已补齐 ${res.prompts || 0} 个 Prompt、${res.combinations || 0} 个组合封面`;
+          const message = res.message || `已补齐 ${res.prompts || 0} 个 Prompt 封面`;
           showToast(message, res.migrated ? 'success' : 'info');
           await ctx.loadData?.();
         }
@@ -147,7 +147,7 @@ function GallerySettings() {
     h('div', { class: 'settings-divider' }),
     h('div', { class: 'settings-option-row' }, [
       h('div', { class: 'settings-option-label' }, '自动匹配封面'),
-      h('div', { class: 'settings-option-desc' }, '扫描图片索引，为没有封面的 Prompt 和组合补齐封面'),
+      h('div', { class: 'settings-option-desc' }, '扫描图片索引，为没有封面的 Prompt 补齐封面'),
     ]),
     h('button', {
       class: 'settings-radio-btn',

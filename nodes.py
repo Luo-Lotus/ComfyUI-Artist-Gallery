@@ -57,7 +57,7 @@ class PromptGallery:
             print("[PromptGallery] 数据已刷新 - 请在画廊中查看")
         elif action == "统计信息":
             try:
-                prompt_storage, mapping_storage, _, _ = get_storage()
+                prompt_storage, mapping_storage, _ = get_storage()
                 prompts = prompt_storage.get_all_prompts()
                 total_prompts = len(prompts)
                 total_images = len(mapping_storage.get_all_mappings())
@@ -125,7 +125,7 @@ class PromptSelector:
         """处理新版 v1 格式的 metadata，返回 (格式化结果, 富化后的 metadata JSON)"""
 
         try:
-            prompt_storage, _, category_storage, combination_storage = get_storage()
+            prompt_storage, _, category_storage = get_storage()
             all_prompts = prompt_storage.get_all_prompts()
         except Exception as e:
             print(f"[PromptSelector] Failed to load storage: {e}")
@@ -140,10 +140,6 @@ class PromptSelector:
         # 跨分区收集全部已解析画师（用于 SaveToGallery）
         all_resolved = []      # [{categoryId, value}, ...]
         seen_keys = set()
-        # 记录每个分区实际使用的画师名（考虑随机/循环后）
-        partition_used_prompts = {}  # {partition_id: [name, ...]}
-        partition_formats = {}  # {partition_id: format_string}
-
         def collect_prompt(cat_id, name):
             key = f"{cat_id}:{name}"
             if key not in seen_keys:
@@ -160,14 +156,10 @@ class PromptSelector:
             config = partition.get('config', {})
             partition_format = config.get('format', '{content}')
             random_mode = config.get('randomMode', False)
-            # 记录该分区的格式（用于自动创建组合）
-            pid = partition.get('id', 'default')
-            partition_formats[pid] = partition_format
             random_count = config.get('randomCount', 1)
             cycle_mode = config.get('cycleMode', False)
             # 收集画师名：直接选择 + 分类递归解析
             prompt_entries = []  # [(cat_id, name), ...]
-            combination_entries = []  # [(output_content, prompt_keys), ...]
 
             # 优先从 orderItems 读取（统一格式），否则 fallback 到旧格式
             order_items = partition.get('orderItems')
@@ -185,17 +177,6 @@ class PromptSelector:
                         resolved = self._resolve_category_to_prompts(key, all_prompts, category_storage)
                         for n in resolved:
                             prompt_entries.append((key, n))
-                    elif item_type == 'combination' and key.startswith('combination:'):
-                        comb_id = key[len('combination:'):]
-                        try:
-                            combination = combination_storage.get_combination_by_id(comb_id)
-                            if combination:
-                                combination_entries.append((
-                                    combination.get('outputContent', ''),
-                                    combination.get('prompts', []),
-                                ))
-                        except Exception as e:
-                            print(f"[PromptSelector] Failed to lookup combination {comb_id}: {e}")
             else:
                 # 向后兼容旧格式
                 for key in partition.get('promptKeys', []):
@@ -210,19 +191,6 @@ class PromptSelector:
                     for n in resolved:
                         prompt_entries.append((cat_id, n))
 
-                for comb_key in partition.get('combinationKeys', []):
-                    if comb_key.startswith('combination:'):
-                        comb_id = comb_key[len('combination:'):]
-                        try:
-                            combination = combination_storage.get_combination_by_id(comb_id)
-                            if combination:
-                                combination_entries.append((
-                                    combination.get('outputContent', ''),
-                                    combination.get('prompts', []),
-                                ))
-                        except Exception as e:
-                            print(f"[PromptSelector] Failed to lookup combination {comb_id}: {e}")
-
             # 去重保序
             seen = set()
             unique_entries = []
@@ -232,16 +200,10 @@ class PromptSelector:
                     seen.add(key)
                     unique_entries.append(entry)
 
-            if not unique_entries and not combination_entries:
+            if not unique_entries:
                 continue
 
-            # 将画师条目和组合条目合并为统一的工作列表
-            # 每个条目是 ('prompt', cat_id, name) 或 ('combination', output_content, prompt_keys)
-            working_items = []
-            for cat_id, name in unique_entries:
-                working_items.append(('prompt', cat_id, name))
-            for content, prompt_keys in combination_entries:
-                working_items.append(('combination', content, prompt_keys))
+            working_items = unique_entries
 
             # 处理循环模式
             if cycle_mode:
@@ -251,92 +213,21 @@ class PromptSelector:
                 cycle_index = _cycle_states.get(cycle_key, 0)
                 current_item = working_items[cycle_index % len(working_items)]
                 _cycle_states[cycle_key] = (cycle_index + 1) % len(working_items)
-                if current_item[0] == 'combination':
-                    formatted_results.append(current_item[1])
-                    # 组合成员也要写入 promptString，供画廊匹配
-                    for prompt_name in (current_item[2] or []):
-                        collect_prompt('', prompt_name)
-                        pid = partition.get('id', 'default')
-                        if pid not in partition_used_prompts:
-                            partition_used_prompts[pid] = []
-                        partition_used_prompts[pid].append(prompt_name)
-                else:
-                    formatted = self._apply_format(current_item[2], partition_format)
-                    w_key = f"{current_item[1]}:{current_item[2]}"
-                    formatted_results.append(self._apply_weight(formatted, prompt_weights.get(w_key)))
-                    collect_prompt(current_item[1], current_item[2])
-                    # 记录实际输出的画师名（用于自动创建组合）
-                    if current_item[0] == 'prompt':
-                        pid = partition.get('id', 'default')
-                        if pid not in partition_used_prompts:
-                            partition_used_prompts[pid] = []
-                        partition_used_prompts[pid].append(current_item[2])
+                formatted = self._apply_format(current_item[1], partition_format)
+                w_key = f"{current_item[0]}:{current_item[1]}"
+                formatted_results.append(self._apply_weight(formatted, prompt_weights.get(w_key)))
+                collect_prompt(current_item[0], current_item[1])
             else:
                 working = working_items
                 if random_mode and random_count > 0 and random_count < len(working):
                     working = random.sample(working, random_count)
-                for item in working:
-                    if item[0] == 'combination':
-                        formatted_results.append(item[1])
-                        # 组合成员也要写入 promptString，供画廊匹配
-                        for prompt_name in (item[2] or []):
-                            collect_prompt('', prompt_name)
-                            pid = partition.get('id', 'default')
-                            if pid not in partition_used_prompts:
-                                partition_used_prompts[pid] = []
-                            partition_used_prompts[pid].append(prompt_name)
-                    else:
-                        formatted = self._apply_format(item[2], partition_format)
-                        w_key = f"{item[1]}:{item[2]}"
-                        formatted_results.append(self._apply_weight(formatted, prompt_weights.get(w_key)))
-                        collect_prompt(item[1], item[2])
-                        # 记录实际输出的画师名（用于自动创建组合）
-                        if item[0] == 'prompt':
-                            pid = partition.get('id', 'default')
-                            if pid not in partition_used_prompts:
-                                partition_used_prompts[pid] = []
-                            partition_used_prompts[pid].append(item[2])
+                for cat_id, name in working:
+                    formatted = self._apply_format(name, partition_format)
+                    w_key = f"{cat_id}:{name}"
+                    formatted_results.append(self._apply_weight(formatted, prompt_weights.get(w_key)))
+                    collect_prompt(cat_id, name)
 
         result = ','.join(formatted_results)
-
-        # 自动创建组合（使用输出时实际选中的画师，而非全量）
-        try:
-            for partition in partitions:
-                partition_name = partition.get('name', '默认')
-                partition_config = partition.get('config', {})
-                enabled = partition.get('enabled', True)
-                auto_create = partition_config.get('autoCreateCombination', False)
-                if not enabled or not auto_create:
-                    continue
-
-                # 使用输出循环中实际选中的画师（已考虑随机/循环）
-                pid = partition.get('id', 'default')
-                prompt_names = partition_used_prompts.get(pid, [])
-                if not prompt_names:
-                    continue
-
-                p_format = partition_formats.get(pid, '{content}')
-                formatted_parts = [self._apply_format(name, p_format) for name in prompt_names]
-                output_content = ','.join(formatted_parts)
-                comb_name = ','.join(prompt_names)
-
-                # 查重
-                existing = combination_storage.find_by_content(output_content)
-                if existing:
-                    print(f"[PromptSelector] Partition '{partition_name}': combination already exists (id={existing.get('id')}), skipping")
-                else:
-                    auto_save_cat_id = partition_config.get('autoSaveCombinationCategoryId', 'root') or 'root'
-                    new_comb = combination_storage.add_combination(
-                        name=comb_name,
-                        category_id=auto_save_cat_id,
-                        prompts=prompt_names,
-                        output_content=output_content,
-                    )
-                    
-        except Exception as e:
-            print(f"[PromptSelector] Auto-create combination error: {e}")
-            import traceback
-            traceback.print_exc()
 
         # 构建富化 metadata：包含解析结果，供 SaveToGallery 直接使用
         enriched_metadata = json.dumps({
@@ -417,7 +308,7 @@ class SaveToGallery:
         if not prompt_string or not prompt_string.strip():
             return []
 
-        prompt_storage, _, _, _ = get_storage()
+        prompt_storage, _, _ = get_storage()
         all_prompts = prompt_storage.get_all_prompts()
         if not all_prompts:
             return []
@@ -481,7 +372,7 @@ class SaveToGallery:
     def _complete_save_async(cls, pending_mappings, prompt_string, first_saved_image_path):
         """后台写入图片映射，并完成 Prompt 匹配和缺失封面补齐。"""
         try:
-            prompt_storage, mapping_storage, _, _ = get_storage()
+            prompt_storage, mapping_storage, _ = get_storage()
 
             if pending_mappings:
                 mapping_storage.add_mappings_batch(pending_mappings)
@@ -658,7 +549,7 @@ class QuickSavePrompt:
 
     @classmethod
     def INPUT_TYPES(cls):
-        _, _, category_storage, _ = get_storage()
+        _, _, category_storage = get_storage()
         categories = category_storage.get_all_categories()
         category_list = [cat["name"] for cat in categories]
         if not category_list:
@@ -676,7 +567,7 @@ class QuickSavePrompt:
     def _save_prompt_worker(prompt_name, category, prompt_value):
         try:
             with _quick_save_prompt_lock:
-                prompt_storage, _, category_storage, _ = get_storage()
+                prompt_storage, _, category_storage = get_storage()
 
                 # 根据分类名称查找分类 ID
                 categories = category_storage.get_all_categories()
@@ -765,7 +656,7 @@ class PromptCategoryReader:
 
     @classmethod
     def INPUT_TYPES(cls):
-        _, _, category_storage, _ = get_storage()
+        _, _, category_storage = get_storage()
         categories = category_storage.get_all_categories()
         tree = category_storage.get_category_tree()
         name_to_id = _flatten_categories(categories, tree)
@@ -789,7 +680,7 @@ class PromptCategoryReader:
     def read_prompts(self, category, property, mode, count, separator):
         category_id = self.__class__._cat_name_to_id_map.get(category, "root")
 
-        prompt_storage, _, category_storage, _ = get_storage()
+        prompt_storage, _, category_storage = get_storage()
         descendant_ids = set(category_storage.get_descendant_ids(category_id))
         all_prompts = prompt_storage.get_all_prompts()
         filtered = [p for p in all_prompts if p.get("categoryId") in descendant_ids]

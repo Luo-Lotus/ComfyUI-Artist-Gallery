@@ -13,7 +13,7 @@ from ._delete_utils import delete_category_cascade
 async def get_categories(request):
     """获取所有分类（树形结构）"""
     try:
-        _, _, category_storage, _ = get_storage()
+        _, _, category_storage = get_storage()
         tree = category_storage.get_category_tree()
         return web.json_response({"categories": tree})
     except Exception as e:
@@ -31,7 +31,7 @@ async def add_category(request):
         if not name:
             return web.json_response({"error": "分类名称不能为空"}, status=400)
 
-        _, _, category_storage, _ = get_storage()
+        _, _, category_storage = get_storage()
         category = category_storage.add_category(name, parent_id)
 
         return web.json_response({"category": category, "success": True})
@@ -48,7 +48,7 @@ async def update_category(request):
         category_id = request.match_info['category_id']
         data = await request.json()
 
-        _, _, category_storage, _ = get_storage()
+        _, _, category_storage = get_storage()
 
         kwargs = {}
         if "name" in data:
@@ -73,11 +73,11 @@ async def update_category(request):
 
 @server.PromptServer.instance.routes.delete("/prompt_gallery/categories/{category_id}")
 async def delete_category(request):
-    """删除分类（含子分类、分类下 Prompt 和组合，不清理图片映射）"""
+    """删除分类（含子分类和分类下 Prompt，不清理图片映射）。"""
     try:
         category_id = request.match_info['category_id']
 
-        prompt_storage, _, category_storage, combination_storage = get_storage()
+        prompt_storage, _, category_storage = get_storage()
 
         category = category_storage.get_category_by_id(category_id)
         if not category:
@@ -86,7 +86,7 @@ async def delete_category(request):
         result = delete_category_cascade(
             category_id,
             prompt_storage,
-            category_storage, combination_storage,
+            category_storage,
         )
 
         return web.json_response({
@@ -94,7 +94,6 @@ async def delete_category(request):
             "message": f"已删除分类 '{category.get('name')}'",
             "deletedCategories": len(result["deleted_categories"]),
             "deletedPrompts": len(result["deleted_prompts"]),
-            "deletedCombinations": result["deleted_combinations"],
         })
     except ValueError as e:
         return web.json_response({"error": str(e)}, status=400)
@@ -113,7 +112,7 @@ async def move_category(request):
         if new_parent_id == category_id:
             return web.json_response({"error": "不能将分类移动到自己下面"}, status=400)
 
-        _, _, category_storage, _ = get_storage()
+        _, _, category_storage = get_storage()
 
         # 检查是否会形成循环
         def check_cycle(parent_id, target_id):

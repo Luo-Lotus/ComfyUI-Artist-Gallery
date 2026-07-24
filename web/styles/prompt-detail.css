@@ -122,14 +122,6 @@
   overflow: hidden;
 }
 
-.combination-detail-view {
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-  height: 100%;
-  overflow: hidden;
-}
-
 .prompt-detail-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--card-grid-min-width), 1fr));

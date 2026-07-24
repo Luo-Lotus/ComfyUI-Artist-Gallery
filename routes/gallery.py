@@ -19,7 +19,7 @@ async def get_gallery_data(request):
         # 获取分类参数
         category_id = request.query.get("category", "root")
 
-        prompt_storage, _, category_storage, combination_storage = get_storage()
+        prompt_storage, _, category_storage = get_storage()
 
         # 验证分类存在
         category = category_storage.get_category_by_id(category_id)
@@ -42,19 +42,11 @@ async def get_gallery_data(request):
         # 排序Prompt
         result_prompts.sort(key=lambda x: x.get("value", "").lower())
 
-        # 获取当前分类下的组合，封面只取持久化 coverImageId
-        result_combinations = []
-        for comb in combination_storage.get_combinations_by_category(category_id):
-            comb_data = dict(comb)
-            comb_data["coverImagePath"] = comb.get("coverImageId")
-            result_combinations.append(comb_data)
-
         # 获取当前分类的直接子分类
         child_categories = category_storage.get_children(category_id)
 
         return web.json_response({
             "prompts": result_prompts,
-            "combinations": result_combinations,
             "childCategories": [{"id": c.get("id"), "name": c.get("name"), "parentId": c.get("parentId"), "metadata": c.get("metadata", {})} for c in child_categories],
             "totalCount": len(result_prompts),
             "categoryId": category_id,

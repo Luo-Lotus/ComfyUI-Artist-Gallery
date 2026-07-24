@@ -1,6 +1,6 @@
 /**
  * 分区预览 Hook
- * 点击预览图标弹出浮窗，展示分区内所有 prompt/组合的封面图
+ * 点击预览图标弹出浮窗，展示分区内所有 Prompt 的封面图
  * 弹窗立即显示 loading 状态，数据加载完成后替换为内容
  * 点击外部区域或关闭按钮可关闭浮窗
  */
@@ -116,7 +116,7 @@ export function usePartitionPreview() {
 
   // 点击切换预览浮窗
   const onPreviewToggle = useCallback(
-    async (event, partition, prompts, partitionCategories, partitionCombinations, coversCache) => {
+    async (event, partition, prompts, partitionCategories, coversCache) => {
       // 如果已打开则关闭
       if (isOpenRef.current) {
         isOpenRef.current = false;
@@ -134,7 +134,7 @@ export function usePartitionPreview() {
 
       // 异步加载数据
       const items = await buildPreviewItemsWithFetch(
-        partition, prompts, partitionCategories, partitionCombinations, coversCache,
+        partition, prompts, partitionCategories, coversCache,
       );
 
       // 检查是否已关闭或被新的打开覆盖
@@ -151,11 +151,10 @@ export function usePartitionPreview() {
 
 // 构建预览项（含按需获取封面和分类展开）
 async function buildPreviewItemsWithFetch(
-  partition, prompts, partitionCategories, partitionCombinations, coversCache,
+  partition, prompts, partitionCategories, coversCache,
 ) {
   const items = [];
   const coverKeysToFetch = [];
-  const combCoverIdsToFetch = [];
 
   // 直接 prompt
   for (const prompt of prompts) {
@@ -170,22 +169,6 @@ async function buildPreviewItemsWithFetch(
       coverImagePath: coverPath || null,
       _key: `${prompt.categoryId || 'root'}:${prompt.value}`,
     });
-  }
-
-  // 直接组合
-  if (partitionCombinations) {
-    for (const comb of partitionCombinations) {
-      const coverPath = comb.coverImagePath;
-      if (!coverPath) {
-        combCoverIdsToFetch.push(comb.id);
-      }
-      items.push({
-        type: 'combination',
-        name: comb.name,
-        coverImagePath: coverPath || null,
-        _key: `combination:${comb.id}`,
-      });
-    }
   }
 
   // 分类展开：通过 /data?category= 获取该分类下的 prompt
@@ -213,9 +196,9 @@ async function buildPreviewItemsWithFetch(
   }
 
   // 批量获取缺失的封面
-  if (coverKeysToFetch.length > 0 || combCoverIdsToFetch.length > 0) {
+  if (coverKeysToFetch.length > 0) {
     try {
-      const result = await fetchCovers(coverKeysToFetch, combCoverIdsToFetch);
+      const result = await fetchCovers(coverKeysToFetch);
       const covers = result.covers || {};
       for (const item of items) {
         if (!item.coverImagePath && item._key) {

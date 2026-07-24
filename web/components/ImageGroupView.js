@@ -1,6 +1,6 @@
 /**
  * ImageGroupView - 按分组展示图片的组件
- * 共享组件，供 PromptDetailView / HistoryView / CombinationDetailView 使用
+ * 共享组件，供 PromptDetailView 和 HistoryView 使用
  *
  * 搜索栏在 GalleryFilterBar 中，搜索关键词通过 searchQuery prop 传入
  * 组件内部管理：分组侧边栏（可选字段分组 + 搜索筛选）、分组图片内容、滚动边缘加载
@@ -110,7 +110,7 @@ function GroupSidebar({ groupList, groupCountMap, currentGroupIndex, onJumpToGro
 /**
  * @param {Object} props
  * @param {string} [props.promptFilter] - 按此 prompt value 过滤图片
- * @param {string[]} [props.promptFilters] - 按多个 prompt value 取交集过滤（组合视图用）
+ * @param {string[]} [props.promptFilters] - 按多个 prompt value 取交集过滤
  * @param {string} [props.lightboxName] - Lightbox 标题
  * @param {string} [props.searchQuery] - 外部搜索关键词（来自 GalleryFilterBar）
  * @param {Function} props.onDataLoaded - (totalImages) => void 数据加载后回调

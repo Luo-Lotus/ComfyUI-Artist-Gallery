@@ -32,14 +32,6 @@ export function GalleryHeader() {
         'button',
         {
           class: 'gallery-modal-btn',
-          onClick: () => ctx.openCombinationDialog('add'),
-        },
-        [h(Icon, { name: 'link', size: 14 }), ' 新建组合'],
-      ),
-      h(
-        'button',
-        {
-          class: 'gallery-modal-btn',
           onClick: () => ctx.setShowImportDialog(true),
         },
         [h(Icon, { name: 'download', size: 14 }), ' 导入图片'],

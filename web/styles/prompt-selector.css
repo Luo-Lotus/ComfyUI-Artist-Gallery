@@ -1672,11 +1672,6 @@
   background: #9c27b0;
 }
 
-/* 组合标签 */
-.prompt-selector-tag.combination-tag {
-  background: #6c5ce7;
-}
-
 /* 空状态优化 */
 .prompt-selector-empty-prompts {
   color: #666;
@@ -1720,49 +1715,8 @@
   background: rgba(100, 100, 100, 0.6);
 }
 
-/* ============ 组合项样式 ============ */
-
-.prompt-selector-item.combination-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  cursor: pointer;
-  transition: background 0.15s;
-  border-radius: 4px;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.prompt-selector-item.combination-item:hover {
-  background: rgba(108, 92, 231, 0.1);
-}
-
-.prompt-selector-item.combination-item.selected {
-  background: rgba(108, 92, 231, 0.2);
-  border-left: 3px solid #6c5ce7;
-}
-
-.prompt-selector-item.combination-item .prompt-selector-item-icon {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  line-height: 1;
-}
-
-.prompt-selector-item.combination-item .prompt-selector-item-icon svg {
-  display: block;
-}
-
-.prompt-selector-combination-count {
-  font-size: 11px;
-  color: #999;
-  margin-left: auto;
-  flex-shrink: 0;
-}
-
 /* 搜索结果路径独占下方一行，避免和名称挤在一行被截断 */
-.prompt-selector-item:not(.combination-item) {
+.prompt-selector-item {
   min-height: 38px;
   height: auto;
 }
@@ -1866,17 +1820,6 @@ svg.spin {
 }
 
 .prompt-selector-refresh-button svg {
-  display: block;
-}
-
-/* 组合项图标 */
-.prompt-selector-item.combination-item .prompt-selector-item-icon {
-  display: inline-flex;
-  align-items: center;
-  line-height: 1;
-}
-
-.prompt-selector-item.combination-item .prompt-selector-item-icon svg {
   display: block;
 }
 

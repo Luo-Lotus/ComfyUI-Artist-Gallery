@@ -18,8 +18,6 @@ export function BatchActionBar() {
         return '分类';
       case 'prompt':
         return 'Prompt';
-      case 'combination':
-        return '组合';
       case 'image':
         return '图片';
       case 'mixed':

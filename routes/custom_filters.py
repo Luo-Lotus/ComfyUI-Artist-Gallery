@@ -150,7 +150,7 @@ async def test_custom_filter(request):
         if not flt:
             return web.json_response({"error": "筛查项不存在"}, status=404)
 
-        _, mapping_storage, _, _ = get_storage()
+        _, mapping_storage, _ = get_storage()
         items = mapping_storage.get_all_mappings()
         filter_fn = _compile_filter(flt["filterCode"])
         if not filter_fn:
@@ -197,7 +197,7 @@ async def extract_filter_options(request):
         if not extract_fn:
             return web.json_response({"error": "提取函数必须定义 extract_func"}, status=400)
 
-        _, mapping_storage, _, _ = get_storage()
+        _, mapping_storage, _ = get_storage()
         items = mapping_storage.get_all_mappings()
 
         options_set = set()

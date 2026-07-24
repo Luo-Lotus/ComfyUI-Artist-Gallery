@@ -28,7 +28,7 @@ async def get_images_grouped(request):
 
     Query params:
       prompt (可选): 按单个 prompt value 过滤
-      prompts (可选): 逗号分隔的多个 prompt value，取交集（组合视图用）
+      prompts (可选): 逗号分隔的多个 prompt value，取交集
       search (可选): 按 prompts[] 字段内容搜索
     """
     try:
@@ -62,18 +62,18 @@ async def get_images_grouped(request):
             group_by=group_by,
         )
 
-        # 组合模式：多个 prompt 取交集。优先使用 JSON，避免 prompt value 中的逗号被拆坏。
-        combination_prompts = None
+        # 多个 prompt 取交集。优先使用 JSON，避免 prompt value 中的逗号被拆坏。
+        prompt_filters = None
         if prompts_json_param:
             try:
                 parsed_prompts = json.loads(prompts_json_param)
                 if isinstance(parsed_prompts, list):
-                    combination_prompts = [str(p).strip() for p in parsed_prompts if str(p).strip()]
+                    prompt_filters = [str(p).strip() for p in parsed_prompts if str(p).strip()]
             except json.JSONDecodeError:
-                combination_prompts = []
+                prompt_filters = []
         elif prompts_param:
-            combination_prompts = [p.strip() for p in prompts_param.split(",") if p.strip()]
-        log_timing("parse_prompts", combination_count=len(combination_prompts or []))
+            prompt_filters = [p.strip() for p in prompts_param.split(",") if p.strip()]
+        log_timing("parse_prompts", prompt_filter_count=len(prompt_filters or []))
 
         # 自定义筛查：解析 filters JSON 参数
         active_filters = []
@@ -95,7 +95,7 @@ async def get_images_grouped(request):
                 pass
         log_timing("compile_filters", active_filter_count=len(active_filters))
 
-        _, mapping_storage, _, _ = get_storage()
+        _, mapping_storage, _ = get_storage()
         mappings = mapping_storage.get_all_mappings()
         log_timing("load_mappings", mapping_count=len(mappings))
 
@@ -135,9 +135,9 @@ async def get_images_grouped(request):
             if prompt_filter and prompt_filter.lower() not in prompt_string_lower:
                 continue
 
-            # 组合模式：交集过滤（图片必须包含所有指定 prompt）
-            if combination_prompts:
-                if not all(p.lower() in prompt_string_lower for p in combination_prompts):
+            # 交集过滤：图片必须包含所有指定 prompt
+            if prompt_filters:
+                if not all(p.lower() in prompt_string_lower for p in prompt_filters):
                     continue
 
             # search 过滤：检查 promptString 中是否有匹配项
