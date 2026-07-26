@@ -4,18 +4,21 @@
   height: var(--card-row-height);
   min-width: var(--card-min-width);
   background: transparent;
-  border-radius: 12px;
+  border-radius: var(--card-radius, 12px);
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--g-border-light);
+  box-shadow: 0 2px 8px var(--g-shadow-light);
   transition:
-    transform 0.2s,
-    border-color 0.2s;
+    transform var(--g-transition-base),
+    border-color var(--g-transition-base),
+    box-shadow var(--g-transition-base);
 }
 
 .gallery-card:hover {
   transform: translateY(-2px);
   border-color: var(--g-accent);
+  box-shadow: 0 4px 16px var(--g-shadow);
 }
 
 .gallery-actions {
@@ -25,8 +28,8 @@
 
 .gallery-icon-btn {
   padding: 4px 8px;
-  border: 2px solid var(--g-border);
-  border-radius: 10px;
+  border: 1px solid var(--g-border);
+  border-radius: var(--g-radius-md);
   background: var(--g-bg-elevated);
   color: var(--g-text-muted);
   cursor: pointer;
@@ -49,12 +52,12 @@
 .gallery-icon-btn.copied {
   color: var(--g-success);
   border-color: var(--g-success);
-  background: rgba(76, 175, 80, 0.15);
+  background: var(--g-success-bg);
 }
 
 .gallery-fav-btn {
   padding: 6px 10px;
-  border: 2px solid var(--g-border);
+  border: 1px solid var(--g-border);
   border-radius: 20px;
   background: var(--g-bg-elevated);
   color: var(--g-accent);
@@ -156,7 +159,7 @@
   overflow: hidden;
   border-radius: 0;
   cursor: pointer;
-  background: #2a2a2a;
+  background: var(--g-image-placeholder);
 }
 
 .gallery-image-cover img {
@@ -246,7 +249,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: #2a2a2a;
+  background: var(--g-image-placeholder);
   border-radius: 0;
   overflow: hidden;
 }

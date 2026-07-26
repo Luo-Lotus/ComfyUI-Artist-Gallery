@@ -1,5 +1,6 @@
 /* Gallery Styles - Main Entry Point */
 @import url('./variables.css');
+@import url('./base.css');
 @import url('./floating-btn.css');
 @import url('./modal.css');
 @import url('./gallery-grid.css');

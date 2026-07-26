@@ -381,8 +381,10 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
               icon: 'copy',
               label: '复制文本',
               action: () => {
-                navigator.clipboard.writeText(cat.name);
-                showToast('已复制', 'success');
+                navigator.clipboard.writeText(cat.name).then(
+                  () => showToast('已复制', 'success'),
+                  () => showToast('复制失败', 'error'),
+                );
               },
             },
             {
@@ -550,8 +552,10 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
               icon: 'copy',
               label: '复制文本',
               action: () => {
-                navigator.clipboard.writeText(text);
-                showToast('已复制', 'success');
+                navigator.clipboard.writeText(text).then(
+                  () => showToast('已复制', 'success'),
+                  () => showToast('复制失败', 'error'),
+                );
               },
             },
             {

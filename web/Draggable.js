@@ -26,6 +26,8 @@ export class Draggable {
   }
 
   handleMouseDown(e) {
+    // 仅响应鼠标左键，避免右键/中键触发拖动
+    if (e.button !== 0) return;
     this.isDragging = true;
     this.hasMoved = false;
     this.startX = e.clientX;

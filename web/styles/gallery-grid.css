@@ -26,30 +26,31 @@
 .gallery-search input {
     width: 100%;
     padding: 8px 14px;
-    border: 2px solid var(--g-input-border);
-    border-radius: 16px;
+    border: 1px solid var(--g-input-border);
+    border-radius: 16px; /* 搜索框保留 pill 造型（与 .gallery-search-input 一致） */
     background: var(--g-input-bg);
     color: var(--g-text);
     font-size: 13px;
-    transition: all 0.2s;
+    transition: all var(--g-transition-fast);
 }
 
 .gallery-search input:focus {
     outline: none;
     border-color: var(--g-accent);
     background: var(--g-input-focus-bg);
+    box-shadow: 0 0 0 3px var(--g-accent-light);
 }
 
 .gallery-btn {
     padding: 6px 12px;
-    border: 2px solid var(--g-border);
-    border-radius: 12px;
+    border: 1px solid var(--g-border);
+    border-radius: var(--g-radius-md);
     background: var(--g-bg-input);
     color: var(--g-accent);
     cursor: pointer;
-    font-size: 12px;
-    font-weight: 600;
-    transition: all 0.2s;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all var(--g-transition-fast);
 }
 
 .gallery-btn:hover {
@@ -65,13 +66,14 @@
 
 .gallery-select {
     padding: 6px 12px;
-    border: 2px solid var(--g-border);
-    border-radius: 12px;
+    border: 1px solid var(--g-border);
+    border-radius: var(--g-radius-md);
     background: var(--g-bg-input);
     color: var(--g-accent);
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 500;
     cursor: pointer;
+    transition: all var(--g-transition-fast);
 }
 
 .gallery-stats {
@@ -139,8 +141,8 @@
     gap: 16px;
     padding: 12px 20px;
     background: var(--g-header-bg);
-    border-bottom: 2px solid var(--g-header-border);
-    border-radius: 16px;
+    border-bottom: 1px solid var(--g-header-border);
+    border-radius: var(--g-radius-xl);
     margin-bottom: 8px;
     box-shadow: 0 2px 8px var(--g-shadow-light);
     flex-wrap: wrap;
@@ -165,30 +167,31 @@
     min-width: 200px;
     max-width: 300px;
     padding: 8px 14px;
-    border: 2px solid var(--g-input-border);
-    border-radius: 16px;
+    border: 1px solid var(--g-input-border);
+    border-radius: 16px; /* pill 造型，与 .gallery-search input 一致 */
     background: var(--g-input-bg);
     color: var(--g-text);
     font-size: 13px;
-    transition: all 0.2s;
+    transition: all var(--g-transition-fast);
 }
 
 .gallery-search-input:focus {
     outline: none;
     border-color: var(--g-accent);
     background: var(--g-input-focus-bg);
+    box-shadow: 0 0 0 3px var(--g-accent-light);
 }
 
 .gallery-filter-btn {
     padding: 8px 14px;
-    border: 2px solid var(--g-border);
-    border-radius: 12px;
+    border: 1px solid var(--g-border);
+    border-radius: var(--g-radius-md);
     background: var(--g-bg-input);
     color: var(--g-accent);
     cursor: pointer;
     font-size: 13px;
-    font-weight: 600;
-    transition: all 0.2s;
+    font-weight: 500;
+    transition: all var(--g-transition-fast);
     min-width: 40px;
     display: flex;
     align-items: center;
@@ -208,20 +211,21 @@
 
 .gallery-filter-select {
     padding: 8px 12px;
-    border: 2px solid var(--g-border);
-    border-radius: 12px;
+    border: 1px solid var(--g-border);
+    border-radius: var(--g-radius-md);
     background: var(--g-bg-input);
     color: var(--g-accent);
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all var(--g-transition-fast);
 }
 
 .gallery-filter-select:focus {
     outline: none;
     border-color: var(--g-accent);
     background: var(--g-input-focus-bg);
+    box-shadow: 0 0 0 3px var(--g-accent-light);
 }
 
 .gallery-count-badge {

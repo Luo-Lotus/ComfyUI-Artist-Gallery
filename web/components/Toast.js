@@ -7,8 +7,6 @@ import { h } from '../lib/preact.mjs';
 import { useState, useEffect } from '../lib/hooks.mjs';
 import { Icon } from '../lib/icons.mjs';
 
-let toastContainer = null;
-
 /**
  * 显示 Toast 通知
  * @param {string} message - 消息内容
@@ -16,13 +14,6 @@ let toastContainer = null;
  * @param {number} duration - 显示时长（毫秒）
  */
 export function showToast(message, type = 'info', duration = 3000) {
-  // 确保容器存在
-  if (!toastContainer) {
-    const container = document.createElement('div');
-    document.body.appendChild(container);
-    toastContainer = container;
-  }
-
   // 创建 Toast 对象
   const toast = {
     id: Date.now() + Math.random(),
@@ -56,12 +47,12 @@ export function ToastContainer() {
       setToasts((prev) => [...prev, e.detail]);
     };
 
-    const handleHide = (id) => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
+    const handleHide = (e) => {
+      setToasts((prev) => prev.filter((t) => t.id !== e.detail));
     };
 
     document.addEventListener('toast-show', handleShow);
-    document.addEventListener('toast-hide', (e) => handleHide(e.detail));
+    document.addEventListener('toast-hide', handleHide);
 
     return () => {
       document.removeEventListener('toast-show', handleShow);

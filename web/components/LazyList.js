@@ -12,7 +12,7 @@ export function LazyList({
   layout = 'grid',
   className = '',
   style = null,
-  scrollContainer = null, // null=viewport, 'self'=组件自身
+  scrollContainer = null, // null=viewport, 'self'=组件自身, 'parent'=最近的可滚动祖先
   threshold = 200, // 超过此数量才启用懒加载
   initialCount = 50,
   batchSize = 30,
@@ -49,6 +49,17 @@ export function LazyList({
     let root = null;
     if (scrollContainer === 'self' && wrapperRef.current) {
       root = wrapperRef.current;
+    } else if (scrollContainer === 'parent' && wrapperRef.current) {
+      // 向上查找最近的可滚动祖先作为 observer root
+      let el = wrapperRef.current.parentElement;
+      while (el && el !== document.body) {
+        const overflowY = getComputedStyle(el).overflowY;
+        if (overflowY === 'auto' || overflowY === 'scroll') {
+          root = el;
+          break;
+        }
+        el = el.parentElement;
+      }
     }
 
     const observer = new IntersectionObserver(

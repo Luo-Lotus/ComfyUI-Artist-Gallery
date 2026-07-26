@@ -3,7 +3,7 @@
     position: fixed;
     top: 20px;
     right: 20px;
-    z-index: 99999;
+    z-index: var(--g-z-toast, 99999);
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -13,8 +13,10 @@
 
 .toast {
     background: var(--g-toast-bg);
-    border-radius: 12px;
+    border-radius: var(--g-radius-lg);
     padding: 14px 16px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     box-shadow: 0 4px 20px var(--g-shadow-light);
     display: flex;
     align-items: center;
@@ -86,10 +88,11 @@
     opacity: 1;
 }
 
-/* Toast 类型样式 */
+/* Toast 类型样式 — 近不透明深色底保证画布上的可读性，
+   类型色只体现在左侧描边和图标上 */
 .toast-success {
-    background: linear-gradient(135deg, rgba(76, 175, 80, 0.15) 0%, rgba(76, 175, 80, 0.1) 100%);
-    border-left: 4px solid var(--g-success);
+    background: rgba(30, 30, 30, 0.95);
+    border-left: 3px solid var(--g-success);
 }
 
 .toast-success .toast-icon {
@@ -98,8 +101,8 @@
 }
 
 .toast-error {
-    background: linear-gradient(135deg, rgba(244, 67, 54, 0.15) 0%, rgba(244, 67, 54, 0.1) 100%);
-    border-left: 4px solid var(--g-error);
+    background: rgba(30, 30, 30, 0.95);
+    border-left: 3px solid var(--g-error);
 }
 
 .toast-error .toast-icon {
@@ -108,8 +111,8 @@
 }
 
 .toast-info {
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.1) 100%);
-    border-left: 4px solid var(--g-info);
+    background: rgba(30, 30, 30, 0.95);
+    border-left: 3px solid var(--g-info);
 }
 
 .toast-info .toast-icon {
@@ -118,11 +121,19 @@
 }
 
 .toast-warning {
-    background: linear-gradient(135deg, rgba(249, 168, 37, 0.15) 0%, rgba(249, 168, 37, 0.1) 100%);
-    border-left: 4px solid var(--g-warning);
+    background: rgba(30, 30, 30, 0.95);
+    border-left: 3px solid var(--g-warning);
 }
 
 .toast-warning .toast-icon {
     background: var(--g-warning);
     color: white;
+}
+
+/* 类型底色固定为深色，正文颜色不随浅色主题变暗 */
+.toast-success .toast-message,
+.toast-error .toast-message,
+.toast-info .toast-message,
+.toast-warning .toast-message {
+    color: #e0e0e0;
 }

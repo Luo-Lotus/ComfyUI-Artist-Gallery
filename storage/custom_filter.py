@@ -7,6 +7,8 @@ import threading
 from pathlib import Path
 from typing import List, Optional
 
+from ._config import write_json_atomic
+
 
 # 内置筛选项
 _BUILTIN_FILTERS = [
@@ -80,14 +82,13 @@ class CustomFilterStorage:
         return self._cache
 
     def _write_data(self, data: dict):
-        with open(self.filters_file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        write_json_atomic(self.filters_file, data)
         self._cache = None
 
     def get_all(self) -> List[dict]:
         with self._lock:
             data = self._read_data()
-            return data.get("filters", [])
+            return list(data.get("filters", []))
 
     def get_by_id(self, filter_id: str) -> Optional[dict]:
         for f in self.get_all():

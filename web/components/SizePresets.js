@@ -9,8 +9,7 @@
 const BASE_SIZES = {
   gridMinWidth: 250,
   gridGap: 14,
-  radius: 16,
-  padding: 10,
+  radius: 12,
   headerGap: 8,
   promptNameFont: 14,
   promptCountFont: 11,

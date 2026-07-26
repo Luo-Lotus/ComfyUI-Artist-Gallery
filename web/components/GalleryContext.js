@@ -24,6 +24,21 @@ import { showToast } from './Toast.js';
 
 const GalleryContext = createContext(null);
 
+// 将主题同步到画廊外的浮层容器（对话框/Toast/右键菜单渲染在独立容器中，
+// 不在 .gallery-modal-content 内，需要单独设置 data-theme 才能应用浅色主题变量）
+const THEMED_CONTAINER_IDS = [
+  'prompt-gallery-modal-container',
+  'prompt-gallery-toast-container',
+  'global-context-menu-container',
+];
+
+function applyThemeToPortals(theme) {
+  THEMED_CONTAINER_IDS.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.setAttribute('data-theme', theme);
+  });
+}
+
 export function useGallery() {
   const ctx = useContext(GalleryContext);
   return ctx;
@@ -43,6 +58,11 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
     setThemeState(newTheme);
     Storage.saveTheme(newTheme);
   }, []);
+
+  // 主题变化时同步到浮层容器（对话框、Toast、右键菜单）
+  useEffect(() => {
+    applyThemeToPortals(theme);
+  }, [theme]);
   const [viewMode, setViewMode] = useState('gallery');
   const [rawCurrentPrompt, setCurrentPrompt] = useState(null);
   const [currentPromptGroups, setCurrentPromptGroups] = useState(null);
@@ -173,6 +193,8 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
   // 多选管理
   const selection = useSelection({
     categories: categoryMgr.categories,
+    currentCategoryChildren: categoryMgr.currentCategoryChildren,
+    allPrompts: data?.prompts || [],
     filteredPrompts,
     currentPrompt,
     currentCategory,
@@ -813,6 +835,8 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
       favorites,
       handleTogglePinned,
       cardSize,
+      cardLayoutMode,
+      theme,
       imageSearchQuery,
       imageSortBy,
       imageSortOrder,

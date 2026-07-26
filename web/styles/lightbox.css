@@ -6,7 +6,8 @@
     width: 100vw;
     height: 100vh;
     background: rgba(0, 0, 0, 0.95);
-    z-index: 10001;
+    /* 高于 prompt-detail-overlay (10001)：灯箱可以从详情视图打开 */
+    z-index: var(--g-z-lightbox, 10002);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s;
@@ -375,22 +376,33 @@
     flex-shrink: 0;
 }
 
-/* 滚动条 */
-.gallery-lightbox-info-panel ::-webkit-scrollbar {
-    width: 4px;
+/* 滚动条：由 base.css 统一提供（.gallery-lightbox 作用域） */
+
+/* ===== 关闭按钮（右上角，元素由 Lightbox.js 提供） ===== */
+.gallery-lightbox-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--g-transition-fast);
+    z-index: 12; /* 高于图片和操作栏 (z-index: 10) */
 }
 
-.gallery-lightbox-info-panel ::-webkit-scrollbar-track {
-    background: transparent;
+.gallery-lightbox-close:hover {
+    background: var(--g-accent);
 }
 
-.gallery-lightbox-info-panel ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.12);
-    border-radius: 2px;
-}
-
-.gallery-lightbox-info-panel ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.22);
+.gallery-lightbox-close svg {
+    display: block;
 }
 
 /* ===== 编辑模式 - Canvas ===== */
@@ -416,12 +428,13 @@
 }
 
 .gallery-lightbox-action-btn {
-    padding: 6px 4px;
+    padding: 6px 10px;
     border: none;
+    border-radius: var(--g-radius-md);
     background: transparent;
     color: rgba(255, 255, 255, 0.6);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all var(--g-transition-fast);
     display: inline-flex;
     align-items: center;
     gap: 5px;
@@ -432,8 +445,7 @@
 
 .gallery-lightbox-action-btn:hover {
     color: #fff;
-    text-decoration: underline;
-    text-underline-offset: 4px;
+    background: rgba(255, 255, 255, 0.12);
 }
 
 .gallery-lightbox-action-btn svg {

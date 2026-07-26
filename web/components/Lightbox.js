@@ -3,12 +3,13 @@
  * 全屏查看图片 + 右侧信息面板 + 编辑模式（混淆/画笔）
  */
 import { h } from '../lib/preact.mjs';
-import { useState, useEffect, useCallback } from '../lib/hooks.mjs';
+import { useState, useEffect, useCallback, useRef } from '../lib/hooks.mjs';
 import { Icon } from '../lib/icons.mjs';
 import { buildImageUrl } from '../utils.js';
 import { sanitizeFieldHtml } from '../utils/sanitizeFieldHtml.js';
 import { showToast } from './Toast.js';
 import { useLightboxEditor } from './hooks/useLightboxEditor.js';
+import { pushEscapeHandler } from '../utils/escapeStack.js';
 
 function CopyButton({ text, label }) {
   return h(
@@ -246,10 +247,14 @@ export function Lightbox({ isOpen, prompt, imageIndex, onClose, onNavigate, imag
 
   useEffect(() => {
     if (isOpen && imagePath) {
+      // 每次加载都创建独立的 AbortController，避免快速切换图片时旧请求晚到覆盖新数据
+      const controller = new AbortController();
+      const { signal } = controller;
+
       setLoading(true);
       setInfo(null);
       setCustomFieldValues({});
-      fetch(`/prompt_gallery/image/info?path=${encodeURIComponent(imagePath)}`)
+      fetch(`/prompt_gallery/image/info?path=${encodeURIComponent(imagePath)}`, { signal })
         .then((res) => res.json())
         .then((data) => {
           if (data.success) {
@@ -257,9 +262,13 @@ export function Lightbox({ isOpen, prompt, imageIndex, onClose, onNavigate, imag
           } else {
             showToast('获取图片信息失败: ' + (data.error || ''), 'error');
           }
+          setLoading(false);
         })
-        .catch((err) => showToast('请求失败: ' + err.message, 'error'))
-        .finally(() => setLoading(false));
+        .catch((err) => {
+          if (err.name === 'AbortError') return;
+          showToast('请求失败: ' + err.message, 'error');
+          setLoading(false);
+        });
 
       // 获取自定义字段值
       if (imageFields.length > 0) {
@@ -268,6 +277,7 @@ export function Lightbox({ isOpen, prompt, imageIndex, onClose, onNavigate, imag
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ fieldIds, imagePath }),
+          signal,
         })
           .then(res => res.json())
           .then(data => {
@@ -275,8 +285,24 @@ export function Lightbox({ isOpen, prompt, imageIndex, onClose, onNavigate, imag
           })
           .catch(() => {});
       }
+
+      return () => controller.abort();
     }
   }, [isOpen, imagePath, imageFields]);
+
+  // 预加载相邻图片，减少箭头切换时的等待
+  useEffect(() => {
+    if (!isOpen || !prompt?.images?.length) return;
+    const len = prompt.images.length;
+    if (len <= 1) return;
+    [imageIndex - 1, imageIndex + 1].forEach((i) => {
+      const neighbor = prompt.images[((i % len) + len) % len];
+      if (neighbor?.path) {
+        const pre = new Image();
+        pre.src = buildImageUrl(neighbor.path, neighbor.type);
+      }
+    });
+  }, [isOpen, prompt, imageIndex]);
 
   useEffect(() => {
     if (editor.editMode) {
@@ -287,25 +313,43 @@ export function Lightbox({ isOpen, prompt, imageIndex, onClose, onNavigate, imag
   const handlePrev = () => onNavigate(-1);
   const handleNext = () => onNavigate(1);
 
+  // Escape 通过层级栈处理：编辑模式先退出编辑，否则关闭灯箱
+  const escHandlerRef = useRef(null);
+  escHandlerRef.current = () => {
+    if (editor.editMode) {
+      editor.exitEditMode();
+      return;
+    }
+    onClose();
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const pop = pushEscapeHandler(() => {
+      if (escHandlerRef.current) escHandlerRef.current();
+    });
+    return pop;
+  }, [isOpen]);
+
   const handleKeyDown = useCallback(
     (e) => {
-      if (editor.editMode) {
-        if (e.key === 'Escape') {
-          editor.exitEditMode();
-          return;
-        }
+      if (editor.editMode) return;
+      if (e.key === 'ArrowLeft') {
+        e.stopPropagation();
+        onNavigate(-1);
+      } else if (e.key === 'ArrowRight') {
+        e.stopPropagation();
+        onNavigate(1);
       }
-      if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowLeft') onNavigate(-1);
-      if (e.key === 'ArrowRight') onNavigate(1);
     },
-    [onClose, onNavigate, editor.editMode, editor.exitEditMode],
+    [onNavigate, editor.editMode],
   );
 
   useEffect(() => {
+    if (!isOpen) return;
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
+  }, [isOpen, handleKeyDown]);
 
   if (!isOpen || !prompt || !img) return null;
 
@@ -349,7 +393,22 @@ export function Lightbox({ isOpen, prompt, imageIndex, onClose, onNavigate, imag
               class: 'gallery-lightbox-img',
               src: buildImageUrl(img.path, img.type),
               alt: prompt.name || prompt.value,
+              decoding: 'async',
             }),
+
+        !editor.editMode &&
+          h(
+            'button',
+            {
+              class: 'gallery-lightbox-close',
+              onClick: (e) => {
+                e.stopPropagation();
+                onClose();
+              },
+              'aria-label': '关闭',
+            },
+            h(Icon, { name: 'x', size: 20 }),
+          ),
 
         !editor.editMode &&
           h(

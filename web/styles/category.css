@@ -4,15 +4,18 @@
     width: var(--card-category-width);
     height: var(--card-row-height);
     background: var(--g-bg-elevated);
-    border-radius: 16px;
+    border-radius: var(--card-radius, 12px);
     padding: var(--card-category-padding);
     display: flex;
     align-items: center;
     gap: var(--card-header-gap);
     cursor: pointer;
-    transition: transform 0.2s, border-color 0.2s;
+    transition:
+        transform var(--g-transition-base),
+        border-color var(--g-transition-base),
+        box-shadow var(--g-transition-base);
     box-shadow: 0 2px 8px var(--g-shadow-light);
-    border: 2px solid transparent;
+    border: 1px solid var(--g-border-light);
     position: relative;
     box-sizing: border-box;
 }
@@ -36,7 +39,7 @@
 .category-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 16px var(--g-shadow);
-    border-color: var(--g-border);
+    border-color: var(--g-accent);
 }
 
 .category-icon {

@@ -2,7 +2,7 @@
  * 添加/编辑Prompt对话框组件（使用通用Dialog重构）
  */
 import { h } from '../lib/preact.mjs';
-import { useState } from '../lib/hooks.mjs';
+import { useState, useEffect } from '../lib/hooks.mjs';
 import { showToast } from './Toast.js';
 import { Icon } from '../lib/icons.mjs';
 import { addPrompt, updatePromptByKey, addPromptsBatch } from '../services/promptApi.js';
@@ -141,12 +141,18 @@ export function AddPromptDialog({ isOpen, mode, editModePrompt, currentCategoryI
   };
 
   // ============ 编辑模式处理 ============
-  if (editModePrompt && mode === 'edit' && !promptValue) {
-    setPromptValue(editModePrompt.value);
-    setPromptName(editModePrompt.name || '');
-    setPromptAlias(editModePrompt.alias || '');
-    setAddPromptMode('single');
-  }
+  // 打开时初始化表单（编辑模式代入数据，添加模式重置），避免在渲染期间 setState
+  useEffect(() => {
+    if (!isOpen) return;
+    if (editModePrompt && mode === 'edit') {
+      setPromptValue(editModePrompt.value);
+      setPromptName(editModePrompt.name || '');
+      setPromptAlias(editModePrompt.alias || '');
+      setAddPromptMode('single');
+    } else {
+      resetForm();
+    }
+  }, [isOpen, editModePrompt, mode]);
 
   // ============ 渲染函数 ============
 

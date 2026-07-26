@@ -156,7 +156,11 @@ async def create_backup(request):
 async def update_max_backups(request):
     try:
         data = await request.json()
-        value = int(data.get("value", 3))
+        try:
+            value = int(data.get("value", 3))
+        except (TypeError, ValueError):
+            return web.json_response({"error": "value 必须是整数"}, status=400)
+        value = max(1, min(50, value))
         storage_dir = _resolve_storage_dir()
         set_max_backups(storage_dir, value)
         return web.json_response({"success": True, "maxBackups": max(1, min(20, value))})
@@ -213,11 +217,19 @@ async def backfill_prompt_covers(request):
 async def apply_backup(request):
     try:
         name = request.match_info["name"]
+        # 防路径穿越：备份名不允许包含路径成分
+        if "/" in name or "\\" in name or ".." in name:
+            return web.json_response({"error": "非法的备份名称"}, status=400)
+
         storage_dir = _resolve_storage_dir()
         backup_dir = storage_dir / name
 
         if not backup_dir.is_dir() or not name.startswith("backup_"):
             return web.json_response({"error": "备份不存在"}, status=404)
+
+        # 二次校验：备份目录必须直接位于存储目录之下
+        if backup_dir.resolve().parent != storage_dir.resolve():
+            return web.json_response({"error": "非法的备份名称"}, status=400)
 
         # 先创建安全备份
         max_bk = get_max_backups(storage_dir)

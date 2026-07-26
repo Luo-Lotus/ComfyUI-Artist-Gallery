@@ -3,7 +3,17 @@
 独立模块，避免与 _resolve.py 产生循环导入。
 """
 import json
+import os
 from pathlib import Path
+
+
+def write_json_atomic(file_path: Path, data: dict) -> None:
+    """原子写 JSON：先写同目录临时文件，再 os.replace，避免写一半损坏原文件。"""
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = file_path.with_name(f".{file_path.name}.tmp")
+    with open(temp_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    os.replace(temp_path, file_path)
 
 
 def get_storage_config_path(storage_dir: Path) -> Path:
@@ -39,8 +49,7 @@ def toggle_disabled_file(storage_dir: Path, filename: str) -> bool:
         result = True
 
     data["disabled_files"] = sorted(disabled)
-    with open(config_path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    write_json_atomic(config_path, data)
     return result
 
 
@@ -64,8 +73,7 @@ def toggle_disabled_files(storage_dir: Path, filenames: list) -> bool:
             disabled.discard(f)
 
     data["disabled_files"] = sorted(disabled)
-    with open(config_path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    write_json_atomic(config_path, data)
     return should_disable
 
 
@@ -90,5 +98,4 @@ def set_max_backups(storage_dir: Path, value: int) -> None:
         data = {}
 
     data["max_backups"] = max(1, min(20, value))
-    with open(config_path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    write_json_atomic(config_path, data)

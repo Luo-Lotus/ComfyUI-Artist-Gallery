@@ -1,42 +1,10 @@
 """
 自定义筛查项 CRUD 接口
 """
-import json
-import re
-import math
-from datetime import datetime, timezone, timedelta
 from aiohttp import web
 import server
 from ..storage import get_custom_filter_storage, get_storage
-
-
-def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):
-    allowed = {"datetime", "re", "json", "math", "time"}
-    root_name = name.split(".", 1)[0]
-    if root_name not in allowed:
-        raise ImportError(f"Import '{name}' is not allowed")
-    return __import__(name, globals, locals, fromlist, level)
-
-
-_SAFE_BUILTINS = {
-    "int": int, "str": str, "float": float, "len": len,
-    "bool": bool, "isinstance": isinstance, "print": print,
-    "True": True, "False": False, "None": None,
-    "list": list, "dict": dict, "set": set, "tuple": tuple,
-    "sorted": sorted, "enumerate": enumerate, "zip": zip,
-    "map": map, "filter": filter, "any": any, "all": all,
-    "min": min, "max": max, "sum": sum, "abs": abs,
-    "range": range, "reversed": reversed,
-    "hasattr": hasattr, "getattr": getattr, "type": type,
-    "round": round, "pow": pow, "divmod": divmod,
-    "ValueError": ValueError, "TypeError": TypeError,
-    "KeyError": KeyError, "IndexError": IndexError,
-    "Exception": Exception,
-    # 常用模块
-    "re": re, "json": json, "math": math,
-    "datetime": datetime, "timezone": timezone, "timedelta": timedelta,
-    "__import__": _safe_import,
-}
+from ._sandbox import compile_filter as _compile_filter, compile_extract as _compile_extract
 
 
 @server.PromptServer.instance.routes.get("/prompt_gallery/custom_filters")
@@ -223,17 +191,3 @@ async def extract_filter_options(request):
         })
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
-
-
-def _compile_filter(code: str):
-    """编译筛查函数代码，返回 filter_func 可调用对象"""
-    namespace = {}
-    exec(code, {"__builtins__": _SAFE_BUILTINS}, namespace)
-    return namespace.get("filter_func")
-
-
-def _compile_extract(code: str):
-    """编译提取函数代码，返回 extract_func 可调用对象"""
-    namespace = {}
-    exec(code, {"__builtins__": _SAFE_BUILTINS}, namespace)
-    return namespace.get("extract_func")

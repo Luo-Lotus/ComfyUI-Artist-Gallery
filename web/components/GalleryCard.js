@@ -8,6 +8,7 @@ import { useState, useRef, useCallback } from '../lib/hooks.mjs';
 import { buildImageUrl } from '../utils.js';
 import { BaseCard } from './BaseCard.js';
 import { useContextMenu } from './ContextMenu.js';
+import { showToast } from './Toast.js';
 
 export function GalleryCard({
   prompt,
@@ -52,10 +53,13 @@ export function GalleryCard({
   // ============ 事件处理 ============
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(prompt.value).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
+    navigator.clipboard
+      .writeText(prompt.value)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      })
+      .catch(() => showToast('复制失败', 'error'));
   };
 
   const handleContextMenu = (e) => {
@@ -157,6 +161,7 @@ export function GalleryCard({
           src: buildImageUrl(coverImage.path),
           alt: name,
           loading: 'lazy',
+          decoding: 'async',
           onLoad: handleImgLoad,
         }),
         renderOverlay(),

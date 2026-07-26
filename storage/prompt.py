@@ -44,10 +44,10 @@ class PromptStorage(SplitJsonStorage):
             self._idx_by_category.setdefault(category_id, []).append(p)
 
     def get_all_prompts(self) -> List[dict]:
-        """获取所有Prompt"""
+        """获取所有Prompt（返回浅拷贝列表，避免调用方在锁外迭代内部活列表）"""
         with self._lock:
             data = self._read_data()
-            return data.get("prompts", [])
+            return list(data.get("prompts", []))
 
     def get_prompt(self, category_id: str, value: str) -> Optional[dict]:
         """
@@ -241,14 +241,15 @@ class PromptStorage(SplitJsonStorage):
             if not target_prompt:
                 return False
 
-            # 如果要更新 value，需要检查同分类下重复
-            if "value" in kwargs:
-                new_value = kwargs["value"]
+            # 如果要更新 value 或 categoryId，需要检查目标分类下复合键重复
+            if "value" in kwargs or "categoryId" in kwargs:
+                new_value = kwargs.get("value", target_prompt.get("value"))
+                new_cat = kwargs.get("categoryId", category_id)
                 for i, prompt in enumerate(data["prompts"]):
                     if (i != target_index and
-                        prompt.get("categoryId") == category_id and
+                        prompt.get("categoryId") == new_cat and
                         prompt.get("value") == new_value):
-                        raise ValueError(f"分类 '{category_id}' 下Prompt值 '{new_value}' 已存在")
+                        raise ValueError(f"分类 '{new_cat}' 下Prompt值 '{new_value}' 已存在")
 
             # 更新字段
             for key, val in kwargs.items():

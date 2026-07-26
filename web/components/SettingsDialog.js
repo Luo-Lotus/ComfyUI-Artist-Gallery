@@ -489,9 +489,9 @@ const PANELS = {
 };
 
 export function SettingsDialog({ isOpen, onClose }) {
-  const [activeMenu, setActiveMenu] = useState('storage');
+  const [activeMenu, setActiveMenu] = useState(MENU_ITEMS[0].key);
 
-  const ActivePanel = PANELS[activeMenu] || StorageSettings;
+  const ActivePanel = PANELS[activeMenu] || GallerySettings;
 
   return h(
     Dialog,

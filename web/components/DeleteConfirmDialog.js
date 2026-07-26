@@ -6,6 +6,7 @@ import { h } from '../lib/preact.mjs';
 import { useState } from '../lib/hooks.mjs';
 import { Dialog, DialogButton } from './Dialog.js';
 import { Icon } from '../lib/icons.mjs';
+import { showToast } from './Toast.js';
 
 /**
  * 获取删除类型的配置
@@ -73,6 +74,8 @@ export function DeleteConfirmDialog({ isOpen, type = 'prompt', target, context, 
     setDeleting(true);
     try {
       await onConfirm();
+    } catch (error) {
+      showToast(`删除失败: ${error.message}`, 'error');
     } finally {
       setDeleting(false);
     }

@@ -33,6 +33,7 @@ function AdaptiveImageItem({ img, className, onClick, onContextMenu }) {
       src: buildImageUrl(img.path, img.type),
       alt: img.path,
       loading: 'lazy',
+      decoding: 'async',
       onLoad: handleLoad,
     }),
   );
@@ -383,6 +384,7 @@ export function ImageGroupView({
           src: buildImageUrl(img.path, img.type),
           alt: `${lightboxName} - ${imgIndex + 1}`,
           loading: 'lazy',
+          decoding: 'async',
         }),
       );
     },

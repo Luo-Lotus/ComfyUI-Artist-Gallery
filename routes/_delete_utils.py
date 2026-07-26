@@ -4,7 +4,7 @@
 """
 from pathlib import Path
 
-from ._utils import is_remote_path
+from ._utils import is_remote_path, resolve_output_path
 
 
 def _get_output_dir():
@@ -16,7 +16,11 @@ def delete_image_file(image_path: str, mapping_type: str = "") -> bool:
     """删除本地图片文件，远程图片跳过。返回是否删除了文件。"""
     if is_remote_path(image_path, mapping_type):
         return False
-    full_path = _get_output_dir() / image_path
+    # 先 resolve 并确认仍在 output 目录内，防止路径穿越删除任意文件
+    full_path = resolve_output_path(image_path)
+    if full_path is None:
+        print(f"[DeleteUtils] 拒绝删除 output 目录之外的路径: {image_path}")
+        return False
     try:
         if full_path.exists():
             full_path.unlink()
@@ -86,12 +90,13 @@ def delete_category_cascade(category_id: str,
 
     # 1. 递归收集所有子分类
     all_cat_ids = category_storage.get_descendant_ids(category_id)
+    cat_id_set = set(all_cat_ids)
 
     # 2. 收集所有分类下的 prompt，批量级联删除
     all_prompts = prompt_storage.get_all_prompts()
     prompts_to_delete = [
         a for a in all_prompts
-        if a.get("categoryId") in all_cat_ids
+        if a.get("categoryId") in cat_id_set
     ]
 
     if prompts_to_delete:

@@ -6,6 +6,7 @@
 import { app } from '../../scripts/app.js';
 import { Draggable } from './Draggable.js';
 import { Storage } from './utils.js';
+import { hasEscapeLayers } from './utils/escapeStack.js';
 
 // ============ 加载 Preact 库（使用标准 ES6 import）============
 import { h, render } from './lib/preact.mjs';
@@ -112,9 +113,9 @@ app.registerExtension({
       }
     }, { axis: 'y', right: FLOATING_BUTTON_RIGHT });
 
-    // ESC 键关闭模态框
+    // ESC 键关闭模态框（有对话框/灯箱等浮层打开时不关闭画廊，浮层由 escapeStack 处理）
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && isModalOpen) {
+      if (e.key === 'Escape' && isModalOpen && !hasEscapeLayers()) {
         isModalOpen = false;
         renderModal();
       }

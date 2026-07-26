@@ -45,8 +45,6 @@ app.registerExtension({
           metadataInput.draw = () => {};
           metadataInput.type = 'hidden';
         }
-        console.log(nodeInstance, 'initialized');
-
         // 创建容器
         const container = $el('div.prompt-selector-widget', {
           style: {

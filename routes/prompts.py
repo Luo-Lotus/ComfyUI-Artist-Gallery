@@ -69,7 +69,11 @@ async def search_prompts(request):
         if not q:
             return web.json_response({"prompts": [], "totalCount": 0})
 
-        limit = min(int(request.query.get("limit", "50")), 100)
+        try:
+            limit = int(request.query.get("limit", "50"))
+        except (TypeError, ValueError):
+            return web.json_response({"error": "limit 参数必须是整数"}, status=400)
+        limit = max(1, min(limit, 500))
         query = q.lower()
 
         prompt_storage, _, _ = get_storage()
@@ -175,14 +179,6 @@ async def update_prompt_composite(request):
         new_value = data.get("value", old_value)
         value_changed = (old_value != new_value)
 
-        # 如果修改了值，需要先检查新值是否在任意分类下已存在
-        if value_changed:
-            # 获取所有Prompt，检查新值是否已存在
-            all_prompts = prompt_storage.get_all_prompts()
-            for prompt in all_prompts:
-                if prompt.get("value") == new_value:
-                    return web.json_response({"error": f"Prompt值 '{new_value}' 已存在（在分类 '{prompt.get('categoryId', 'root')}' 中）"}, status=400)
-
         kwargs = {}
         if "name" in data:
             kwargs["name"] = data["name"]
@@ -201,61 +197,34 @@ async def update_prompt_composite(request):
         if "value" in data:
             kwargs["value"] = new_value
 
-        # 如果修改了值，需要找到所有分类下同值的Prompt并批量更新
-        updated_prompts = []
-        success = True  # 默认成功，用于非值变更的情况
+        target_category_id = kwargs.get("categoryId", category_id)
 
-        if value_changed:
-            # 获取所有Prompt
-            all_prompts = prompt_storage.get_all_prompts()
+        # 复合键唯一性检查：只针对目标 (categoryId, value)，不跨分类阻断
+        if (target_category_id, new_value) != (category_id, old_value):
+            existing = prompt_storage.get_prompt(target_category_id, new_value)
+            if existing is not None:
+                return web.json_response(
+                    {"error": f"分类 '{target_category_id}' 下Prompt值 '{new_value}' 已存在"},
+                    status=400,
+                )
 
-            # 找出所有与旧值同值的Prompt
-            same_value_prompts = [a for a in all_prompts if a.get("value") == old_value]
-
-            # 批量更新所有同值Prompt
-            for same_value_prompt in same_value_prompts:
-                cat_id = same_value_prompt.get("categoryId", "root")
-                # 更新Prompt值（只传入需要更新的字段）
-                update_kwargs = {}
-                if "name" in kwargs:
-                    update_kwargs["name"] = kwargs["name"]
-                if "alias" in kwargs:
-                    update_kwargs["alias"] = kwargs["alias"]
-                if "categoryId" in kwargs and cat_id == category_id:
-                    update_kwargs["categoryId"] = kwargs["categoryId"]
-                if "coverImageId" in kwargs:
-                    update_kwargs["coverImageId"] = kwargs["coverImageId"]
-                if "metadata" in kwargs:
-                    update_kwargs["metadata"] = kwargs["metadata"]
-                update_kwargs["value"] = new_value
-
-                success = prompt_storage.update_prompt(cat_id, old_value, **update_kwargs)
-                if success:
-                    updated_prompts.append({
-                        "categoryId": cat_id,
-                        "oldValue": old_value,
-                        "newValue": new_value
-                    })
-        else:
-            # 只更新当前Prompt（不修改值）
-            success = prompt_storage.update_prompt(category_id, old_value, **kwargs)
+        # 只更新被寻址的这一条 Prompt（单次更新、单次写入）
+        success = prompt_storage.update_prompt(category_id, old_value, **kwargs)
 
         if success:
-            # 如果修改了值，更新所有相关映射
-            updated_mappings = 0
-
             # 重新查询更新后的Prompt信息
-            new_category_id = kwargs.get("categoryId", category_id)
-            prompt = prompt_storage.get_prompt(new_category_id, new_value)
+            prompt = prompt_storage.get_prompt(target_category_id, new_value)
 
             result = {
                 "prompt": prompt,
                 "success": True
             }
-
-            # 如果更新了映射，添加更新数量
             if value_changed:
-                result["updatedPrompts"] = updated_prompts
+                result["updatedPrompts"] = [{
+                    "categoryId": category_id,
+                    "oldValue": old_value,
+                    "newValue": new_value,
+                }]
 
             return web.json_response(result)
         else:
