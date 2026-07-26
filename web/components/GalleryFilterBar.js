@@ -3,7 +3,7 @@
  * 面包屑导航 + 搜索/排序/筛选/卡片大小调节
  */
 import { h, Fragment } from '../lib/preact.mjs';
-import { useState, useRef, useCallback } from '../lib/hooks.mjs';
+import { useState, useRef, useCallback, useEffect } from '../lib/hooks.mjs';
 import { Breadcrumb } from './Breadcrumb.js';
 import { Icon } from '../lib/icons.mjs';
 import { Storage } from '../utils.js';
@@ -24,6 +24,27 @@ export function GalleryFilterBar() {
   const handleFilterLeave = useCallback(() => {
     hoverTimerRef.current = setTimeout(() => setFilterHover(false), 200);
   }, []);
+
+  // 搜索输入防抖：本地 state 即时回显，150ms 后再触发全局过滤
+  const [searchInput, setSearchInput] = useState(ctx.searchQuery);
+  const searchTimerRef = useRef(null);
+
+  // 外部重置（如切换分类清空搜索）时同步本地输入
+  useEffect(() => {
+    setSearchInput(ctx.searchQuery);
+  }, [ctx.searchQuery]);
+
+  useEffect(() => () => clearTimeout(searchTimerRef.current), []);
+
+  const handleSearchInput = useCallback(
+    (e) => {
+      const val = e.target.value;
+      setSearchInput(val);
+      clearTimeout(searchTimerRef.current);
+      searchTimerRef.current = setTimeout(() => ctx.setSearchQuery(val), 150);
+    },
+    [ctx.setSearchQuery],
+  );
   const isGallery = ctx.viewMode === 'gallery';
   const isPrompt = ctx.viewMode === 'prompt';
   const isHistory = ctx.viewMode === 'history';
@@ -77,8 +98,8 @@ export function GalleryFilterBar() {
           class: 'gallery-search-input',
           type: 'text',
           placeholder: '搜索Prompt或分类...',
-          value: ctx.searchQuery,
-          onInput: (e) => ctx.setSearchQuery(e.target.value),
+          value: searchInput,
+          onInput: handleSearchInput,
         }),
 
         h(

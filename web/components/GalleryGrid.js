@@ -71,7 +71,6 @@ export function GalleryGrid() {
             ctx.loadData();
           },
           onMove: () => ctx.openMoveDialog(category, 'category'),
-          onCopy: () => ctx.openCopyDialog(category, 'category'),
           onExport: (cat) => ctx.handleOpenExportDialog(cat),
           onTogglePinned: ctx.handleTogglePinned,
           selectionMode: ctx.selectionMode,

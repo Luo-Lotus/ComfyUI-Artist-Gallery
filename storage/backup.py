@@ -2,10 +2,15 @@
 备份管理模块
 在删除操作前自动备份存储数据，最多保留指定份数。
 """
+import re
 import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
+
+# 只匹配用户/删除前自动备份目录（backup_YYYYMMDD_HHMMSS，可带去重后缀），
+# 排除迁移备份（backup_prompt_schema_*、backup_image_schema_* 等）。
+_USER_BACKUP_RE = re.compile(r"^backup_\d{8}_\d{6}(_\d+)?$")
 
 
 class BackupManager:
@@ -27,7 +32,11 @@ class BackupManager:
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_dir = self.storage_dir / f"backup_{timestamp}"
-        backup_dir.mkdir(exist_ok=True)
+        suffix = 2
+        while backup_dir.exists():
+            backup_dir = self.storage_dir / f"backup_{timestamp}_{suffix}"
+            suffix += 1
+        backup_dir.mkdir()
 
         for f in files_to_backup:
             shutil.copy2(f, backup_dir / f.name)
@@ -59,9 +68,12 @@ class BackupManager:
         return files
 
     def _cleanup_old_backups(self):
-        """保留最新的 max_backups 份，删除其余。"""
+        """保留最新的 max_backups 份，删除其余。只清理用户备份，不动迁移备份。"""
         backup_dirs = sorted(
-            [d for d in self.storage_dir.glob("backup_*") if d.is_dir()],
+            [
+                d for d in self.storage_dir.glob("backup_*")
+                if d.is_dir() and _USER_BACKUP_RE.match(d.name)
+            ],
             key=lambda d: d.name,
         )
         while len(backup_dirs) > self.max_backups:

@@ -7,6 +7,7 @@ import { h } from '../lib/preact.mjs';
 import { useState } from '../lib/hooks.mjs';
 import { Dialog, DialogButton } from './Dialog.js';
 import { Icon } from '../lib/icons.mjs';
+import { showToast } from './Toast.js';
 
 export function BatchConfirmDialog({
   isOpen,
@@ -21,6 +22,8 @@ export function BatchConfirmDialog({
     setLoading(true);
     try {
       await onConfirm();
+    } catch (error) {
+      showToast(`批量操作失败: ${error.message}`, 'error');
     } finally {
       setLoading(false);
     }

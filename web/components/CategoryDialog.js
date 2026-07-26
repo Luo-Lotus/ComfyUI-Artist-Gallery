@@ -36,7 +36,8 @@ export function CategoryDialog({ isOpen, mode, category, categories, currentCate
     try {
       await onSave({
         name: name.trim(),
-        parentId: currentCategoryId || 'root',
+        // 编辑模式保留分类原有的父级，避免保存时被移动到当前浏览的分类下
+        parentId: mode === 'edit' ? parentId : currentCategoryId || 'root',
       });
     } catch (err) {
       setError(err.message);

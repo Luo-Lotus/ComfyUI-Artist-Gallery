@@ -3,7 +3,7 @@
  * 用于复制 Prompt 或分类到其他分类
  */
 import { h } from '../lib/preact.mjs';
-import { useState, useMemo } from '../lib/hooks.mjs';
+import { useState, useMemo, useEffect } from '../lib/hooks.mjs';
 import { Dialog, DialogButton } from './Dialog.js';
 import { FlatSelector } from './FlatSelector.js';
 import { showToast } from './Toast.js';
@@ -21,6 +21,15 @@ export function CopyDialog({
   const [newName, setNewName] = useState('');
   const [showNameInput, setShowNameInput] = useState(false);
   const [copying, setCopying] = useState(false);
+
+  // 打开时重置状态（对话框常驻挂载，状态会跨次打开残留）
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedTarget(null);
+      setNewName('');
+      setShowNameInput(false);
+    }
+  }, [isOpen]);
 
   // 过滤掉自己（不能复制到自己）
   const excludeIds = useMemo(() => {

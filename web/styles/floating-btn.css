@@ -6,30 +6,29 @@
   width: 42px;
   height: 46px;
   border-radius: 14px 0 0 14px;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.18), transparent 42%),
-    var(--g-bg-gradient);
+  background: var(--g-float-btn-bg);
   border: 1px solid var(--g-float-btn-border);
   border-right: 0;
-  box-shadow: 0 8px 24px var(--g-float-btn-shadow);
+  box-shadow: 0 4px 14px var(--g-float-btn-shadow);
   cursor: move;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 22px;
-  z-index: 9999;
+  z-index: var(--g-z-float, 9999);
   user-select: none;
   touch-action: none;
   transition:
     box-shadow 0.2s,
+    filter 0.2s,
     opacity 0.2s,
     transform 0.1s;
 }
 
 #prompt-gallery-floating-btn:hover {
-  box-shadow: 0 10px 28px var(--g-float-btn-shadow);
-  opacity: 0.96;
-  transform: translateX(-2px);
+  box-shadow: 0 8px 22px var(--g-float-btn-shadow);
+  filter: brightness(1.12);
+  transform: translateX(-2px) scale(1.04);
 }
 
 #prompt-gallery-floating-btn.dragging {

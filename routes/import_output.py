@@ -83,7 +83,9 @@ async def _iter_import_output(filter_mode: str, folders: list):
     }
 
     # 阶段0：加载已有路径，构建去重集合
+    # comfy_output 分片被普通读取排除（懒加载），去重需要显式并入其中的路径
     existing_paths = mapping_storage.get_all_image_paths()
+    existing_paths |= mapping_storage.get_comfy_output_image_paths()
 
     # 构建过滤路径集合
     allowed_dirs = set()
@@ -194,7 +196,8 @@ async def _iter_import_output(filter_mode: str, folders: list):
     }
 
     if mapping_items:
-        mapping_storage.add_mappings_import(mapping_items, target_file=target_file)
+        # 只追加重写 comfy_output 分片本身，避免经合并写入把分片截断成仅剩本批数据
+        mapping_storage.append_comfy_output_mappings(mapping_items, target_file=target_file)
 
     yield {
         "event": "done",
@@ -237,13 +240,15 @@ def _walk_output(output_dir, filter_mode, allowed_dirs, blocked_dirs):
         except (PermissionError, OSError):
             return
         subdirs = []
+        # 每个目录只做一次过滤判断（is_dir_allowed 含 resolve()，不能按文件调用）
+        dir_allowed = is_dir_allowed(current_dir)
         with entries:
             for entry in entries:
                 if entry.is_dir(follow_symlinks=False):
                     subdirs.append(entry.name)
                 elif entry.is_file(follow_symlinks=False):
                     # 只在通过过滤的目录下收集文件
-                    if is_dir_allowed(current_dir):
+                    if dir_allowed:
                         yield (current_dir, rel_prefix, entry.name)
         for d in subdirs:
             new_prefix = f"{rel_prefix}/{d}" if rel_prefix else d

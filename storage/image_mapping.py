@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from ._config import write_json_atomic
 from ._json_store import SplitJsonStorage
 
 
@@ -31,10 +32,10 @@ class ImageMappingStorage(SplitJsonStorage):
         self._idx_by_path = None
 
     def get_all_mappings(self) -> List[dict]:
-        """获取所有映射关系"""
+        """获取所有映射关系（返回浅拷贝列表，避免调用方在锁外迭代内部活列表）"""
         with self._lock:
             data = self._read_data()
-            return data.get("mappings", [])
+            return list(data.get("mappings", []))
 
     def get_all_image_paths(self) -> set:
         """获取所有已登记图片路径，用于导入去重。"""
@@ -65,6 +66,62 @@ class ImageMappingStorage(SplitJsonStorage):
             except Exception as e:
                 print(f"[ImageMapping] 读取 {f.name} 失败: {e}")
         return results
+
+    def get_comfy_output_image_paths(self) -> set:
+        """
+        读取 comfy_output*.images.json 中已登记的 imagePath 集合（按需现读，不进缓存）。
+        供 output 导入去重使用；普通读取仍保持对 comfy_output 分片的懒加载排除。
+        """
+        paths = set()
+        for f in sorted(self.storage_dir.glob("comfy_output*.images.json")):
+            try:
+                with open(f, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+                for m in data.get(self.item_key, []):
+                    p = m.get("imagePath")
+                    if p:
+                        paths.add(p)
+            except Exception as e:
+                print(f"[ImageMapping] 读取 {f.name} 失败: {e}")
+        return paths
+
+    def append_comfy_output_mappings(self, items: List[dict], target_file: str) -> int:
+        """
+        向 comfy_output 分片追加映射：只读该分片文件、追加后原子重写该文件。
+        不经过 _read_data/_write_data 合并逻辑，避免把分片截断成只剩本批数据。
+        :param items: [{"image_path": str, "prompt_string": str, "file_info": dict, ...}, ...]
+        :param target_file: comfy_output 分片文件的绝对路径
+        :return: 成功追加数量
+        """
+        target_path = Path(target_file)
+        print(f"[ImageMapping] 追加 {len(items)} 个映射到 {target_path.name}...")
+        with self._lock:
+            existing = []
+            if target_path.exists():
+                # 读取失败必须抛错中止，绝不能把分片覆盖成只剩新批次
+                with open(target_path, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+                existing = data.get(self.item_key, [])
+
+            count = 0
+            for item in items:
+                mapping = {
+                    "type": item.get("mapping_type", "local"),
+                    "imagePath": item["image_path"],
+                    "fileInfo": item.get("file_info") or {},
+                }
+                prompt_string = item.get("prompt_string") or ", ".join(item.get("prompt_values") or [])
+                if prompt_string:
+                    mapping["promptString"] = prompt_string
+                if item.get("generate_prompt") is not None:
+                    gp = item["generate_prompt"]
+                    mapping["generatePrompt"] = json.dumps(gp, ensure_ascii=False) if isinstance(gp, (dict, list)) else gp
+                existing.append(mapping)
+                count += 1
+
+            write_json_atomic(target_path, {self.item_key: existing})
+            print(f"[ImageMapping] {target_path.name} 追加完成: {count} 个")
+            return count
 
     def add_mapping(self, image_path: str, prompt_values: Optional[List[str]] = None,
                     file_info: Optional[dict] = None, prompt_string: str = "",

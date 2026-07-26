@@ -40,6 +40,11 @@ function renderGlobalMenu() {
     initGlobalMenu();
   }
 
+  // 同步画廊主题（容器为惰性创建，可能错过 GalleryContext 的主题同步）
+  const galleryModalContainer = document.getElementById('prompt-gallery-modal-container');
+  const theme = galleryModalContainer && galleryModalContainer.getAttribute('data-theme');
+  if (theme) menuContainer.setAttribute('data-theme', theme);
+
   // 清空现有内容
   menuContainer.innerHTML = '';
 
@@ -85,6 +90,20 @@ function renderGlobalMenu() {
   });
 
   menuContainer.appendChild(menu);
+
+  // 视口边界修正：菜单不超出屏幕
+  const menuWidth = menu.offsetWidth;
+  const menuHeight = menu.offsetHeight;
+  let x = globalMenuState.position.x;
+  let y = globalMenuState.position.y;
+  if (x + menuWidth > window.innerWidth) {
+    x = Math.max(0, window.innerWidth - menuWidth - 4);
+  }
+  if (y + menuHeight > window.innerHeight) {
+    y = Math.max(0, window.innerHeight - menuHeight - 4);
+  }
+  menu.style.left = `${x}px`;
+  menu.style.top = `${y}px`;
 }
 
 // 关闭全局菜单

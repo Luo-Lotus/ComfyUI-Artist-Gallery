@@ -143,7 +143,10 @@ function GalleryBody() {
 
 function DialogLayer() {
   const ctx = useGallery();
-  const batchDetails = ctx.getSelectedDetails();
+  // 仅在批量确认对话框打开时计算选中详情，避免每次渲染都遍历选择集
+  const batchDetails = ctx.showBatchConfirm
+    ? ctx.getSelectedDetails()
+    : { categories: [], prompts: [], images: [] };
 
   return [
     h(Lightbox, {

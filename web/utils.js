@@ -30,7 +30,11 @@ export const Storage = {
     }
   },
   saveButtonPosition(top) {
-    localStorage.setItem('prompt-gallery-btn-pos', JSON.stringify({ top }));
+    try {
+      localStorage.setItem('prompt-gallery-btn-pos', JSON.stringify({ top }));
+    } catch (e) {
+      console.error('Failed to save button position:', e);
+    }
   },
   resetButtonPosition() {
     localStorage.removeItem('prompt-gallery-btn-pos');
@@ -52,7 +56,11 @@ export const Storage = {
     }
   },
   saveFavorites(favorites) {
-    localStorage.setItem('prompt-favorites', JSON.stringify([...favorites]));
+    try {
+      localStorage.setItem('prompt-favorites', JSON.stringify([...favorites]));
+    } catch (e) {
+      console.error('Failed to save favorites:', e);
+    }
   },
   toggleFavorite(promptName, favorites) {
     if (favorites.has(promptName)) {
@@ -73,7 +81,11 @@ export const Storage = {
     }
   },
   saveCardSize(scale) {
-    localStorage.setItem('prompt-gallery-card-size', String(scale));
+    try {
+      localStorage.setItem('prompt-gallery-card-size', String(scale));
+    } catch (e) {
+      console.error('Failed to save card size:', e);
+    }
   },
   getCardLayoutMode() {
     try {
@@ -83,7 +95,11 @@ export const Storage = {
     }
   },
   saveCardLayoutMode(mode) {
-    localStorage.setItem('prompt-gallery-card-layout', mode);
+    try {
+      localStorage.setItem('prompt-gallery-card-layout', mode);
+    } catch (e) {
+      console.error('Failed to save card layout mode:', e);
+    }
   },
   getTheme() {
     try {
@@ -93,7 +109,11 @@ export const Storage = {
     }
   },
   saveTheme(theme) {
-    localStorage.setItem('prompt-gallery-theme', theme);
+    try {
+      localStorage.setItem('prompt-gallery-theme', theme);
+    } catch (e) {
+      console.error('Failed to save theme:', e);
+    }
   },
   getNodeSearchShowPath() {
     try {
@@ -103,7 +123,11 @@ export const Storage = {
     }
   },
   saveNodeSearchShowPath(showPath) {
-    localStorage.setItem('prompt-gallery-node-search-show-path', showPath ? '1' : '0');
+    try {
+      localStorage.setItem('prompt-gallery-node-search-show-path', showPath ? '1' : '0');
+    } catch (e) {
+      console.error('Failed to save node search show path:', e);
+    }
   },
 };
 

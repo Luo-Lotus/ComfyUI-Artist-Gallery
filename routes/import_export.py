@@ -279,6 +279,7 @@ async def export_prompts(request):
 
         exported_images = {}
         manifest_prompts = []
+        export_prompt_records = []
 
         for prompt_key in prompts_param:
             category_id = prompt_key.get("categoryId")
@@ -293,8 +294,16 @@ async def export_prompts(request):
                 "name": prompt.get("name"),
                 "alias": prompt.get("alias", ""),
             })
+            export_prompt_records.append(prompt)
 
-            mappings = mapping_storage.get_mappings_by_prompt(value)
+        # 单次遍历映射构建 Prompt → 图片索引，避免每个 Prompt 全量扫描（O(P×M)）
+        prompt_mapping_index = mapping_storage.build_prompt_index_for_values(
+            [p.get("value") for p in export_prompt_records if p.get("value")]
+        )
+
+        for prompt in export_prompt_records:
+            value = prompt.get("value")
+            mappings = prompt_mapping_index.get(value, [])
             if max_images > 0:
                 mappings = mappings[:max_images]
 

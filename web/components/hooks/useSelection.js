@@ -8,6 +8,8 @@ import { batchDelete } from '../../services/promptApi.js';
 
 export function useSelection({
   categories,
+  currentCategoryChildren,
+  allPrompts,
   filteredPrompts,
   currentPrompt,
   currentCategory,
@@ -80,8 +82,9 @@ export function useSelection({
   };
 
   const handleSelectAll = () => {
+    // 只选中当前视图可见的内容：当前分类的子分类 + 当前过滤后的 Prompt
     const newSet = new Set();
-    flatCategories.forEach((cat) => {
+    (currentCategoryChildren || []).forEach((cat) => {
       newSet.add(`category:${cat.id}`);
     });
     filteredPrompts.forEach((prompt) => {
@@ -123,7 +126,9 @@ export function useSelection({
         const cat = flatCategories.find((c) => c.id === id);
         if (cat) result.categories.push(cat);
       } else if (type === 'prompt') {
-        const prompt = filteredPrompts.find((a) => `${a.categoryId}:${a.value}` === id);
+        // 从完整数据集解析，避免搜索过滤后已选项被静默丢弃
+        const source = allPrompts && allPrompts.length > 0 ? allPrompts : filteredPrompts;
+        const prompt = source.find((a) => `${a.categoryId}:${a.value}` === id);
         if (prompt) {
           result.prompts.push(prompt);
         }

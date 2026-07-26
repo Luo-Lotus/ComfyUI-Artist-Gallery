@@ -143,14 +143,14 @@
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
-  border: 2px solid var(--g-border);
-  border-radius: 10px;
+  border: 1px solid var(--g-border);
+  border-radius: var(--g-radius-md);
   background: var(--g-bg-elevated);
   color: var(--g-text-secondary);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--g-transition-fast);
 }
 
 .settings-radio-btn:hover {
@@ -399,13 +399,13 @@
   gap: 4px;
   padding: 6px 12px;
   border: 1px solid var(--g-border);
-  border-radius: 8px;
+  border-radius: var(--g-radius-md);
   background: var(--g-bg-input);
   color: var(--g-accent);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--g-transition-fast);
   white-space: nowrap;
 }
 
@@ -465,13 +465,13 @@
   gap: 4px;
   padding: 6px 14px;
   border: 1px solid var(--g-accent);
-  border-radius: 8px;
+  border-radius: var(--g-radius-md);
   background: var(--g-accent);
   color: var(--g-active-text);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--g-transition-fast);
   white-space: nowrap;
 }
 
@@ -708,13 +708,13 @@
   gap: 4px;
   padding: 5px 12px;
   border: 1px solid var(--g-border);
-  border-radius: 6px;
+  border-radius: var(--g-radius-md);
   background: var(--g-bg-input);
   color: var(--g-accent);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--g-transition-fast);
 }
 
 .image-field-add-btn:hover {

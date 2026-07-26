@@ -3,7 +3,9 @@
  * 可复用的模态框组件，支持自定义内容
  */
 import { h } from '../lib/preact.mjs';
+import { useEffect, useRef } from '../lib/hooks.mjs';
 import { Icon } from '../lib/icons.mjs';
+import { pushEscapeHandler } from '../utils/escapeStack.js';
 
 export function Dialog({
   isOpen,
@@ -18,6 +20,50 @@ export function Dialog({
   closeOnOverlayClick = true,
   className = '',
 }) {
+  const contentRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // 打开时注册 Esc 层级栈：一次 Esc 只关最顶层
+  useEffect(() => {
+    if (!isOpen) return;
+    const pop = pushEscapeHandler(() => {
+      if (onCloseRef.current) onCloseRef.current();
+    });
+    return pop;
+  }, [isOpen]);
+
+  // 打开时聚焦第一个输入框，否则聚焦对话框容器
+  useEffect(() => {
+    if (!isOpen) return;
+    const el = contentRef.current;
+    if (!el) return;
+    const focusable = el.querySelector('input:not([type="hidden"]), textarea');
+    (focusable || el).focus();
+  }, [isOpen]);
+
+  // 键盘支持：Escape 关闭（兜底），Enter 触发主按钮
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      onClose();
+      return;
+    }
+    if (e.key === 'Enter') {
+      const tag = e.target.tagName;
+      if (tag === 'TEXTAREA' || tag === 'SELECT') return;
+      const el = contentRef.current;
+      if (!el) return;
+      const primaryBtn = el.querySelector(
+        '.gallery-dialog-actions .gallery-modal-btn.primary, .gallery-dialog-actions .gallery-modal-btn.danger',
+      );
+      if (!primaryBtn || primaryBtn.disabled || primaryBtn.classList.contains('loading')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      primaryBtn.click();
+    }
+  };
+
   // ============ 渲染函数 ============
 
   /**
@@ -67,12 +113,17 @@ export function Dialog({
           onClose();
         }
       },
+      onKeyDown: handleKeyDown,
     },
     h(
       'div',
       {
         class: 'gallery-modal-content gallery-dialog-content',
         style: { maxWidth, maxHeight },
+        role: 'dialog',
+        'aria-modal': 'true',
+        tabindex: '-1',
+        ref: contentRef,
         onClick: (e) => e.stopPropagation(),
       },
       [renderHeader(), renderBody(), renderFooter()],

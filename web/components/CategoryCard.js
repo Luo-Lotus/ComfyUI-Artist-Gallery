@@ -14,7 +14,6 @@ export function CategoryCard({
   onEdit,
   onDelete,
   onMove,
-  onCopy,
   onExport,
   onTogglePinned,
   // 多选相关props
@@ -49,11 +48,7 @@ export function CategoryCard({
         label: '移动',
         action: () => onMove && onMove(category),
       },
-      {
-        icon: 'copy',
-        label: '复制到',
-        action: () => onCopy && onCopy(category),
-      },
+      // 「复制到」已移除：后端暂无分类复制接口
       {
         icon: 'upload',
         label: '导出',

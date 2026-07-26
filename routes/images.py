@@ -6,7 +6,7 @@ from pathlib import Path
 from aiohttp import web
 import server
 from ..storage import get_storage
-from ._utils import is_remote_path
+from ._utils import is_remote_path, resolve_output_path, is_safe_filename
 from ._delete_utils import delete_image_completely
 
 
@@ -19,9 +19,6 @@ async def get_image_info(request):
         image_path = request.query.get("path", "")
         if not image_path:
             return web.json_response({"error": "缺少path参数"}, status=400)
-
-        import folder_paths
-        output_dir = Path(folder_paths.get_output_directory())
 
         remote = is_remote_path(image_path)
 
@@ -37,7 +34,9 @@ async def get_image_info(request):
             if not mapping:
                 return web.json_response({"error": "远程图片映射不存在"}, status=404)
         else:
-            full_path = Path(output_dir) / image_path
+            full_path = resolve_output_path(image_path)
+            if full_path is None:
+                return web.json_response({"error": "非法的图片路径"}, status=400)
             if not full_path.exists():
                 return web.json_response({"error": "图片文件不存在"}, status=404)
 
@@ -65,6 +64,9 @@ async def save_to_gallery(request):
 
         if not image_filename:
             return web.json_response({"error": "图片文件名不能为空"}, status=400)
+
+        if not is_safe_filename(image_filename):
+            return web.json_response({"error": "非法的图片文件名"}, status=400)
 
         if not prompt_string:
             return web.json_response({"error": "必须提供 promptString"}, status=400)
@@ -108,6 +110,10 @@ async def restore_from_metadata(request):
 
         if not filenames:
             return web.json_response({"error": "没有提供文件名"}, status=400)
+
+        for filename in filenames:
+            if not is_safe_filename(filename):
+                return web.json_response({"error": f"非法的图片文件名: {filename}"}, status=400)
 
         output_dir = Path(folder_paths.get_output_directory())
         gallery_dir = output_dir / "prompt_gallery"

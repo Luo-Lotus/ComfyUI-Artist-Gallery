@@ -2,8 +2,7 @@
 :root {
   --card-grid-min-width: 250px;
   --card-grid-gap: 14px;
-  --card-radius: 16px;
-  --card-padding: 10px;
+  --card-radius: 12px;
   --card-header-gap: 8px;
   --card-prompt-name-font: 14px;
   --card-prompt-count-font: 11px;
@@ -20,6 +19,29 @@
   --card-min-width: 120px;
   --card-name-tag-font: 13px;
   --card-value-tag-font: 11px;
+}
+
+/* ============ 结构类设计令牌（圆角 / 动效 / 层级，主题无关） ============ */
+:root {
+  /* 圆角 */
+  --g-radius-sm: 4px;
+  --g-radius-md: 8px;
+  --g-radius-lg: 12px;
+  --g-radius-xl: 16px;
+
+  /* 过渡 */
+  --g-transition-fast: 0.15s ease;
+  --g-transition-base: 0.2s ease;
+
+  /* 层级（数值需与 JS 内联 z-index 保持一致：
+     Dialog.js = 20000，toast/menu = 99999，勿随意改动） */
+  --g-z-float: 9999;      /* 悬浮按钮 */
+  --g-z-modal: 10000;     /* 画廊主模态框 */
+  --g-z-detail: 10001;    /* Prompt 详情覆盖层 */
+  --g-z-lightbox: 10002;  /* 灯箱（可从详情视图打开，须高于 detail） */
+  --g-z-dialog: 20000;    /* 对话框（Dialog.js 内联值） */
+  --g-z-menu: 99999;      /* 右键菜单 */
+  --g-z-toast: 99999;     /* Toast 通知 */
 }
 
 /* ============ 主题颜色变量（默认深色模式） ============ */
@@ -67,6 +89,7 @@
   /* 滚动条 */
   --g-scrollbar-track: rgba(30, 30, 30, 0.5);
   --g-scrollbar-thumb: #444;
+  --g-scrollbar-thumb-hover: #555;
 
   /* 输入框 */
   --g-input-bg: #1a1a1a;
@@ -79,6 +102,11 @@
   --g-error: #f44336;
   --g-warning: #f9a825;
   --g-info: #3b82f6;
+  --g-error-bg: rgba(244, 67, 54, 0.12);
+  --g-success-bg: rgba(76, 175, 80, 0.12);
+
+  /* 图片占位背景 */
+  --g-image-placeholder: #2a2a2a;
 
   /* 收藏 */
   --g-fav-color: #ffd700;
@@ -90,8 +118,9 @@
   --g-float-btn-hover: #7c6cf7;
   --g-float-btn-shadow: rgba(108, 92, 231, 0.4);
 
-  /* 批量操作栏 */
-  --g-batch-gradient: linear-gradient(135deg, #6c5ce7 0%, #3b82f6 100%);
+  /* 批量操作栏（平面强调色底 + 边框） */
+  --g-batch-bg: #2b2440;
+  --g-batch-border: rgba(108, 92, 231, 0.45);
 
   /* 对话框 */
   --g-dialog-bg: #1e1e1e;
@@ -177,6 +206,7 @@
   /* 滚动条 */
   --g-scrollbar-track: #fff5f8;
   --g-scrollbar-thumb: #ffb6c1;
+  --g-scrollbar-thumb-hover: #ff9cbd;
 
   /* 输入框 */
   --g-input-bg: #fff5f8;
@@ -189,6 +219,11 @@
   --g-error: #ff4444;
   --g-warning: #ffc107;
   --g-info: #17a2b8;
+  --g-error-bg: rgba(255, 68, 68, 0.1);
+  --g-success-bg: rgba(76, 175, 80, 0.1);
+
+  /* 图片占位背景（浅色主题使用更亮的占位） */
+  --g-image-placeholder: #ececec;
 
   /* 收藏 */
   --g-fav-color: #ffd700;
@@ -201,7 +236,8 @@
   --g-float-btn-shadow: rgba(255, 107, 157, 0.4);
 
   /* 批量操作栏 */
-  --g-batch-gradient: linear-gradient(135deg, #ff6b9d 0%, #ffb6c1 100%);
+  --g-batch-bg: #4d3350;
+  --g-batch-border: rgba(255, 107, 157, 0.45);
 
   /* 对话框 */
   --g-dialog-bg: #fff;

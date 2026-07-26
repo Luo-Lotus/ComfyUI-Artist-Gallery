@@ -101,6 +101,11 @@ export function useItemOperations({
             }),
           },
         );
+      } else {
+        // 后端暂无分类复制接口（batch/copy 仅支持 Prompt）
+        showToast('暂不支持复制分类', 'error');
+        closeCopyDialog();
+        return;
       }
 
       const data = await response.json();

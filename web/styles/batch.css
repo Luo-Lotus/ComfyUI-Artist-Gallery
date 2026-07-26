@@ -28,8 +28,10 @@
   align-items: center;
   gap: 15px;
   padding: 10px 20px;
-  background: var(--g-batch-gradient);
-  border-radius: 12px;
+  background: var(--g-batch-bg);
+  border: 1px solid var(--g-batch-border);
+  border-radius: var(--g-radius-lg);
+  box-shadow: 0 4px 16px var(--g-shadow);
   margin: 0 0 8px 0;
   flex-wrap: wrap;
 }
@@ -63,14 +65,14 @@
 
 .batch-action-btn {
   padding: 6px 12px;
-  border: 2px solid white;
-  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: var(--g-radius-md);
   background: rgba(255, 255, 255, 0.2);
   color: white;
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  transition: all 0.2s;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all var(--g-transition-fast);
 }
 
 .batch-action-btn:hover {
@@ -85,14 +87,14 @@
 
 .batch-op-btn {
   padding: 8px 16px;
-  border: 2px solid white;
-  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: var(--g-radius-md);
   background: white;
   color: var(--g-accent);
   cursor: pointer;
   font-size: 13px;
-  font-weight: 600;
-  transition: all 0.2s;
+  font-weight: 500;
+  transition: all var(--g-transition-fast);
   display: flex;
   align-items: center;
   gap: 5px;
@@ -105,14 +107,14 @@
 }
 
 .batch-op-btn.delete-btn:hover {
-  background: rgba(244, 67, 54, 0.15);
+  background: var(--g-error-bg);
   color: var(--g-error);
 }
 
 .batch-op-btn.exit-btn {
   background: rgba(255, 255, 255, 0.2);
   color: white;
-  border-color: white;
+  border-color: rgba(255, 255, 255, 0.35);
 }
 
 .batch-op-btn.exit-btn:hover {
@@ -155,17 +157,17 @@
   gap: 10px;
   padding: 12px;
   background: rgba(255, 193, 7, 0.1);
-  border: 2px solid var(--g-warning);
-  border-radius: 12px;
+  border: 1px solid var(--g-warning);
+  border-radius: var(--g-radius-lg);
   color: var(--g-warning);
   font-weight: 600;
 }
 
 .batch-confirm-warning-high {
   padding: 15px;
-  background: rgba(244, 67, 54, 0.1);
-  border: 2px solid var(--g-error);
-  border-radius: 12px;
+  background: var(--g-error-bg);
+  border: 1px solid var(--g-error);
+  border-radius: var(--g-radius-lg);
   color: var(--g-error);
 }
 

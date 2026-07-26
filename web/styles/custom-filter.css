@@ -90,17 +90,18 @@
   width: 100%;
   padding: 4px 8px;
   border: 1px solid var(--g-input-border);
-  border-radius: 4px;
+  border-radius: var(--g-radius-md);
   font-size: 12px;
   outline: none;
   background: var(--g-bg-elevated);
   color: var(--g-text);
   box-sizing: border-box;
+  transition: all var(--g-transition-fast);
 }
 
 .custom-filter-input:focus {
   border-color: var(--g-accent);
-  box-shadow: 0 0 0 2px var(--g-accent-light);
+  box-shadow: 0 0 0 3px var(--g-accent-light);
 }
 
 .custom-filter-row-actions {

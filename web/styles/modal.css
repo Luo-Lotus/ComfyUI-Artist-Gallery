@@ -9,7 +9,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 10000;
+    z-index: var(--g-z-modal, 10000);
     opacity: 0;
     transition: opacity 0.3s;
     backdrop-filter: blur(4px);
@@ -27,7 +27,7 @@
     height: 90vh;
     max-width: 1800px;
     background: var(--g-bg-gradient);
-    border-radius: 20px;
+    border-radius: var(--g-radius-xl);
     box-shadow: 0 8px 32px var(--g-shadow);
     display: flex;
     flex-direction: column;
@@ -47,7 +47,7 @@
     gap: 10px;
     padding: 12px 16px;
     background: var(--g-header-bg);
-    border-bottom: 2px solid var(--g-header-border);
+    border-bottom: 1px solid var(--g-header-border);
     flex-shrink: 0;
 }
 
@@ -78,15 +78,15 @@
     align-items: center;
     gap: 4px;
     padding: 6px 12px;
-    border: 2px solid var(--g-border);
-    border-radius: 12px;
+    border: 1px solid var(--g-border);
+    border-radius: var(--g-radius-md);
     background: var(--g-bg-input);
     color: var(--g-accent);
     cursor: pointer;
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 500;
     line-height: 1;
-    transition: all 0.2s;
+    transition: all var(--g-transition-fast);
     white-space: nowrap;
 }
 
@@ -136,6 +136,43 @@
     position: relative;
     pointer-events: none;
     opacity: 0.7;
+    color: transparent;
+}
+
+/* 加载态旋转指示器（复用 spin 关键帧） */
+.gallery-modal-btn.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 12px;
+    height: 12px;
+    margin: -7px 0 0 -7px;
+    border: 2px solid var(--g-border);
+    border-top-color: var(--g-accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.gallery-modal-btn.primary.loading::after,
+.gallery-modal-btn.danger.loading::after {
+    border-color: rgba(255, 255, 255, 0.35);
+    border-top-color: #fff;
+}
+
+/* 头部关闭按钮（Dialog.js / GalleryHeader.js 使用 primary 类）
+   降级为安静的 ghost 按钮，避免与真正的主操作 CTA 抢视觉。
+   仅限头部内，不影响 .gallery-dialog-actions 中的 primary CTA。 */
+.gallery-modal-header .gallery-modal-btn.primary {
+    background: transparent;
+    border-color: transparent;
+    color: var(--g-text-muted);
+}
+
+.gallery-modal-header .gallery-modal-btn.primary:hover {
+    background: var(--g-hover-bg);
+    color: var(--g-accent);
+    transform: none;
 }
 
 /* 加载状态 */
@@ -200,8 +237,8 @@
     justify-content: center;
     width: 28px;
     height: 28px;
-    border: 2px solid var(--g-border);
-    border-radius: 8px;
+    border: 1px solid var(--g-border);
+    border-radius: var(--g-radius-md);
     background: var(--g-bg-input);
     color: var(--g-accent);
     cursor: pointer;

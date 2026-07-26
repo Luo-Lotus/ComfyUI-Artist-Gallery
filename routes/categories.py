@@ -32,6 +32,11 @@ async def add_category(request):
             return web.json_response({"error": "分类名称不能为空"}, status=400)
 
         _, _, category_storage = get_storage()
+
+        # 验证父分类存在（root/None 除外）
+        if parent_id not in (None, "root") and not category_storage.get_category_by_id(parent_id):
+            return web.json_response({"error": "父分类不存在"}, status=400)
+
         category = category_storage.add_category(name, parent_id)
 
         return web.json_response({"category": category, "success": True})
@@ -114,14 +119,22 @@ async def move_category(request):
 
         _, _, category_storage = get_storage()
 
-        # 检查是否会形成循环
+        # 验证目标父分类存在（root/None 除外）
+        if new_parent_id not in (None, "root") and not category_storage.get_category_by_id(new_parent_id):
+            return web.json_response({"error": "目标分类不存在"}, status=400)
+
+        # 检查是否会形成循环（迭代 + visited 集合，容忍数据中已有的环）
         def check_cycle(parent_id, target_id):
-            if parent_id == target_id:
-                return True
-            cat = category_storage.get_category_by_id(parent_id)
-            if not cat or not cat.get("parentId"):
-                return False
-            return check_cycle(cat["parentId"], target_id)
+            seen = {target_id}
+            while parent_id and parent_id != "root":
+                if parent_id in seen:
+                    return True
+                seen.add(parent_id)
+                cat = category_storage.get_category_by_id(parent_id)
+                if not cat:
+                    return False
+                parent_id = cat.get("parentId")
+            return False
 
         if new_parent_id != "root" and check_cycle(new_parent_id, category_id):
             return web.json_response({"error": "不能将分类移动到自己的子分类下"}, status=400)

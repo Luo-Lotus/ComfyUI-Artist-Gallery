@@ -25,10 +25,11 @@ from . import routes
 # 全局循环状态存储
 _cycle_states = {}
 
-# prompt_string 画师匹配缓存
+# prompt_string 画师匹配缓存（三个值必须在 _prompt_match_lock 下整体读写）
 _prompt_match_cache = None           # 按长度降序的名称列表
 _prompt_match_names = None           # frozenset 指纹
 _prompt_match_lookup = None          # name/alias -> [prompt, ...]
+_prompt_match_lock = threading.Lock()
 _quick_save_prompt_lock = threading.Lock()
 
 
@@ -326,9 +327,14 @@ class SaveToGallery:
                     if a:
                         current_names.append((a, prompt.get("categoryId", "root"), prompt.get("value", "")))
 
-        # 检查缓存是否需要重建
+        # 检查缓存是否需要重建（读写都在锁内进行，三个值作为一个整体原子更新）
         current_fingerprint = frozenset(current_names)
-        if current_fingerprint != _prompt_match_names:
+        with _prompt_match_lock:
+            match_cache = _prompt_match_cache
+            match_names = _prompt_match_names
+            match_lookup = _prompt_match_lookup
+
+        if current_fingerprint != match_names:
             name_to_prompts = {}
             for prompt in all_prompts:
                 value = prompt.get("value", "").strip()
@@ -341,9 +347,12 @@ class SaveToGallery:
                         if a:
                             name_to_prompts.setdefault(a, []).append(prompt)
             # 按名称长度降序排列，确保贪心匹配（长名优先）
-            _prompt_match_cache = sorted(name_to_prompts.keys(), key=len, reverse=True)
-            _prompt_match_lookup = name_to_prompts
-            _prompt_match_names = current_fingerprint
+            match_cache = sorted(name_to_prompts.keys(), key=len, reverse=True)
+            match_lookup = name_to_prompts
+            with _prompt_match_lock:
+                _prompt_match_cache, _prompt_match_names, _prompt_match_lookup = (
+                    match_cache, current_fingerprint, match_lookup,
+                )
 
         # 循环匹配（CPython in 操作使用 C 级优化字符串搜索）
         prompt_lower = prompt_string.lower()
@@ -351,11 +360,11 @@ class SaveToGallery:
         seen = set()
         seen_names = set()
 
-        for name in _prompt_match_cache:
+        for name in match_cache:
             if name.lower() in prompt_lower:
                 if name not in seen_names:
                     seen_names.add(name)
-                    for prompt in _prompt_match_lookup.get(name, []):
+                    for prompt in match_lookup.get(name, []):
                         value = prompt.get("value")
                         cat_id = prompt.get("categoryId", "root")
                         entry_key = f"{cat_id}:{value}"
@@ -437,6 +446,7 @@ class SaveToGallery:
         from PIL import Image, PngImagePlugin
         import time
         import json
+        import uuid
 
         if not prompt_string or not prompt_string.strip():
             raise ValueError("SaveToGallery 需要连接 prompt_string")
@@ -481,8 +491,9 @@ class SaveToGallery:
         for idx in range(len(images)):
             img = Image.fromarray(np.clip(255. * image_arrays[idx], 0, 255).astype(np.uint8))
 
-            timestamp = int(now * 1000)
-            filename = f"{file_prefix}_{timestamp}_{idx:01}.png"
+            # 每张图单独取时间戳并附加随机后缀，避免同一毫秒内多次保存的文件名冲突
+            timestamp = int(time.time() * 1000)
+            filename = f"{file_prefix}_{timestamp}_{idx:01}_{uuid.uuid4().hex[:4]}.png"
             save_path = save_dir / filename
 
             pnginfo = PngImagePlugin.PngInfo()

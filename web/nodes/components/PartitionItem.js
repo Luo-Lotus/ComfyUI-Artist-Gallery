@@ -92,11 +92,12 @@ export function PartitionItem({
     onPreviewToggle(e, partition, prompts, cats, coversCache);
   };
 
-  // 当标签被删除时清除悬浮状态
-  const allKeys = new Set(items.map((item) => item.key));
-  if (hoveredKey && !allKeys.has(hoveredKey)) {
-    setHoveredKey(null);
-  }
+  // 当标签被删除时清除悬浮状态（放在 effect 中，避免渲染期间 setState）
+  useEffect(() => {
+    if (hoveredKey && !items.some((item) => item.key === hoveredKey)) {
+      setHoveredKey(null);
+    }
+  }, [items, hoveredKey]);
 
   const totalCount = items.length;
   const partitionClass = `partition-item ${partition.isDefault ? 'is-default' : ''} ${!partition.enabled ? 'disabled' : ''} ${isDragOver ? 'drag-over' : ''}`;

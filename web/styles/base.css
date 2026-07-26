@@ -1,0 +1,187 @@
+/* ============ 基础样式：滚动条 / 焦点可见性 / 表单细节 ============
+ * 仅作用于插件自身的容器，不污染 ComfyUI 全局。
+ * 注意：prompt-selector 相关容器与浮窗渲染在 body 上（节点画布内），
+ * 必须显式列出，不能依赖 modal 作用域。
+ */
+
+/* ---- 滚动条（WebKit） ---- */
+:where(.gallery-modal-content,
+       .gallery-dialog-content,
+       .prompt-selector-container,
+       .prompt-selector-widget,
+       .gallery-lightbox,
+       .prompt-detail-overlay,
+       .partition-preview-popup,
+       .custom-filter-panel)::-webkit-scrollbar,
+:where(.gallery-modal-content,
+       .gallery-dialog-content,
+       .prompt-selector-container,
+       .prompt-selector-widget,
+       .gallery-lightbox,
+       .prompt-detail-overlay,
+       .partition-preview-popup,
+       .custom-filter-panel) *::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+:where(.gallery-modal-content,
+       .gallery-dialog-content,
+       .prompt-selector-container,
+       .prompt-selector-widget,
+       .gallery-lightbox,
+       .prompt-detail-overlay,
+       .partition-preview-popup,
+       .custom-filter-panel)::-webkit-scrollbar-track,
+:where(.gallery-modal-content,
+       .gallery-dialog-content,
+       .prompt-selector-container,
+       .prompt-selector-widget,
+       .gallery-lightbox,
+       .prompt-detail-overlay,
+       .partition-preview-popup,
+       .custom-filter-panel) *::-webkit-scrollbar-track {
+  background: var(--g-scrollbar-track, transparent);
+  border-radius: var(--g-radius-sm);
+}
+
+:where(.gallery-modal-content,
+       .gallery-dialog-content,
+       .prompt-selector-container,
+       .prompt-selector-widget,
+       .gallery-lightbox,
+       .prompt-detail-overlay,
+       .partition-preview-popup,
+       .custom-filter-panel)::-webkit-scrollbar-thumb,
+:where(.gallery-modal-content,
+       .gallery-dialog-content,
+       .prompt-selector-container,
+       .prompt-selector-widget,
+       .gallery-lightbox,
+       .prompt-detail-overlay,
+       .partition-preview-popup,
+       .custom-filter-panel) *::-webkit-scrollbar-thumb {
+  background: var(--g-scrollbar-thumb, #444);
+  border-radius: var(--g-radius-sm);
+}
+
+:where(.gallery-modal-content,
+       .gallery-dialog-content,
+       .prompt-selector-container,
+       .prompt-selector-widget,
+       .gallery-lightbox,
+       .prompt-detail-overlay,
+       .partition-preview-popup,
+       .custom-filter-panel)::-webkit-scrollbar-thumb:hover,
+:where(.gallery-modal-content,
+       .gallery-dialog-content,
+       .prompt-selector-container,
+       .prompt-selector-widget,
+       .gallery-lightbox,
+       .prompt-detail-overlay,
+       .partition-preview-popup,
+       .custom-filter-panel) *::-webkit-scrollbar-thumb:hover {
+  background: var(--g-scrollbar-thumb-hover, #555);
+}
+
+/* ---- 滚动条（Firefox） ---- */
+:where(.gallery-modal-content,
+       .gallery-dialog-content,
+       .prompt-selector-container,
+       .prompt-selector-widget,
+       .gallery-lightbox,
+       .prompt-detail-overlay,
+       .partition-preview-popup,
+       .custom-filter-panel),
+:where(.gallery-modal-content,
+       .gallery-dialog-content,
+       .prompt-selector-container,
+       .prompt-selector-widget,
+       .gallery-lightbox,
+       .prompt-detail-overlay,
+       .partition-preview-popup,
+       .custom-filter-panel) * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--g-scrollbar-thumb, #444) var(--g-scrollbar-track, transparent);
+}
+
+/* ---- 键盘焦点可见性 ----
+ * 不移除既有的 :focus { outline: none }（避免鼠标点击出现光圈），
+ * :focus-visible 只在键盘导航时生效。
+ */
+:where(.gallery-modal-content,
+       .gallery-dialog-content,
+       .prompt-selector-container,
+       .prompt-selector-widget,
+       .gallery-lightbox,
+       .prompt-detail-overlay,
+       .partition-preview-popup,
+       .custom-filter-panel)
+  :is(button, [role='button'], input, select, textarea):focus-visible {
+  outline: 2px solid var(--g-accent);
+  outline-offset: 1px;
+}
+
+/* ---- 原生控件强调色（checkbox / radio / range） ---- */
+:where(.gallery-modal-content,
+       .gallery-dialog-content,
+       .prompt-selector-container,
+       .prompt-selector-widget,
+       .gallery-lightbox,
+       .prompt-detail-overlay,
+       .partition-preview-popup,
+       .custom-filter-panel) {
+  accent-color: var(--g-accent);
+}
+
+/* ---- 占位符文本 ---- */
+:where(.gallery-modal-content,
+       .gallery-dialog-content,
+       .prompt-selector-container,
+       .prompt-selector-widget,
+       .gallery-lightbox,
+       .prompt-detail-overlay,
+       .partition-preview-popup,
+       .custom-filter-panel) ::placeholder {
+  color: var(--g-text-hint, #888);
+  opacity: 1;
+}
+
+/* ---- 降低动效（系统偏好） ---- */
+@media (prefers-reduced-motion: reduce) {
+  :where(#prompt-gallery-floating-btn,
+         .gallery-modal-overlay,
+         .gallery-lightbox,
+         .prompt-detail-overlay,
+         .prompt-selector-widget,
+         .partition-preview-popup,
+         .toast-container,
+         #global-context-menu-container),
+  :where(#prompt-gallery-floating-btn,
+         .gallery-modal-overlay,
+         .gallery-lightbox,
+         .prompt-detail-overlay,
+         .prompt-selector-widget,
+         .partition-preview-popup,
+         .toast-container,
+         #global-context-menu-container) *,
+  :where(#prompt-gallery-floating-btn,
+         .gallery-modal-overlay,
+         .gallery-lightbox,
+         .prompt-detail-overlay,
+         .prompt-selector-widget,
+         .partition-preview-popup,
+         .toast-container,
+         #global-context-menu-container) *::before,
+  :where(#prompt-gallery-floating-btn,
+         .gallery-modal-overlay,
+         .gallery-lightbox,
+         .prompt-detail-overlay,
+         .prompt-selector-widget,
+         .partition-preview-popup,
+         .toast-container,
+         #global-context-menu-container) *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

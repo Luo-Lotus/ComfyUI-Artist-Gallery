@@ -1,7 +1,6 @@
 """
 Gallery 数据 & HTML 端点
 """
-from pathlib import Path
 from aiohttp import web
 import server
 from ..storage import get_storage
@@ -12,9 +11,6 @@ from ..storage import get_storage
 @server.PromptServer.instance.routes.get("/prompt_gallery/data")
 async def get_gallery_data(request):
     """获取Prompt图库数据 API（支持分类筛选）"""
-    import folder_paths
-    output_dir = Path(folder_paths.get_output_directory())
-
     try:
         # 获取分类参数
         category_id = request.query.get("category", "root")
@@ -54,8 +50,7 @@ async def get_gallery_data(request):
         })
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"Error getting gallery data: {e}")
-        # 降级到扫描方式
-        from ..utils import scan_output_directory
-        data = scan_output_directory(str(output_dir))
-        return web.json_response(data)
+        return web.json_response({"error": str(e)}, status=500)

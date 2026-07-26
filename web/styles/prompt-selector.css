@@ -38,16 +38,7 @@
   min-height: 24px;
 }
 
-.prompt-selector-tag {
-  background: #3b82f6;
-  color: white;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
+/* .prompt-selector-tag 的基础样式见文件后部（后写的定义为准） */
 
 .prompt-selector-tag button {
   background: none;
@@ -62,7 +53,6 @@
 .prompt-selector-empty {
   color: #666;
   font-size: 11px;
-  font-style: italic;
 }
 
 .prompt-selector-search {
@@ -433,12 +423,15 @@
   line-height: 1;
 }
 
+.prompt-selector-category-enter:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
 /* 选择器操作提示 */
 .prompt-selector-hint {
   font-size: 11px;
   color: #888;
   margin-bottom: 6px;
-  font-style: italic;
 }
 
 /* ============ Prompt Selector Config Styles ============ */
@@ -996,37 +989,7 @@
   border-color: #f44336;
 }
 
-/* 分区项 */
-.partition-item {
-  background: rgba(30, 30, 30, 0.8);
-  border: 1px solid rgba(58, 58, 58, 0.6);
-  border-radius: 6px;
-  padding: 6px 8px; /* 减少内边距 */
-  transition: all 0.2s ease;
-}
-
-.partition-item:hover {
-  border-color: rgba(100, 100, 100, 0.8);
-  background: rgba(35, 35, 35, 0.9);
-}
-
-.partition-item.is-default {
-  background: rgba(30, 58, 138, 0.15);
-  border-color: rgba(59, 130, 246, 0.4);
-}
-
-.partition-item.is-default:hover {
-  border-color: rgba(59, 130, 246, 0.6);
-}
-
-.partition-item.disabled {
-  opacity: 0.6;
-}
-
-.partition-item.drag-over {
-  border-color: #4caf50;
-  background: rgba(76, 175, 80, 0.1);
-}
+/* 分区项样式见文件后部（后写的定义为准，避免重复覆盖） */
 
 /* 分区头部 */
 .partition-header {
@@ -1074,35 +1037,17 @@
   border-top: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-.partition-empty {
-  width: 100%;
-  text-align: center;
-  color: #888;
-  font-size: 12px;
-  padding: 10px;
-  border: 2px dashed #3a3a3a;
-  border-radius: 4px;
-}
+/* .partition-empty 样式见文件后部（后写的定义为准） */
 
 /* Prompt标签 */
 .prompt-selector-tag {
-  background: #3a3a3a;
   border: 1px solid #4a4a4a;
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   cursor: move;
   user-select: none;
-  transition: all 0.2s;
 }
 
-.prompt-selector-tag:hover {
-  background: #4a4a4a;
-  border-color: #5a5a5a;
-}
+/* 注意：不要在这里设置 hover 背景色 —— 标签的最终配色
+   （蓝色 / 紫色 category-tag）在文件后部定义，hover 用 brightness 提亮 */
 
 .prompt-selector-tag:active {
   cursor: grabbing;
@@ -1110,21 +1055,6 @@
 
 .prompt-name {
   color: #ddd;
-}
-
-/* 分类标签样式 */
-.prompt-selector-tag.category-tag {
-  background: #4a3a3a;
-  border-color: #6a4a4a;
-  cursor: move;
-}
-
-.prompt-selector-tag.category-tag:hover {
-  background: #5a4a4a;
-}
-
-.prompt-selector-tag.category-tag:active {
-  cursor: grabbing;
 }
 
 .prompt-selector-tag-icon {
@@ -1565,7 +1495,6 @@
 .partition-empty {
   color: #666;
   font-size: 12px;
-  font-style: italic;
   padding: 8px;
   width: 100%;
   text-align: center;
@@ -1666,6 +1595,8 @@
 .prompt-selector-tag:hover {
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  /* 保持标签本身的配色（蓝/紫），仅做提亮 */
+  filter: brightness(1.1);
 }
 
 .prompt-selector-tag.category-tag {
@@ -1688,32 +1619,8 @@
   padding: 40px 20px;
 }
 
-/* ==================== 滚动条样式优化 ==================== */
-.prompt-selector-list::-webkit-scrollbar,
-.partition-list-content::-webkit-scrollbar,
-.partition-prompts::-webkit-scrollbar {
-  width: 8px;
-}
-
-.prompt-selector-list::-webkit-scrollbar-track,
-.partition-list-content::-webkit-scrollbar-track,
-.partition-prompts::-webkit-scrollbar-track {
-  background: rgba(30, 30, 30, 0.5);
-  border-radius: 4px;
-}
-
-.prompt-selector-list::-webkit-scrollbar-thumb,
-.partition-list-content::-webkit-scrollbar-thumb,
-.partition-prompts::-webkit-scrollbar-thumb {
-  background: rgba(80, 80, 80, 0.5);
-  border-radius: 4px;
-}
-
-.prompt-selector-list::-webkit-scrollbar-thumb:hover,
-.partition-list-content::-webkit-scrollbar-thumb:hover,
-.partition-prompts::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 100, 100, 0.6);
-}
+/* 滚动条样式：由 base.css 统一提供
+   （作用域包含 .prompt-selector-container / .prompt-selector-widget） */
 
 /* 搜索结果路径独占下方一行，避免和名称挤在一行被截断 */
 .prompt-selector-item {
@@ -2125,19 +2032,7 @@ svg.spin {
   background: rgba(74, 158, 255, 0.2);
 }
 
-.partition-preview-popup::-webkit-scrollbar {
-  width: 6px;
-}
-
-.partition-preview-popup::-webkit-scrollbar-track {
-  background: rgba(30, 30, 30, 0.5);
-  border-radius: 3px;
-}
-
-.partition-preview-popup::-webkit-scrollbar-thumb {
-  background: rgba(80, 80, 80, 0.5);
-  border-radius: 3px;
-}
+/* .partition-preview-popup 滚动条：由 base.css 统一提供 */
 
 /* ============ 操作提示 ============ */
 

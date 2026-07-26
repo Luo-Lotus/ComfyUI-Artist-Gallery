@@ -53,10 +53,10 @@ class CategoryStorage(SplitJsonStorage):
             children.sort(key=lambda x: x.get("order", 0))
 
     def get_all_categories(self) -> List[dict]:
-        """获取所有分类"""
+        """获取所有分类（返回浅拷贝列表，避免调用方在锁外迭代内部活列表）"""
         with self._lock:
             data = self._read_data()
-            return data.get("categories", [])
+            return list(data.get("categories", []))
 
     def get_category_by_id(self, category_id: str) -> Optional[dict]:
         """根据ID获取分类"""

@@ -25,21 +25,35 @@ export function ImportZipDialog({ isOpen, onClose, currentCategory, onSuccess })
     setSelectedFile(file);
   };
 
+  // 使用 dragenter 计数避免子元素触发 dragleave 造成闪烁
+  const dragCounterRef = useRef(0);
+
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    setDragging(true);
+  };
+
   const handleDragOver = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragging(true);
   };
 
   const handleDragLeave = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragging(false);
+    dragCounterRef.current--;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setDragging(false);
+    }
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    dragCounterRef.current = 0;
     setDragging(false);
     handleFileSelect(Array.from(e.dataTransfer.files));
   };
@@ -89,8 +103,9 @@ export function ImportZipDialog({ isOpen, onClose, currentCategory, onSuccess })
 
   const handleClose = () => {
     setSelectedFile(null);
-    setSeparateStorage(false);
+    setSeparateStorage(true);
     setDragging(false);
+    dragCounterRef.current = 0;
     onClose();
   };
 
@@ -121,6 +136,7 @@ export function ImportZipDialog({ isOpen, onClose, currentCategory, onSuccess })
         'div',
         {
           class: `drag-drop-zone ${dragging ? 'dragging' : ''}`,
+          onDragEnter: handleDragEnter,
           onDragOver: handleDragOver,
           onDragLeave: handleDragLeave,
           onDrop: handleDrop,

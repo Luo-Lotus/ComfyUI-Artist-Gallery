@@ -7,6 +7,8 @@ import threading
 from pathlib import Path
 from typing import List, Optional
 
+from ._config import write_json_atomic
+
 
 # 内置字段定义
 _DEPRECATED_BUILTIN_FIELD_IDS = {"builtin_prompt_names"}
@@ -258,14 +260,13 @@ class ImageFieldStorage:
         return self._cache
 
     def _write_data(self, data: dict):
-        with open(self.fields_file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        write_json_atomic(self.fields_file, data)
         self._cache = None
 
     def get_all(self) -> List[dict]:
         with self._lock:
             data = self._read_data()
-            return data.get("fields", [])
+            return list(data.get("fields", []))
 
     def get_by_id(self, field_id: str) -> Optional[dict]:
         for f in self.get_all():

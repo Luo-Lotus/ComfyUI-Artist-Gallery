@@ -33,21 +33,35 @@ export function FileUploader({ files, onChange, onPreview }) {
     }
   };
 
+  // 使用 dragenter 计数避免子元素触发 dragleave 造成闪烁
+  const dragCounterRef = useRef(0);
+
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    setDragging(true);
+  };
+
   const handleDragOver = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragging(true);
   };
 
   const handleDragLeave = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragging(false);
+    dragCounterRef.current--;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setDragging(false);
+    }
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    dragCounterRef.current = 0;
     setDragging(false);
 
     const newFiles = Array.from(e.dataTransfer.files);
@@ -82,6 +96,7 @@ export function FileUploader({ files, onChange, onPreview }) {
       'div',
       {
         class: `drag-drop-zone ${dragging ? 'dragging' : ''}`,
+        onDragEnter: handleDragEnter,
         onDragOver: handleDragOver,
         onDragLeave: handleDragLeave,
         onDrop: handleDrop,

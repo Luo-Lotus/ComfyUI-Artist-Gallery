@@ -226,17 +226,14 @@ def get_image_field_storage() -> ImageFieldStorage:
 
 
 def clear_all_caches():
-    """清除所有 Storage 单例的缓存和索引"""
-    global _storage_instances
-    if _storage_instances is None:
-        return
-    prompt_storage, mapping_storage, category_storage = _storage_instances
-    for s in (prompt_storage, mapping_storage, category_storage):
-        s._cache = None
-    prompt_storage._idx_by_key = None
-    prompt_storage._idx_by_id = None
-    prompt_storage._idx_by_category = None
-    mapping_storage._idx_by_path = None
-    mapping_storage._idx_by_prompt = None
-    category_storage._idx_by_id = None
-    category_storage._idx_by_parent = None
+    """清除所有 Storage 单例的缓存和索引（持各自的锁，避免与并发读写竞争）"""
+    if _storage_instances is not None:
+        for storage in _storage_instances:
+            with storage._lock:
+                # 各子类的 _invalidate_cache 会同时清空自身索引
+                storage._invalidate_cache()
+
+    for extra in (_custom_filter_instance, _image_field_instance):
+        if extra is not None:
+            with extra._lock:
+                extra._cache = None

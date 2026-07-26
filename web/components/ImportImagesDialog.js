@@ -6,7 +6,7 @@
  */
 
 import { h } from '../lib/preact.mjs';
-import { useState } from '../lib/hooks.mjs';
+import { useState, useEffect } from '../lib/hooks.mjs';
 import { Dialog, DialogButton } from './Dialog.js';
 import { FileUploader } from './FileUploader.js';
 import { ImportPreview } from './ImportPreview.js';
@@ -33,6 +33,16 @@ export function ImportImagesDialog({
   const [autoCreatePrompt, setAutoCreatePrompt] = useState(true);
   const [urlDecode, setUrlDecode] = useState(false);
   const [separateStorage, setSeparateStorage] = useState(false);
+
+  // 打开时重置配置状态（对话框常驻挂载，状态会跨次打开残留）
+  useEffect(() => {
+    if (isOpen) {
+      setParseStrategy('auto_create');
+      setRegexPattern('@([^,]+),');
+      setUrlDecode(false);
+      setSeparateStorage(false);
+    }
+  }, [isOpen]);
 
   // ============ 工具函数 ============
 
@@ -93,8 +103,6 @@ export function ImportImagesDialog({
         config: buildConfig(),
       };
 
-      console.log('[ImportImagesDialog] 发送预览请求:', requestBody);
-
       const response = await fetch('/prompt_gallery/import/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -142,8 +150,6 @@ export function ImportImagesDialog({
         config: buildConfig(),
         separateStorage,
       };
-
-      console.log('[ImportImagesDialog] 发送导入请求:', requestBody);
 
       const response = await fetch('/prompt_gallery/import/batch', {
         method: 'POST',
