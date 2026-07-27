@@ -119,10 +119,25 @@
     }
 }
 
+/* 打开后将 transform 置为 none（scale(1) 与 none 视觉一致）。
+   关键作用：transform 会为后代 position:fixed 元素建立包含块。
+   子弹窗（如设置中的「图片字段编辑」弹窗）使用 position:fixed 遮罩，
+   若父弹窗保留 transform，子弹窗会被限制在父弹窗范围内、并被父弹窗的
+   overflow:hidden 裁切（底部按钮被切掉、且无法滚动看到）。
+   置为 none 后子弹窗可正确相对视口定位、覆盖整屏且不再被父弹窗裁切。
+   仅作用于 .gallery-dialog-content，不影响主画廊 .gallery-modal-content
+   （主画廊的绝对定位悬浮球仍依赖其 transform 作为包含块）。 */
+.gallery-modal-overlay.open .gallery-dialog-content {
+    transform: none;
+}
+
 /* 对话框内的 body 区域可滚动 */
 .gallery-dialog-content .gallery-modal-body {
     overflow-y: auto;
     flex: 1;
+    /* 覆盖 flex 子项默认的 min-height: auto，否则内容超出时
+       body 不会收缩、不会出现滚动条，而是被外层 overflow:hidden 裁切 */
+    min-height: 0;
     padding: 16px;
 }
 
@@ -131,6 +146,8 @@
     padding: 12px 16px 16px 16px;
     border-top: 1px solid var(--g-border-light);
     background: var(--g-bg-secondary);
+    /* 固定在底部，内容滚动时不被压缩 */
+    flex-shrink: 0;
 }
 
 /* ============ 分类对话框样式 ============ */

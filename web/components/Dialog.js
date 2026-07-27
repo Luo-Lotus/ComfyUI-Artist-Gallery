@@ -16,6 +16,7 @@ export function Dialog({
   footer,
   maxWidth = '500px',
   maxHeight = '500px',
+  height,
   showCloseButton = true,
   closeOnOverlayClick = true,
   className = '',
@@ -109,6 +110,9 @@ export function Dialog({
       class: `gallery-modal-overlay open ${className}`,
       style: { zIndex: 20000 },
       onClick: (e) => {
+        // 阻止冒泡到父级（画廊）遮罩：弹窗遮罩复用了 gallery-modal-overlay 类，
+        // 否则点击弹窗背景会同时触发画廊遮罩的关闭逻辑，导致画廊被一起关闭。
+        e.stopPropagation();
         if (closeOnOverlayClick && e.target.classList.contains('gallery-modal-overlay')) {
           onClose();
         }
@@ -119,7 +123,7 @@ export function Dialog({
       'div',
       {
         class: 'gallery-modal-content gallery-dialog-content',
-        style: { maxWidth, maxHeight },
+        style: { maxWidth, maxHeight, height },
         role: 'dialog',
         'aria-modal': 'true',
         tabindex: '-1',

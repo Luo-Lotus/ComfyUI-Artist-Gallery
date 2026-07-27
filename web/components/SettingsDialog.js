@@ -501,6 +501,8 @@ export function SettingsDialog({ isOpen, onClose }) {
       title: '设置',
       titleIcon: h(Icon, { name: 'settings', size: 18 }),
       maxWidth: '720px',
+      // 定高，避免切换不同 tab 时弹窗高度跳变
+      height: '70vh',
       maxHeight: '80vh',
     },
     h('div', { class: 'settings-dialog' }, [
