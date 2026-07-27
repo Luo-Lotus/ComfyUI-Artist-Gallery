@@ -221,7 +221,7 @@
     flex: 1;
     min-height: 0; /* 允许 flex 子项收缩 */
     overflow-y: auto;
-    padding: 12px;
+    padding: 0px;
 }
 
 /* 头部区域和批量操作栏固定在顶部，不随内容滚动 */
