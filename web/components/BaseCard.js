@@ -17,6 +17,7 @@ export function BaseCard({
   onSelect,
   // 点击
   onClick,
+  onDoubleClick,
   // 右键菜单
   onContextMenu,
   // 样式
@@ -48,6 +49,7 @@ export function BaseCard({
       class: computedClass,
       style: style || undefined,
       onClick: handleClick,
+      onDblClick: onDoubleClick || null,
       onContextMenu: onContextMenu || null,
     },
     children,

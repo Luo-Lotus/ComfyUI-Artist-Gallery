@@ -44,7 +44,9 @@ export function useGallery() {
   return ctx;
 }
 
-export function GalleryProvider({ children, isOpen, onClose, initialNavigation }) {
+export function GalleryProvider({ children, isOpen, onClose, initialNavigation, selectionSession }) {
+  const isSelectorMode = !!selectionSession;
+
   // ============ 基础 UI 状态 ============
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('name');
@@ -87,6 +89,50 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
     prompt: null,
     imageIndex: 0,
   });
+
+  // ============ Prompt 节点画廊选择会话 ============
+  const selectorPromptKeysRef = useRef(new Set());
+  const selectorCategoryIdsRef = useRef(new Set());
+  const [selectorSelectedPromptKeys, setSelectorSelectedPromptKeys] = useState(new Set());
+  const [selectorSelectedCategoryIds, setSelectorSelectedCategoryIds] = useState(new Set());
+
+  useEffect(() => {
+    const promptKeys = new Set(selectionSession?.selectedPromptKeys || []);
+    const categoryIds = new Set(selectionSession?.selectedCategoryIds || []);
+    selectorPromptKeysRef.current = promptKeys;
+    selectorCategoryIdsRef.current = categoryIds;
+    setSelectorSelectedPromptKeys(promptKeys);
+    setSelectorSelectedCategoryIds(categoryIds);
+  }, [selectionSession?.id]);
+
+  const handleSelectorPromptSelect = useCallback(
+    (prompt) => {
+      if (!selectionSession || !prompt) return;
+      const key = `${prompt.categoryId}:${prompt.value}`;
+      const next = new Set(selectorPromptKeysRef.current);
+      const selected = !next.has(key);
+      if (selected) next.add(key);
+      else next.delete(key);
+      selectorPromptKeysRef.current = next;
+      setSelectorSelectedPromptKeys(next);
+      selectionSession.onPromptSelectionChange?.(prompt, selected);
+    },
+    [selectionSession],
+  );
+
+  const handleSelectorCategorySelect = useCallback(
+    (category) => {
+      if (!selectionSession || !category?.id) return;
+      const next = new Set(selectorCategoryIdsRef.current);
+      const selected = !next.has(category.id);
+      if (selected) next.add(category.id);
+      else next.delete(category.id);
+      selectorCategoryIdsRef.current = next;
+      setSelectorSelectedCategoryIds(next);
+      selectionSession.onCategorySelectionChange?.(category, selected);
+    },
+    [selectionSession],
+  );
 
   // ============ 对话框状态 ============
   const [showAddPromptDialog, setShowAddPromptDialog] = useState(false);
@@ -642,6 +688,7 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
   const contextValue = useMemo(
     () => ({
       // Navigation
+      isSelectorMode,
       viewMode,
       setViewMode,
       currentPrompt,
@@ -721,6 +768,10 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
       getSelectedDetails: selection.getSelectedDetails,
       resetSelection: selection.resetSelection,
       setSelectedItems: selection.setSelectedItems,
+      selectorSelectedPromptKeys,
+      selectorSelectedCategoryIds,
+      handleSelectorPromptSelect,
+      handleSelectorCategorySelect,
 
       // Batch
       showBatchConfirm: selection.showBatchConfirm,
@@ -813,6 +864,7 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
     }),
     [
       viewMode,
+      isSelectorMode,
       currentPrompt,
       currentCategory,
       data,
@@ -845,6 +897,10 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation }
       filteredPromptImages,
       selection.selectionMode,
       selection.selectedItems,
+      selectorSelectedPromptKeys,
+      selectorSelectedCategoryIds,
+      handleSelectorPromptSelect,
+      handleSelectorCategorySelect,
       selection.showBatchConfirm,
       selection.batchOperation,
       itemOps.showMoveDialog,

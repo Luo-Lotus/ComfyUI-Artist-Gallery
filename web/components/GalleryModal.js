@@ -3,7 +3,7 @@
  * 薄壳层：Provider 包裹 + 视图路由 + Dialog 渲染
  */
 import { h } from '../lib/preact.mjs';
-import { useState } from '../lib/hooks.mjs';
+import { useState, useEffect } from '../lib/hooks.mjs';
 import { GalleryProvider, useGallery } from './GalleryContext.js';
 import { GalleryGrid } from './GalleryGrid.js';
 import { Lightbox } from './Lightbox.js';
@@ -27,13 +27,21 @@ import { SettingsDialog } from './SettingsDialog.js';
 
 import { Icon } from '../lib/icons.mjs';
 
-export function GalleryModal({ isOpen, onClose, initialNavigation }) {
-  return h(GalleryProvider, { isOpen, onClose, initialNavigation }, h(GalleryModalContent));
+export function GalleryModal({ isOpen, onClose, initialNavigation, selectionSession }) {
+  return h(
+    GalleryProvider,
+    { isOpen, onClose, initialNavigation, selectionSession },
+    h(GalleryModalContent),
+  );
 }
 
 function GalleryModalContent() {
   const ctx = useGallery();
   const [showSettings, setShowSettings] = useState(false);
+
+  useEffect(() => {
+    if (ctx.isSelectorMode) setShowSettings(false);
+  }, [ctx.isSelectorMode]);
 
   return h(
     'div',
@@ -47,12 +55,13 @@ function GalleryModalContent() {
       h('div', { class: 'gallery-modal-content', 'data-theme': ctx.theme }, [
         h(GalleryHeader),
         h('div', { class: 'gallery-modal-body' }, h(GalleryBody)),
-        h('button', {
-          class: 'settings-floating-btn',
-          onClick: () => setShowSettings(true),
-          title: '设置',
-        }, h(Icon, { name: 'settings', size: 16 })),
-        ctx.viewMode !== 'history' &&
+        !ctx.isSelectorMode &&
+          h('button', {
+            class: 'settings-floating-btn',
+            onClick: () => setShowSettings(true),
+            title: '设置',
+          }, h(Icon, { name: 'settings', size: 16 })),
+        !ctx.isSelectorMode && ctx.viewMode !== 'history' &&
           h('button', {
             class: 'history-floating-btn',
             onClick: () => ctx.navigateToHistory(),
@@ -64,8 +73,8 @@ function GalleryModalContent() {
       ]),
 
       // Dialog 层
-      h(DialogLayer),
-      h(SettingsDialog, {
+      !ctx.isSelectorMode && h(DialogLayer),
+      !ctx.isSelectorMode && h(SettingsDialog, {
         isOpen: showSettings,
         onClose: () => {
           setShowSettings(false);
@@ -102,7 +111,7 @@ function GalleryBody() {
 
   return h('div', { class: 'gallery-container' }, [
     h(GalleryFilterBar),
-    ctx.selectionMode && h(BatchActionBar),
+    !ctx.isSelectorMode && ctx.selectionMode && h(BatchActionBar),
 
     // 画廊视图
     h(
@@ -116,7 +125,7 @@ function GalleryBody() {
     ),
 
     // Prompt详情
-    ctx.currentPrompt &&
+    !ctx.isSelectorMode && ctx.currentPrompt &&
       h(
         'div',
         {
@@ -128,7 +137,7 @@ function GalleryBody() {
       ),
 
     // 历史视图
-    ctx.viewMode === 'history' &&
+    !ctx.isSelectorMode && ctx.viewMode === 'history' &&
       h(
         'div',
         {

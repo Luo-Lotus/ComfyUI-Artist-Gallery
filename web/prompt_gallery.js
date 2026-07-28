@@ -74,6 +74,8 @@ app.registerExtension({
     // 应用状态
     let isModalOpen = false;
     let pendingNavigation = null;
+    let selectionSession = null;
+    let selectionSessionId = 0;
 
     // 渲染模态框
     function renderModal() {
@@ -83,9 +85,11 @@ app.registerExtension({
           onClose: () => {
             isModalOpen = false;
             pendingNavigation = null;
+            selectionSession = null;
             renderModal();
           },
           initialNavigation: pendingNavigation,
+          selectionSession,
         }),
         modalContainer,
       );
@@ -99,7 +103,27 @@ app.registerExtension({
 
     // 全局导航函数：从Prompt选择器打开画廊到指定视图
     window.__openPromptGalleryTo = (navigation) => {
+      selectionSession = null;
       pendingNavigation = { ...navigation, _ts: Date.now() };
+      isModalOpen = true;
+      renderModal();
+    };
+
+    // Prompt 选择节点专用入口：以只读数据浏览 + 即时选择模式打开画廊。
+    window.__openPromptGallerySelector = (options = {}) => {
+      selectionSessionId += 1;
+      selectionSession = {
+        id: selectionSessionId,
+        selectedPromptKeys: Array.from(options.selectedPromptKeys || []),
+        selectedCategoryIds: Array.from(options.selectedCategoryIds || []),
+        onPromptSelectionChange: options.onPromptSelectionChange,
+        onCategorySelectionChange: options.onCategorySelectionChange,
+      };
+      pendingNavigation = {
+        type: 'category',
+        categoryId: options.initialCategoryId || 'root',
+        _ts: Date.now(),
+      };
       isModalOpen = true;
       renderModal();
     };
@@ -108,6 +132,8 @@ app.registerExtension({
     new Draggable(floatingButton, (hasMoved) => {
       Storage.saveButtonPosition(floatingButton.offsetTop);
       if (!hasMoved) {
+        selectionSession = null;
+        pendingNavigation = null;
         isModalOpen = true;
         renderModal();
       }
@@ -117,6 +143,8 @@ app.registerExtension({
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && isModalOpen && !hasEscapeLayers()) {
         isModalOpen = false;
+        pendingNavigation = null;
+        selectionSession = null;
         renderModal();
       }
     });

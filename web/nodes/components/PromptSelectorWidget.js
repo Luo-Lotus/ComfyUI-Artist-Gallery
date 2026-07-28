@@ -77,6 +77,8 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
     setSortOrder,
     toggleSelection,
     toggleCategorySelection,
+    setGalleryPromptSelection,
+    setGalleryCategorySelection,
     handleCategoryChange,
     handleRefresh,
     makePromptKey,
@@ -175,6 +177,20 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
 
   const openPromptDialog = () => {
     setShowPromptDialog(true);
+  };
+
+  const openGallerySelector = () => {
+    if (typeof window.__openPromptGallerySelector !== 'function') {
+      showToast('画廊尚未加载，请刷新页面后重试', 'warning');
+      return;
+    }
+    window.__openPromptGallerySelector({
+      initialCategoryId: currentCategory,
+      selectedPromptKeys: Array.from(selectedKeys),
+      selectedCategoryIds: Array.from(selectedCategories),
+      onPromptSelectionChange: setGalleryPromptSelection,
+      onCategorySelectionChange: setGalleryCategorySelection,
+    });
   };
 
   // 渲染分区配置面板到 body
@@ -466,6 +482,15 @@ export function PromptSelectorWidget({ nodeInstance, selectedInput, metadataInpu
           sortOrder === 'asc'
             ? [h(Icon, { name: 'arrow-up', size: 12 }), ' 升序']
             : [h(Icon, { name: 'arrow-down', size: 12 }), ' 降序'],
+        ),
+        h(
+          'button',
+          {
+            class: 'prompt-selector-refresh-button prompt-selector-gallery-button',
+            onClick: openGallerySelector,
+            title: '打开画廊选择',
+          },
+          h(Icon, { name: 'image', size: 14 }),
         ),
         h(
           'button',

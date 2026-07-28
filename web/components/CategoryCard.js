@@ -3,6 +3,7 @@
  * 显示单个分类的卡片（文件夹样式）
  */
 import { h } from '../lib/preact.mjs';
+import { useEffect, useRef } from '../lib/hooks.mjs';
 import { Icon } from '../lib/icons.mjs';
 import { BaseCard } from './BaseCard.js';
 import { useContextMenu } from './ContextMenu.js';
@@ -20,9 +21,13 @@ export function CategoryCard({
   selectionMode = false,
   selected = false,
   onSelect,
+  selectorMode = false,
 }) {
   const isRoot = category.id === 'root';
   const { showContextMenu } = useContextMenu();
+  const clickTimerRef = useRef(null);
+
+  useEffect(() => () => clearTimeout(clickTimerRef.current), []);
 
   // 生成选择键（用于多选）
   const selectionKey = `category:${category.id}`;
@@ -64,6 +69,26 @@ export function CategoryCard({
     showContextMenu(e, menuItems);
   };
 
+  const handleSelect = (key, shiftKey) => {
+    if (!selectorMode) {
+      onSelect?.(key, shiftKey);
+      return;
+    }
+    clearTimeout(clickTimerRef.current);
+    clickTimerRef.current = setTimeout(() => {
+      onSelect?.(key, false);
+      clickTimerRef.current = null;
+    }, 220);
+  };
+
+  const handleDoubleClick = (e) => {
+    if (!selectorMode) return;
+    e.stopPropagation();
+    clearTimeout(clickTimerRef.current);
+    clickTimerRef.current = null;
+    onClick?.(category);
+  };
+
   return h(
     BaseCard,
     {
@@ -71,8 +96,9 @@ export function CategoryCard({
       selectionMode,
       selected,
       selectionKey,
-      onSelect,
+      onSelect: handleSelect,
       onClick: () => onClick && onClick(category),
+      onDoubleClick: handleDoubleClick,
       onContextMenu: handleContextMenu,
     },
     [

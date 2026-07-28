@@ -70,6 +70,8 @@ Prompt 选择节点
 3. 动态加载 `PromptSelectorWidget`。
 4. 从 `metadata` 恢复分区状态。
 
+节点也可通过 `window.__openPromptGallerySelector` 打开画廊选择会话。会话以当前 `orderItems` 初始化选中状态，卡片点击把明确的目标状态即时写回默认分区；取消选择会从所有分区移除该项。画廊选择模式只保留浏览、搜索、排序与选择能力。
+
 主要职责分布：
 
 | 模块 | 职责 |

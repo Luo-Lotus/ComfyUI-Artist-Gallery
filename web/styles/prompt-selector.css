@@ -250,6 +250,10 @@
   border-color: #4a9eff;
 }
 
+.prompt-selector-gallery-button {
+  color: #7db9ff;
+}
+
 .prompt-selector-refresh-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;

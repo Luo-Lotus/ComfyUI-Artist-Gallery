@@ -56,6 +56,7 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
     addItemToPartition,
     removeItemFromPartition,
     removeItemGlobally,
+    setItemSelected,
     reorderPartitionItems,
     addPartition,
     deletePartition,
@@ -419,6 +420,27 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
     [selectedKeys, selectedCategories, partitionData, addItemToPartition, removeItemGlobally, orderedKeys, addRangeToDefaultPartition],
   );
 
+  // 画廊选择模式传入完整对象和明确的目标状态，避免弹窗会话持有旧闭包。
+  const setGalleryPromptSelection = useCallback(
+    (prompt, selected) => {
+      if (!prompt) return;
+      const key = makePromptKey(prompt.categoryId, prompt.value);
+      if (selected) {
+        setSelectedPromptsCache((prev) => ({ ...prev, [key]: prompt }));
+      }
+      setItemSelected('prompt', key, selected);
+    },
+    [setItemSelected],
+  );
+
+  const setGalleryCategorySelection = useCallback(
+    (category, selected) => {
+      if (!category?.id) return;
+      setItemSelected('category', category.id, selected);
+    },
+    [setItemSelected],
+  );
+
   // 节点同步
   useNodeSync({
     nodeInstance,
@@ -496,6 +518,8 @@ export function usePromptSelector(nodeInstance, selectedInput, metadataInput) {
     setSortOrder,
     toggleSelection,
     toggleCategorySelection,
+    setGalleryPromptSelection,
+    setGalleryCategorySelection,
     handleCategoryChange,
     handleRefresh,
     makePromptKey,

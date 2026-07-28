@@ -19,6 +19,7 @@ export function GalleryGrid() {
 
   const allCategories = ctx.currentCategoryChildren;
   const prompts = ctx.filteredPrompts;
+  const cardSelectionMode = ctx.isSelectorMode || ctx.selectionMode;
 
   // 搜索时同时过滤分类名称
   const categories = useMemo(() => {
@@ -73,9 +74,14 @@ export function GalleryGrid() {
           onMove: () => ctx.openMoveDialog(category, 'category'),
           onExport: (cat) => ctx.handleOpenExportDialog(cat),
           onTogglePinned: ctx.handleTogglePinned,
-          selectionMode: ctx.selectionMode,
-          selected: ctx.selectedItems.has(`category:${category.id}`),
-          onSelect: ctx.handleGallerySelect,
+          selectionMode: cardSelectionMode,
+          selectorMode: ctx.isSelectorMode,
+          selected: ctx.isSelectorMode
+            ? ctx.selectorSelectedCategoryIds.has(category.id)
+            : ctx.selectedItems.has(`category:${category.id}`),
+          onSelect: ctx.isSelectorMode
+            ? () => ctx.handleSelectorCategorySelect(category)
+            : ctx.handleGallerySelect,
         });
       } else {
         const prompt = item.data;
@@ -93,9 +99,13 @@ export function GalleryGrid() {
           onCopy: () => ctx.openCopyDialog(prompt, 'prompt'),
           onExport: () => ctx.handleExportPrompt(prompt),
           onTogglePinned: ctx.handleTogglePinned,
-          selectionMode: ctx.selectionMode,
-          selected: ctx.selectedItems.has(`prompt:${prompt.categoryId}:${prompt.value}`),
-          onSelect: ctx.handleGallerySelect,
+          selectionMode: cardSelectionMode,
+          selected: ctx.isSelectorMode
+            ? ctx.selectorSelectedPromptKeys.has(`${prompt.categoryId}:${prompt.value}`)
+            : ctx.selectedItems.has(`prompt:${prompt.categoryId}:${prompt.value}`),
+          onSelect: ctx.isSelectorMode
+            ? () => ctx.handleSelectorPromptSelect(prompt)
+            : ctx.handleGallerySelect,
         });
       }
     },
@@ -112,6 +122,9 @@ export function GalleryGrid() {
       ctx.handleGallerySelect,
       ctx.handleOpenExportDialog,
       ctx.handleTogglePinned,
+      ctx.handleSelectorCategorySelect,
+      ctx.handleSelectorPromptSelect,
+      ctx.isSelectorMode,
       ctx.loadData,
       ctx.openCopyDialog,
       ctx.openDeleteConfirm,
@@ -119,6 +132,9 @@ export function GalleryGrid() {
       ctx.openMoveDialog,
       ctx.selectionMode,
       ctx.selectedItems,
+      ctx.selectorSelectedCategoryIds,
+      ctx.selectorSelectedPromptKeys,
+      cardSelectionMode,
     ],
   );
 
@@ -137,6 +153,12 @@ export function GalleryGrid() {
       style: gridStyle,
       emptyMessage: h('div', { class: 'gallery-empty' }, '没有找到匹配的内容'),
     }),
-    h('div', { class: 'gallery-hint' }, '右键点击卡片可进行编辑、移动、删除等操作'),
+    h(
+      'div',
+      { class: 'gallery-hint' },
+      ctx.isSelectorMode
+        ? '单击选择或取消；双击分类可进入分类'
+        : '右键点击卡片可进行编辑、移动、删除等操作',
+    ),
   ]);
 }

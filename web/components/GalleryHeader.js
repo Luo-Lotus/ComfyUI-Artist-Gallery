@@ -15,10 +15,16 @@ export function GalleryHeader() {
   const buttons = [];
 
   // 标题
-  buttons.push(h('div', { class: 'gallery-modal-title' }, '🎨 Prompt图库'));
+  buttons.push(
+    h(
+      'div',
+      { class: 'gallery-modal-title' },
+      ctx.isSelectorMode ? '🎨 选择 Prompt' : '🎨 Prompt图库',
+    ),
+  );
 
   // 画廊视图才显示的管理按钮
-  if (isGallery) {
+  if (isGallery && !ctx.isSelectorMode) {
     buttons.push(
       h('button', { class: 'gallery-modal-btn', onClick: ctx.handleAddCategory }, [
         h(Icon, { name: 'folder-plus', size: 14 }),
@@ -48,7 +54,7 @@ export function GalleryHeader() {
   }
 
   // Prompt详情视图：只显示导入图片
-  if (isPrompt) {
+  if (isPrompt && !ctx.isSelectorMode) {
     buttons.push(
       h(
         'button',
@@ -62,7 +68,7 @@ export function GalleryHeader() {
   }
 
   // 历史视图：导入输出图片
-  if (isHistory) {
+  if (isHistory && !ctx.isSelectorMode) {
     buttons.push(
       h('button', {
         class: 'gallery-modal-btn',
@@ -80,7 +86,7 @@ export function GalleryHeader() {
   );
 
   // 批量操作按钮（历史视图不显示）
-  !isHistory &&
+  !ctx.isSelectorMode && !isHistory &&
     buttons.push(
       h(
         'button',

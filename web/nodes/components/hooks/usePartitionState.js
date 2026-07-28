@@ -204,6 +204,42 @@ export function usePartitionState({ selectedPromptsCache, categories, metadataIn
     });
   }, []);
 
+  // 按明确的目标状态增删选择项，供画廊选择模式使用。
+  // 不依赖调用方闭包中的旧 selectedKeys，连续选择/取消也能正确落盘。
+  const setItemSelected = useCallback((type, key, selected) => {
+    setPartitionData((prev) => {
+      const exists = prev.partitions.some((p) =>
+        p.orderItems.some((item) => item.type === type && item.key === key),
+      );
+
+      if (selected) {
+        if (exists) return prev;
+        const defaultPartition = prev.partitions.find((p) => p.isDefault);
+        if (!defaultPartition) return prev;
+        return {
+          ...prev,
+          partitions: prev.partitions.map((p) =>
+            p.id === defaultPartition.id
+              ? { ...p, orderItems: [...p.orderItems, { type, key }] }
+              : p,
+          ),
+        };
+      }
+
+      if (!exists) return prev;
+      const promptWeights = { ...prev.promptWeights };
+      if (type === 'prompt') delete promptWeights[key];
+      return {
+        ...prev,
+        promptWeights,
+        partitions: prev.partitions.map((p) => ({
+          ...p,
+          orderItems: p.orderItems.filter((item) => !(item.type === type && item.key === key)),
+        })),
+      };
+    });
+  }, []);
+
   // 分区内拖拽排序
   const reorderPartitionItems = useCallback((partitionId, fromIndex, toIndex) => {
     setPartitionData((prev) => {
@@ -349,6 +385,7 @@ export function usePartitionState({ selectedPromptsCache, categories, metadataIn
     addItemToPartition,
     removeItemFromPartition,
     removeItemGlobally,
+    setItemSelected,
     reorderPartitionItems,
     setPromptWeight,
     addPartition,
