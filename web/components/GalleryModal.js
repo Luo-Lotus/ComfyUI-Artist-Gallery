@@ -52,7 +52,10 @@ function GalleryModalContent() {
       },
     },
     [
-      h('div', { class: 'gallery-modal-content', 'data-theme': ctx.theme }, [
+      h('div', {
+        class: `gallery-modal-content${ctx.isSelectorMode ? ' gallery-selector-mode' : ''}`,
+        'data-theme': ctx.theme,
+      }, [
         h(GalleryHeader),
         h('div', { class: 'gallery-modal-body' }, h(GalleryBody)),
         !ctx.isSelectorMode &&
@@ -301,6 +304,7 @@ function DialogLayer() {
     h(CustomFilterEditDialog, {
       isOpen: ctx.showCustomFilterEditDialog,
       editItem: ctx.editingCustomFilter,
+      filters: ctx.customFilters,
       onClose: () => {
         ctx.setShowCustomFilterEditDialog(false);
         ctx.setEditingCustomFilter(null);

@@ -11,8 +11,8 @@ import { Icon } from '../lib/icons.mjs';
 const ITEM_FIELDS_HELP = `使用 AI 生成代码：
 1. 点击右侧「复制 AI 提示词」
 2. 将提示词发给 LLM（ChatGPT / Claude / DeepSeek）
-3. 描述你想筛选的条件，附上图片 Prompt 示例
-4. 将 AI 返回的 JSON 填入下方三个输入框`;
+3. 描述你想筛选的条件；如需图片 Prompt 示例，可打开一张图片，在详情中点击「复制 API Prompt」后粘贴给 AI
+4. 将 AI 返回的名称、输入框提示和执行函数填入下方输入框`;
 
 const FILTER_CODE_TEMPLATE = `def filter_func(item, keywords):
     """参数: item (dict), keywords (str)  返回: bool"""
@@ -41,12 +41,17 @@ const AI_SYSTEM_PROMPT = `你是一个 ComfyUI 图库筛查项代码生成器。
     }
 }
 
+用户可能会在需求后附上一份从图片详情中复制的 ComfyUI API Prompt JSON。请结合这份真实样本定位节点、class_type 和 inputs，不要假定节点 ID 固定。若用户还没有提供样本，但需求依赖 generatePrompt，请先提醒用户：打开一张有代表性的图片，在图片详情中点击「复制 API Prompt」，再把内容粘贴给你。
+
 ## 你需要输出三个部分
 
 ### 1. 筛查项名称
 用中文简短描述这个筛选功能。
 
-### 2. 执行函数 (filterCode)
+### 2. 输入框提示 (placeholder)
+用一句简短示例告诉用户应输入什么、支持什么语法。即使筛查项不需要输入，也要说明 placeholder 建议留空。
+
+### 3. 执行函数 (filterCode)
 Python 函数，格式如下：
 
 \`\`\`python
@@ -61,25 +66,14 @@ def filter_func(item, keywords):
 - keywords: 用户在输入框输入的字符串，可能为空
 - 返回 bool，True 表示匹配
 - keywords 为空时必须返回 True（表示不筛选）
-- 可用内置函数: int, str, float, len, bool, isinstance, list, dict, set, tuple, sorted, enumerate, zip, map, filter, any, all, min, max, sum, abs, range, reversed, hasattr, getattr, type, round, pow, divmod
+- 可用内置函数: int, str, float, len, bool, isinstance, list, dict, set, tuple, sorted, enumerate, zip, map, filter, any, all, min, max, sum, abs, range, reversed, round, pow, divmod
+- 可捕获异常: ValueError, TypeError, KeyError, IndexError, Exception
 - 可用模块（直接使用，无需 import）: re, json, math, datetime, timezone, timedelta
-- 不可用: import, open, exec, eval, os, pathlib, subprocess
-
-### 3. 提取选项值函数 (extractCode)（可选）
-如果需要下拉补全功能，提供此函数：
-
-\`\`\`python
-def extract_func(item):
-    # 返回字符串作为下拉选项
-    return ""
-\`\`\`
-
-- 返回 str，会自动去重排序显示在下拉列表中
-- 不需要下拉功能时，说"不需要提取函数"即可
+- 如确需 import，只允许 datetime、re、json、math、time；不可用 open、exec、eval、os、pathlib、subprocess
 
 ## 输出格式
 
-先用一句话说明这个筛选的功能，然后用代码块分别给出 filterCode 和 extractCode（如果需要）。不要输出 JSON，直接输出代码。
+依次给出筛查项名称、placeholder 和 filterCode。不要把结果包装成 JSON，代码只放在一个 Python 代码块中。
 
 ## 示例
 
@@ -87,6 +81,8 @@ def extract_func(item):
 
 你:
 这个筛查项按分辨率筛选图片，输入宽高如 1024x1024，匹配大于等于该尺寸的图片。
+
+输入框提示：输入最小尺寸，如 1024x1024
 
 执行函数：
 \`\`\`python
@@ -102,23 +98,14 @@ def filter_func(item, keywords):
         return False
 \`\`\`
 
-提取函数（用于下拉显示所有实际分辨率）：
-\`\`\`python
-def extract_func(item):
-    fi = item.get('fileInfo', {})
-    w = fi.get('width')
-    h = fi.get('height')
-    if w and h:
-        return f"{w}x{h}"
-    return ""
-\`\`\`
-
 ---
 
 用户: "按 Prompt 名称模糊搜索"
 
 你:
 这个筛查项按 Prompt 名称关键词搜索，支持模糊匹配。
+
+输入框提示：输入 Prompt 关键词
 
 执行函数：
 \`\`\`python
@@ -129,14 +116,14 @@ def filter_func(item, keywords):
     return kw in item.get('promptString', '').lower()
 \`\`\`
 
-不需要提取函数。
-
 ---
 
-用户: "筛选 generatePrompt 中包含指定 unet_name 的图片，下拉显示所有 unet_name"
+用户: "筛选 generatePrompt 中包含指定 unet_name 的图片"
 
 你:
 这个筛查项从 generatePrompt（ComfyUI 工作流 JSON 字符串）中提取 unet_name 字段进行筛选。
+
+输入框提示：输入 unet_name，如 flux1-dev.safetensors
 
 执行函数：
 \`\`\`python
@@ -146,36 +133,48 @@ def filter_func(item, keywords):
     gp = item.get('generatePrompt', '')
     if not gp:
         return False
-    return keywords in gp
-\`\`\`
-
-提取函数（用于下拉显示所有 unet_name）：
-\`\`\`python
-def extract_func(item):
-    gp = item.get('generatePrompt', '')
-    if not gp:
-        return ""
-    matches = re.findall(r'"unet_name"\s*:\s*"([^"]*)"', gp)
-    return matches[0] if matches else ""
+    return keywords.lower() in gp.lower()
 \`\`\`
 
 ## 注意事项
 1. keywords 为空时 filterCode 必须返回 True
-2. 不要使用 import、open、exec、eval，所有常用模块已内置可直接使用
+2. 优先直接使用已内置的模块；如确需 import，仅限 datetime、re、json、math、time。不要使用 open、exec、eval
 3. generatePrompt 是 JSON 字符串，使用前用 if 判断是否为空
 4. fileInfo 字段可能不存在，用 .get() 安全取值
 5. re 模块可直接使用，如 re.findall(r'pattern', string)
-6. datetime 模块可直接使用，如 datetime.fromtimestamp(ts/1000)`;
+6. datetime 模块可直接使用，如 datetime.fromtimestamp(ts/1000)
+7. 下方会附上系统当前内置筛查项的真实实现。优先复用其中的空输入处理、匹配语义和安全取值方式，但不要照搬与用户需求无关的逻辑`;
 
-function handleCopyAiPrompt() {
-    navigator.clipboard.writeText(AI_SYSTEM_PROMPT).then(() => {
-        showToast('已复制 AI 提示词到剪贴板', 'success');
+function formatBuiltinFilterExamples(filters) {
+    const builtins = filters.filter((filter) => filter?.builtin);
+    if (builtins.length === 0) return '';
+
+    const examples = builtins.map((filter) => {
+        const placeholder = filter.placeholder || '（留空）';
+        return `### ${filter.name}\n输入框提示：${placeholder}\n\n\`\`\`python\n${filter.filterCode || ''}\n\`\`\``;
+    });
+
+    return `## 当前内置筛查项示例（系统实时读取）\n\n${examples.join('\n\n---\n\n')}`;
+}
+
+function handleCopyAiPrompt(filters) {
+    let prompt = AI_SYSTEM_PROMPT;
+    const examples = formatBuiltinFilterExamples(filters);
+    if (examples) {
+        prompt += `\n\n${examples}`;
+    }
+
+    navigator.clipboard.writeText(prompt).then(() => {
+        showToast(
+            examples ? '已复制 AI 提示词（含内置筛查项示例）' : '已复制 AI 提示词（未找到内置筛查项示例）',
+            examples ? 'success' : 'warning',
+        );
     }).catch(() => {
-        showToast('复制失败，请手动复制', 'error');
+        showToast('复制失败，请重试', 'error');
     });
 }
 
-export function CustomFilterEditDialog({ isOpen, onClose, onSave, editItem }) {
+export function CustomFilterEditDialog({ isOpen, onClose, onSave, editItem, filters = [] }) {
   const [name, setName] = useState('');
   const [placeholder, setPlaceholder] = useState('');
   const [filterCode, setFilterCode] = useState('');
@@ -333,7 +332,7 @@ export function CustomFilterEditDialog({ isOpen, onClose, onSave, editItem }) {
             alignItems: 'center',
             gap: '3px',
           },
-          onClick: handleCopyAiPrompt,
+          onClick: () => handleCopyAiPrompt(filters),
           title: '复制系统提示词，发给 AI 让它帮你生成代码',
         }, [
           h(Icon, { name: 'copy', size: 11 }),

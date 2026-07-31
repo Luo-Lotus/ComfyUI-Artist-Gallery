@@ -241,6 +241,7 @@ export function ImageFieldPanel() {
         h(ImageFieldEditDialog, {
             isOpen: showEditDialog,
             editItem: editingField,
+            fields,
             onClose: () => {
                 setShowEditDialog(false);
                 setEditingField(null);

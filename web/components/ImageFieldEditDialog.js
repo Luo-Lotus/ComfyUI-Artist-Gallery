@@ -11,8 +11,8 @@ import { Icon } from '../lib/icons.mjs';
 const ITEM_FIELDS_HELP = `使用 AI 生成代码：
 1. 点击右侧「复制 AI 提示词」
 2. 将提示词发给 LLM（ChatGPT / Claude / DeepSeek）
-3. 描述你想提取的字段，附上图片 Prompt 示例
-4. 将 AI 返回的代码填入下方输入框
+3. 描述你想提取的字段；如需图片 Prompt 示例，可打开一张图片，在详情中点击「复制 API Prompt」后粘贴给 AI
+4. 将 AI 返回的字段名称和代码填入下方输入框，并按建议设置分组与展示方式
 
 如需在图片详情中展示富文本，可让 AI 返回安全 HTML，并开启「按 HTML 渲染」`;
 
@@ -41,10 +41,15 @@ const AI_SYSTEM_PROMPT = `你是一个 ComfyUI 图库图片字段提取代码生
     }
 }
 
+用户可能会在需求后附上一份从图片详情中复制的 ComfyUI API Prompt JSON。请结合这份真实样本定位节点、class_type 和 inputs，不要假定节点 ID 固定。若用户还没有提供样本，但需求依赖 generatePrompt，请先提醒用户：打开一张有代表性的图片，在图片详情中点击「复制 API Prompt」，再把内容粘贴给你。
+
 ## 你需要输出
 
 ### 字段名称
 用中文简短描述这个字段提取的内容。
+
+### 字段设置建议
+明确说明是否建议开启「参与图片分组」和「按 HTML 渲染」，并简述原因。
 
 ### 提取函数 (extractCode)
 Python 函数，格式如下：
@@ -61,13 +66,14 @@ def extract_func(item):
 - 如需富文本展示，可返回 HTML 字符串，并在字段设置中开启「按 HTML 渲染」
 - HTML 支持 p、div、span、br、标题、加粗/斜体/下划线、ul/ol/li、blockquote、code/pre、table 和 a，也支持安全的内联排版样式；图片、表单、iframe、脚本、事件属性、危险 CSS 和危险 URL 会被过滤
 - 普通文本字段不要额外包裹 HTML
-- 可用内置函数: int, str, float, len, bool, isinstance, list, dict, set, tuple, sorted, enumerate, zip, map, filter, any, all, min, max, sum, abs, range, reversed, hasattr, getattr, type, round, pow, divmod
+- 可用内置函数: int, str, float, len, bool, isinstance, list, dict, set, tuple, sorted, enumerate, zip, map, filter, any, all, min, max, sum, abs, range, reversed, round, pow, divmod
+- 可捕获异常: ValueError, TypeError, KeyError, IndexError, Exception
 - 可用模块（直接使用，无需 import）: re, json, math, datetime, timezone, timedelta
-- 不可用: import, open, exec, eval, os, pathlib, subprocess
+- 如确需 import，只允许 datetime、re、json、math、time；不可用 open、exec、eval、os、pathlib、subprocess
 
 ## 输出格式
 
-先用一句话说明这个字段提取什么内容，然后用代码块给出 extractCode。不要输出 JSON，直接输出代码。
+依次给出字段名称、字段设置建议和 extractCode。不要把结果包装成 JSON，代码只放在一个 Python 代码块中。
 
 ## 示例
 
@@ -139,23 +145,48 @@ def extract_func(item):
 \`\`\`
 
 ## 注意事项
-1. 不要使用 import、open、exec、eval，所有常用模块已内置可直接使用
+1. 优先直接使用已内置的模块；如确需 import，仅限 datetime、re、json、math、time。不要使用 open、exec、eval
 2. generatePrompt 是 JSON 字符串，使用前用 if 判断是否为空
 3. fileInfo 字段可能不存在，用 .get() 安全取值
 4. re 模块可直接使用，如 re.findall(r'pattern', string)
 5. datetime 模块可直接使用，如 datetime.fromtimestamp(ts/1000)
 6. 生成 HTML 时必须转义来自图片数据的动态文本；可使用安全的内联 style 排版，不要输出 style 标签、script、iframe、表单、图片、on* 事件属性、外部资源或危险 URL
-7. HTML 字段的提取函数仍然只返回 str，不要返回 DOM、Markdown 或 JSON`;
+7. HTML 字段的提取函数仍然只返回 str，不要返回 DOM、Markdown 或 JSON
+8. 下方会附上系统当前内置图片字段的真实实现。优先复用其中的数据读取、防御性判断和 HTML 转义方式，但不要照搬与用户需求无关的逻辑`;
 
-function handleCopyAiPrompt() {
-    navigator.clipboard.writeText(AI_SYSTEM_PROMPT).then(() => {
-        showToast('已复制 AI 提示词到剪贴板', 'success');
+function formatBuiltinFieldExamples(fields) {
+    const builtins = fields.filter((field) => field?.builtin);
+    if (builtins.length === 0) return '';
+
+    const examples = builtins.map((field) => {
+        const settings = [
+            `参与图片分组：${field.groupable ? '是' : '否'}`,
+            `按 HTML 渲染：${field.renderHtml ? '是' : '否'}`,
+        ].join('；');
+        return `### ${field.name}\n${settings}\n\n\`\`\`python\n${field.extractCode || ''}\n\`\`\``;
+    });
+
+    return `## 当前内置图片字段示例（系统实时读取）\n\n${examples.join('\n\n---\n\n')}`;
+}
+
+function handleCopyAiPrompt(fields) {
+    let prompt = AI_SYSTEM_PROMPT;
+    const examples = formatBuiltinFieldExamples(fields);
+    if (examples) {
+        prompt += `\n\n${examples}`;
+    }
+
+    navigator.clipboard.writeText(prompt).then(() => {
+        showToast(
+            examples ? '已复制 AI 提示词（含内置字段示例）' : '已复制 AI 提示词（未找到内置字段示例）',
+            examples ? 'success' : 'warning',
+        );
     }).catch(() => {
-        showToast('复制失败，请手动复制', 'error');
+        showToast('复制失败，请重试', 'error');
     });
 }
 
-export function ImageFieldEditDialog({ isOpen, onClose, onSave, editItem }) {
+export function ImageFieldEditDialog({ isOpen, onClose, onSave, editItem, fields = [] }) {
     const [name, setName] = useState('');
     const [extractCode, setExtractCode] = useState('');
     const [groupable, setGroupable] = useState(false);
@@ -284,7 +315,7 @@ export function ImageFieldEditDialog({ isOpen, onClose, onSave, editItem }) {
                         alignItems: 'center',
                         gap: '3px',
                     },
-                    onClick: handleCopyAiPrompt,
+                    onClick: () => handleCopyAiPrompt(fields),
                     title: '复制系统提示词，发给 AI 让它帮你生成代码',
                 }, [
                     h(Icon, { name: 'copy', size: 11 }),
