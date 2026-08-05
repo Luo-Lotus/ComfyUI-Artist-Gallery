@@ -1,0 +1,45 @@
+/* Prompt 节点的画廊选择模式：只强化已选卡片，不改变未选卡片。 */
+.gallery-selector-mode .selection-mode.selected {
+  isolation: isolate;
+  transition:
+    filter var(--g-transition-base),
+    transform var(--g-transition-base),
+    border-color var(--g-transition-base),
+    box-shadow var(--g-transition-base);
+  filter: saturate(1.12);
+  transform: translateY(-3px) scale(1.015);
+  border-color: var(--g-accent);
+  box-shadow:
+    0 0 0 2px var(--g-accent),
+    0 8px 28px var(--g-accent-light),
+    0 6px 18px var(--g-shadow);
+}
+
+.gallery-selector-mode .selection-mode.selected:hover {
+  transform: translateY(-4px) scale(1.02);
+  border-color: var(--g-accent-hover);
+}
+
+.gallery-selector-mode .selection-mode.selected::before {
+  border: 0;
+  background: var(--g-accent-bg);
+  box-shadow: inset 0 0 0 3px var(--g-accent);
+}
+
+.gallery-selector-mode .selection-mode.selected::after {
+  content: '✓ 已选择';
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 21;
+  padding: 5px 9px;
+  border: 1px solid var(--g-accent-hover);
+  border-radius: 999px;
+  background: var(--g-accent);
+  color: var(--g-active-text);
+  box-shadow: 0 3px 12px var(--g-shadow);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
