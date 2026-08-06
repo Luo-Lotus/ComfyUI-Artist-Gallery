@@ -96,6 +96,46 @@ def test_category_indexes_invalidate_after_write(tmp_path):
     assert [c["id"] for c in categories.get_children("root")] == [child["id"]]
 
 
+def test_deleting_all_imported_records_removes_empty_shards(tmp_path):
+    categories = CategoryStorage(tmp_path)
+    prompts = PromptStorage(tmp_path)
+    category_shard = tmp_path / "import_test.categories.json"
+    prompt_shard = tmp_path / "import_test.prompts.json"
+
+    category = categories.add_category(
+        "Imported",
+        parent_id="root",
+        target_file=str(category_shard),
+    )
+    prompts.add_prompt(
+        "imported-prompt",
+        category_id=category["id"],
+        target_file=str(prompt_shard),
+    )
+
+    assert prompts.batch_delete_prompts([
+        (category["id"], "imported-prompt"),
+    ]) == 1
+    assert categories.batch_delete([category["id"]]) == 1
+
+    assert not category_shard.exists()
+    assert not prompt_shard.exists()
+    assert categories.get_category_by_id(category["id"]) is None
+    assert prompts.get_prompt(category["id"], "imported-prompt") is None
+
+
+def test_deleting_last_primary_prompt_persists_empty_main_file(tmp_path):
+    prompts = PromptStorage(tmp_path)
+    prompts.add_prompt("only-prompt", category_id="root")
+
+    assert prompts.delete_prompt("root", "only-prompt") is True
+
+    assert json.loads((tmp_path / "prompts.json").read_text(encoding="utf-8")) == {
+        "prompts": [],
+    }
+    assert prompts.get_all_prompts() == []
+
+
 def test_image_mapping_prompt_index_invalidates_after_write(tmp_path):
     storage = ImageMappingStorage(tmp_path)
 
