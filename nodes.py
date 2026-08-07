@@ -17,6 +17,11 @@ import random
 import threading
 from pathlib import Path
 from .storage import get_storage
+from .storage._prompt_reader import (
+    filter_prompts_by_search,
+    format_prompt_record,
+    select_prompt_records,
+)
 from .utils import decode_filename
 
 # 导入所有 API 路由（注册 HTTP 端点）
@@ -677,9 +682,11 @@ class PromptCategoryReader:
         return {
             "required": {
                 "category": (category_list, {"default": "全部"}),
-                "property": (["value", "name"], {"default": "value"}),
+                "search": ("STRING", {"default": ""}),
+                "property": (["value", "name", "name:value"], {"default": "value"}),
                 "mode": (["选取所有", "取最新N个", "随机取N个", "取最旧N个"], {"default": "选取所有"}),
                 "count": ("INT", {"default": 10, "min": 1, "max": 9999, "step": 1}),
+                "offset": ("INT", {"default": 0, "min": 0, "max": 9999, "step": 1}),
                 "separator": ("STRING", {"default": ", "}),
             }
         }
@@ -688,26 +695,18 @@ class PromptCategoryReader:
     def IS_CHANGED(cls, **kwargs):
         return float("nan")
 
-    def read_prompts(self, category, property, mode, count, separator):
+    def read_prompts(self, category, property, mode, count, separator, search="", offset=0):
         category_id = self.__class__._cat_name_to_id_map.get(category, "root")
 
         prompt_storage, _, category_storage = get_storage()
         descendant_ids = set(category_storage.get_descendant_ids(category_id))
         all_prompts = prompt_storage.get_all_prompts()
         filtered = [p for p in all_prompts if p.get("categoryId") in descendant_ids]
+        filtered = filter_prompts_by_search(filtered, search)
 
         if not filtered:
             return ("",)
 
-        if mode == "取最新N个":
-            filtered.sort(key=lambda p: p.get("createdAt", 0), reverse=True)
-            filtered = filtered[:count]
-        elif mode == "取最旧N个":
-            filtered.sort(key=lambda p: p.get("createdAt", 0))
-            filtered = filtered[:count]
-        elif mode == "随机取N个":
-            filtered = random.sample(filtered, min(count, len(filtered)))
-
-        key = "name" if property == "name" else "value"
-        result = separator.join(p.get(key, "") for p in filtered)
+        filtered = select_prompt_records(filtered, mode, count, offset)
+        result = separator.join(format_prompt_record(p, property) for p in filtered)
         return (result,)

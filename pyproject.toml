@@ -1,7 +1,7 @@
 [project]
 name = "prompt-gallery"
 description = "A ComfyUI custom node plugin for prompt gallery management, prompt selection, and image saving with categorization and cover image support."
-version = "1.2.4"
+version = "1.2.5"
 license = { text = "MIT License" }
 requires-python = ">=3.9"
 dependencies = [

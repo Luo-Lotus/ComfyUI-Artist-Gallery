@@ -96,6 +96,17 @@ def test_category_indexes_invalidate_after_write(tmp_path):
     assert [c["id"] for c in categories.get_children("root")] == [child["id"]]
 
 
+def test_get_descendant_ids_includes_all_nested_categories(tmp_path):
+    categories = CategoryStorage(tmp_path)
+    parent = categories.add_category("Parent", parent_id="root")
+    child = categories.add_category("Child", parent_id=parent["id"])
+    grandchild = categories.add_category("Grandchild", parent_id=child["id"])
+
+    assert categories.get_descendant_ids(parent["id"]) == [
+        parent["id"], child["id"], grandchild["id"],
+    ]
+
+
 def test_deleting_all_imported_records_removes_empty_shards(tmp_path):
     categories = CategoryStorage(tmp_path)
     prompts = PromptStorage(tmp_path)

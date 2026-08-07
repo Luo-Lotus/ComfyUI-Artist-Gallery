@@ -114,10 +114,12 @@ Windows 便携版可使用 ComfyUI 自带的 Python：
 
 读取指定分类及其子分类中的 Prompt，并拼接为字符串。
 
-- `property`：读取 `value` 或 `name`
+- `property`：读取 `value`、`name`，或以 `name:value` 格式同时输出两者
 - `mode`：全部、最新 N 个、最旧 N 个或随机 N 个
 - `count`：N 的数量
 - `separator`：输出分隔符
+- `search`：按 `value`、`name`、`alias` 进行大小写不敏感的子串筛选；`a|b` 表示任一命中，`a&b` 表示全部命中，不能混用两种符号
+- `offset`：非随机模式下，排序/筛选后跳过的 Prompt 数量；随机模式会忽略此值
 
 ## 图库使用
 
