@@ -17,6 +17,8 @@ export function useSelection({
   setCurrentPrompt,
   refreshCategories,
   openBatchExportDialog,
+  historyImages = null,
+  onBatchDeleteComplete = null,
 }) {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState(new Set());
@@ -133,10 +135,15 @@ export function useSelection({
           result.prompts.push(prompt);
         }
       } else if (type === 'image') {
+        // Prompt 详情视图从 currentPrompt.images 解析；历史视图回退到 historyImages
+        let img = null;
         if (currentPrompt && currentPrompt.images) {
-          const img = currentPrompt.images.find((i) => i.path === id);
-          if (img) result.images.push(img);
+          img = currentPrompt.images.find((i) => i.path === id);
         }
+        if (!img && historyImages) {
+          img = historyImages.find((i) => i.path === id);
+        }
+        if (img) result.images.push(img);
       }
     });
 
@@ -234,6 +241,8 @@ export function useSelection({
             setCurrentPrompt(updatedPrompt);
           }
         }
+        // 历史视图：通知外层刷新分组图片数据
+        if (onBatchDeleteComplete) await onBatchDeleteComplete();
       }
     } catch (error) {
       console.error('批量操作失败:', error);

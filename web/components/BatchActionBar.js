@@ -11,6 +11,7 @@ export function BatchActionBar() {
   const ctx = useGallery();
   const selectedCount = ctx.selectedItems.size;
   const selectionType = ctx.getSelectionType();
+  const isHistory = ctx.viewMode === 'history';
 
   const getSelectionTypeLabel = () => {
     switch (selectionType) {
@@ -26,6 +27,63 @@ export function BatchActionBar() {
         return '项目';
     }
   };
+
+  const operations = [
+    h(
+      'button',
+      {
+        class: 'batch-op-btn delete-btn',
+        onClick: ctx.handleBatchDelete,
+        title: '删除选中项目',
+      },
+      [h(Icon, { name: 'trash-2', size: 14 }), ' 删除'],
+    ),
+  ];
+
+  // 历史视图仅支持批量删除
+  if (!isHistory) {
+    operations.push(
+      h(
+        'button',
+        {
+          class: 'batch-op-btn move-btn',
+          onClick: ctx.handleBatchMoveAction,
+          title: '移动选中项目',
+        },
+        [h(Icon, { name: 'move', size: 14 }), ' 移动'],
+      ),
+      h(
+        'button',
+        {
+          class: 'batch-op-btn export-btn',
+          onClick: ctx.handleBatchExport,
+          title: '导出选中Prompt',
+        },
+        [h(Icon, { name: 'upload', size: 14 }), ' 导出 (仅Prompt)'],
+      ),
+      h(
+        'button',
+        {
+          class: 'batch-op-btn copy-btn',
+          onClick: ctx.handleBatchCopyAction,
+          title: '复制选中Prompt',
+        },
+        [h(Icon, { name: 'copy', size: 14 }), ' 复制 (仅Prompt)'],
+      ),
+    );
+  }
+
+  operations.push(
+    h(
+      'button',
+      {
+        class: 'batch-op-btn exit-btn',
+        onClick: ctx.handleToggleSelectionMode,
+        title: '退出多选模式',
+      },
+      [h(Icon, { name: 'x', size: 14 }), ' 退出'],
+    ),
+  );
 
   return h('div', { class: 'batch-action-bar' }, [
     // 左侧：已选信息
@@ -58,52 +116,6 @@ export function BatchActionBar() {
     ]),
 
     // 右侧：批量操作按钮
-    h('div', { class: 'batch-operations' }, [
-      h(
-        'button',
-        {
-          class: 'batch-op-btn delete-btn',
-          onClick: ctx.handleBatchDelete,
-          title: '删除选中项目',
-        },
-        [h(Icon, { name: 'trash-2', size: 14 }), ' 删除'],
-      ),
-      h(
-        'button',
-        {
-          class: 'batch-op-btn move-btn',
-          onClick: ctx.handleBatchMoveAction,
-          title: '移动选中项目',
-        },
-        [h(Icon, { name: 'move', size: 14 }), ' 移动'],
-      ),
-      h(
-        'button',
-        {
-          class: 'batch-op-btn export-btn',
-          onClick: ctx.handleBatchExport,
-          title: '导出选中Prompt',
-        },
-        [h(Icon, { name: 'upload', size: 14 }), ' 导出 (仅Prompt)'],
-      ),
-      h(
-        'button',
-        {
-          class: 'batch-op-btn copy-btn',
-          onClick: ctx.handleBatchCopyAction,
-          title: '复制选中Prompt',
-        },
-        [h(Icon, { name: 'copy', size: 14 }), ' 复制 (仅Prompt)'],
-      ),
-      h(
-        'button',
-        {
-          class: 'batch-op-btn exit-btn',
-          onClick: ctx.handleToggleSelectionMode,
-          title: '退出多选模式',
-        },
-        [h(Icon, { name: 'x', size: 14 }), ' 退出'],
-      ),
-    ]),
+    h('div', { class: 'batch-operations' }, operations),
   ]);
 }

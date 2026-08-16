@@ -33,19 +33,15 @@ def delete_image_file(image_path: str, mapping_type: str = "") -> bool:
 def delete_image_completely(image_path: str, mapping_storage) -> dict:
     """
     完全删除一张图片（历史视图场景）。
-    删文件 + 删映射。
+    删映射（主索引 + comfy_output 分片）+ 删磁盘文件。
     """
     result = {"file_deleted": False}
 
-    mapping = mapping_storage.get_mappings_by_image(image_path)
-    if not mapping:
+    mappings = mapping_storage.delete_mappings_by_images([image_path])
+    if not mappings:
         return result
 
-    # 删文件
-    result["file_deleted"] = delete_image_file(image_path, mapping.get("type", ""))
-
-    # 删映射
-    mapping_storage.delete_mapping_by_image(image_path)
+    result["file_deleted"] = delete_image_file(image_path, mappings[0].get("type", ""))
 
     return result
 
@@ -53,20 +49,26 @@ def delete_image_completely(image_path: str, mapping_storage) -> dict:
 def delete_images_completely_batch(image_paths: list, mapping_storage) -> dict:
     """
     批量完全删除图片（历史视图场景）。
-    删文件 + 批量删映射。
+    删映射（主索引 + comfy_output 分片）+ 批量删磁盘文件。
     """
     result = {"deleted_files": []}
     unique_paths = list(dict.fromkeys(path for path in image_paths if path))
     if not unique_paths:
         return result
 
-    removed_mappings = mapping_storage.batch_delete_by_images(unique_paths)
+    removed_mappings = mapping_storage.delete_mappings_by_images(unique_paths)
     if not removed_mappings:
         return result
 
+    # 同一路径可能同时存在主索引与 comfy_output 分片映射，文件只删一次
+    type_by_path = {}
     for mapping in removed_mappings:
         image_path = mapping.get("imagePath", "")
-        if delete_image_file(image_path, mapping.get("type", "")):
+        if image_path:
+            type_by_path.setdefault(image_path, mapping.get("type", ""))
+
+    for image_path, mapping_type in type_by_path.items():
+        if delete_image_file(image_path, mapping_type):
             result["deleted_files"].append(image_path)
 
     return result

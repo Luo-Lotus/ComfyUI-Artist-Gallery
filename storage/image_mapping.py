@@ -253,46 +253,61 @@ class ImageMappingStorage(SplitJsonStorage):
                 self._build_path_index()
             return self._idx_by_path.get(image_path)
 
-    def delete_mapping_by_image(self, image_path: str) -> bool:
-        """根据图片路径删除映射"""
-        with self._lock:
-            data = self._read_data()
-            original_count = len(data["mappings"])
-            data["mappings"] = [
-                m for m in data["mappings"]
-                if m.get("imagePath") != image_path
-            ]
-
-            if len(data["mappings"]) < original_count:
-                self._write_data(data)
-                return True
-            return False
-
-    def batch_delete_by_images(self, image_paths: List[str]) -> List[dict]:
+    def delete_mappings_by_images(self, image_paths: List[str]) -> List[dict]:
         """
-        批量根据图片路径删除映射（一次锁和一次写入）。
+        统一删除图片映射：主索引（含已启用分片）+ comfy_output 分片，一次锁。
+        单删/批量删共用此入口，保证所有来源的映射都被清理。
         :return: 被删除的映射列表
         """
         path_set = {path for path in image_paths if path}
         if not path_set:
             return []
 
+        removed = []
         with self._lock:
+            # 主索引 + 已启用分片（一次读写）
             data = self._read_data()
-            removed = []
             kept = []
-
             for mapping in data["mappings"]:
                 if mapping.get("imagePath") in path_set:
                     removed.append(mapping)
                 else:
                     kept.append(mapping)
-
             if removed:
                 data["mappings"] = kept
                 self._write_data(data)
 
-            return removed
+            # comfy_output 分片（懒加载、普通读取排除）：逐个现读并原子重写该分片
+            removed.extend(self._delete_comfy_output_mappings(path_set))
+
+        return removed
+
+    def _delete_comfy_output_mappings(self, path_set: set) -> List[dict]:
+        """
+        从 comfy_output*.images.json 分片中删除匹配 imagePath 的映射。
+        只读该分片文件、过滤后原子重写，不经过合并读写（对齐 append_comfy_output_mappings）。
+        :return: 被删除的映射列表
+        """
+        removed = []
+        for f in sorted(self.storage_dir.glob("comfy_output*.images.json")):
+            try:
+                with open(f, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+            except Exception as e:
+                print(f"[ImageMapping] 读取 {f.name} 失败: {e}")
+                continue
+
+            kept = []
+            for mapping in data.get(self.item_key, []):
+                if mapping.get("imagePath") in path_set:
+                    removed.append(mapping)
+                else:
+                    kept.append(mapping)
+
+            if len(kept) < len(data.get(self.item_key, [])):
+                write_json_atomic(f, {self.item_key: kept})
+
+        return removed
 
     def cleanup_missing_local_mappings(self, output_dir: Path, sample_limit: int = 20) -> dict:
         """

@@ -121,6 +121,7 @@ function GroupSidebar({ groupList, groupCountMap, currentGroupIndex, onJumpToGro
  * @param {Set} [props.selectedItems]
  * @param {Function} [props.onSelectItem]
  * @param {Function} [props.onDeleteSuccess] - 删除后的额外回调
+ * @param {number} [props.reloadSignal] - 外部触发重新加载的信号（变化且大于 0 时重载）
  * @param {number} props.cardSize
  * @param {boolean} [props.includeComfyOutput] - 是否包含 comfy_output 导入的图片
  * @param {Function} props.openLightbox
@@ -143,6 +144,7 @@ export function ImageGroupView({
   selectedItems = null,
   onSelectItem = null,
   onDeleteSuccess,
+  reloadSignal = 0,
   cardSize,
   cardLayoutMode = 'fixed',
   openLightbox,
@@ -244,6 +246,13 @@ export function ImageGroupView({
     if (onDeleteSuccess) await onDeleteSuccess();
     reloadData();
   }, [onDeleteSuccess, reloadData]);
+
+  // 外部信号触发重载（如历史视图批量删除后）
+  useEffect(() => {
+    if (reloadSignal > 0) {
+      loadGroupedData(searchQuery);
+    }
+  }, [reloadSignal]);
 
   // ============ 可见分组 ============
   const groups = groupData?.groups || [];

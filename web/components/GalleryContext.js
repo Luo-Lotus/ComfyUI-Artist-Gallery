@@ -68,6 +68,8 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation, 
   const [viewMode, setViewMode] = useState('gallery');
   const [rawCurrentPrompt, setCurrentPrompt] = useState(null);
   const [currentPromptGroups, setCurrentPromptGroups] = useState(null);
+  const [historyGroups, setHistoryGroups] = useState(null);
+  const [historyReloadSignal, setHistoryReloadSignal] = useState(0);
   const [imageSearchQuery, setImageSearchQuery] = useState('');
   const [imageSortBy, setImageSortBy] = useState('name');
   const [imageSortOrder, setImageSortOrder] = useState('asc');
@@ -230,10 +232,32 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation, 
   // 过滤排序
   const filteredPrompts = useFilteredPrompts(data, searchQuery, sortBy, sortOrder, showFavoritesOnly, favorites, categoryMgr.categories);
 
+  // ============ 历史视图分组数据（由 ImageGroupView onGroupedData 上抛） ============
+  // 需在 useSelection 之前定义（useSelection 接收 historyImages）
+
+  const flatHistoryImages = useMemo(
+    () => (historyGroups || []).flatMap((g) => g.images || []),
+    [historyGroups],
+  );
+
+  const historyOrderedKeys = useMemo(
+    () => flatHistoryImages.map((img) => `image:${img.path}`),
+    [flatHistoryImages],
+  );
+
   // 打开批量导出对话框
   const handleOpenBatchExportDialog = useCallback(() => {
     setExportPayload({ type: 'batch' });
     setShowExportDialog(true);
+  }, []);
+
+  // 批量删除完成后：历史视图触发分组数据重新加载
+  const viewModeRef = useRef(viewMode);
+  viewModeRef.current = viewMode;
+  const handleBatchDeleteComplete = useCallback(() => {
+    if (viewModeRef.current === 'history') {
+      setHistoryReloadSignal((n) => n + 1);
+    }
   }, []);
 
   // 多选管理
@@ -248,7 +272,18 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation, 
     setCurrentPrompt,
     refreshCategories: categoryMgr.refreshCategories,
     openBatchExportDialog: handleOpenBatchExportDialog,
+    historyImages: flatHistoryImages,
+    onBatchDeleteComplete: handleBatchDeleteComplete,
   });
+
+  // 切换视图时重置多选状态，避免跨视图残留选中项
+  const prevViewModeRef = useRef(viewMode);
+  useEffect(() => {
+    if (prevViewModeRef.current !== viewMode) {
+      prevViewModeRef.current = viewMode;
+      selection.resetSelection();
+    }
+  }, [viewMode]);
 
   // 移动/复制操作
   const itemOps = useItemOperations({
@@ -607,16 +642,27 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation, 
     [selection, promptOrderedKeys],
   );
 
+  const handleHistorySelect = useCallback(
+    (key, shiftKey) => {
+      selection.handleSelectItem(key, shiftKey, historyOrderedKeys);
+    },
+    [selection, historyOrderedKeys],
+  );
+
   // 全选（按当前视图）
   const handleSelectAllInView = useCallback(() => {
-    if (viewMode === 'prompt' && currentPrompt?.images) {
+    if (viewMode === 'history') {
+      const newSet = new Set();
+      flatHistoryImages.forEach((img) => newSet.add(`image:${img.path}`));
+      selection.setSelectedItems(newSet);
+    } else if (viewMode === 'prompt' && currentPrompt?.images) {
       const newSet = new Set();
       filteredPromptImages.forEach((img) => newSet.add(`image:${img.path}`));
       selection.setSelectedItems(newSet);
     } else {
       selection.handleSelectAll();
     }
-  }, [viewMode, currentPrompt, filteredPromptImages, selection]);
+  }, [viewMode, currentPrompt, filteredPromptImages, flatHistoryImages, selection]);
 
   // 批量移动/复制（封装 itemOps setter 注入）
   const handleBatchMoveAction = useCallback(() => {
@@ -763,6 +809,7 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation, 
       handleToggleSelectionMode: selection.handleToggleSelectionMode,
       handleGallerySelect,
       handlePromptSelect,
+      handleHistorySelect,
       handleSelectAllInView,
       handleDeselectAll: selection.handleDeselectAll,
       getSelectedDetails: selection.getSelectedDetails,
@@ -805,6 +852,11 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation, 
       groupByField,
       setGroupByField,
       loadImageFields,
+
+      // History
+      historyGroups,
+      setHistoryGroups,
+      historyReloadSignal,
 
       // Item operations
       showMoveDialog: itemOps.showMoveDialog,
@@ -923,6 +975,9 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation, 
       activeCustomFilters,
       imageFields,
       groupByField,
+      historyGroups,
+      historyReloadSignal,
+      flatHistoryImages,
       showExportDialog,
       exportPayload,
       lightbox,

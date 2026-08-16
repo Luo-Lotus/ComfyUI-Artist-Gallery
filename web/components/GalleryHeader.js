@@ -85,8 +85,8 @@ export function GalleryHeader() {
     ]),
   );
 
-  // 批量操作按钮（历史视图不显示）
-  !ctx.isSelectorMode && !isHistory &&
+  // 批量操作按钮（历史视图仅支持批量删除，同样从这里进入多选模式）
+  !ctx.isSelectorMode &&
     buttons.push(
       h(
         'button',
