@@ -69,7 +69,7 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation, 
   const [rawCurrentPrompt, setCurrentPrompt] = useState(null);
   const [currentPromptGroups, setCurrentPromptGroups] = useState(null);
   const [historyGroups, setHistoryGroups] = useState(null);
-  const [historyReloadSignal, setHistoryReloadSignal] = useState(0);
+  const [historyRemovedPaths, setHistoryRemovedPaths] = useState(new Set());
   const [imageSearchQuery, setImageSearchQuery] = useState('');
   const [imageSortBy, setImageSortBy] = useState('name');
   const [imageSortOrder, setImageSortOrder] = useState('asc');
@@ -251,14 +251,26 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation, 
     setShowExportDialog(true);
   }, []);
 
-  // 批量删除完成后：历史视图触发分组数据重新加载
+  // 乐观删除：本地立即移除图片（接口失败也不回退，下次加载以后端数据为准）
+  const handleHistoryImagesRemoved = useCallback((paths = []) => {
+    if (!paths || paths.length === 0) return;
+    setHistoryRemovedPaths((prev) => new Set([...prev, ...paths]));
+    setImageTotalCount((prev) => Math.max(0, prev - paths.length));
+  }, []);
+
+  // 数据重新加载成功后清空本地移除记录，恢复后端真实数据
+  const clearHistoryRemovedPaths = useCallback(() => {
+    setHistoryRemovedPaths((prev) => (prev.size === 0 ? prev : new Set()));
+  }, []);
+
+  // 批量删除完成后：历史视图本地移除选中图片（不再全量刷新）
   const viewModeRef = useRef(viewMode);
   viewModeRef.current = viewMode;
-  const handleBatchDeleteComplete = useCallback(() => {
-    if (viewModeRef.current === 'history') {
-      setHistoryReloadSignal((n) => n + 1);
+  const handleBatchDeleteComplete = useCallback((imagePaths = []) => {
+    if (viewModeRef.current === 'history' && imagePaths.length > 0) {
+      handleHistoryImagesRemoved(imagePaths);
     }
-  }, []);
+  }, [handleHistoryImagesRemoved]);
 
   // 多选管理
   const selection = useSelection({
@@ -856,7 +868,9 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation, 
       // History
       historyGroups,
       setHistoryGroups,
-      historyReloadSignal,
+      historyRemovedPaths,
+      handleHistoryImagesRemoved,
+      clearHistoryRemovedPaths,
 
       // Item operations
       showMoveDialog: itemOps.showMoveDialog,
@@ -976,7 +990,7 @@ export function GalleryProvider({ children, isOpen, onClose, initialNavigation, 
       imageFields,
       groupByField,
       historyGroups,
-      historyReloadSignal,
+      historyRemovedPaths,
       flatHistoryImages,
       showExportDialog,
       exportPayload,

@@ -215,8 +215,15 @@ export function useSelection({
 
     if (!operation) return;
 
-    try {
-      if (operation === 'delete') {
+    if (operation === 'delete') {
+      // 乐观删除：本地立即移除并关闭对话框/退出多选，接口后台执行，失败仅提示
+      const imagePaths = details.images.map((img) => img.path);
+      if (onBatchDeleteComplete) onBatchDeleteComplete(imagePaths);
+      setShowBatchConfirm(false);
+      setSelectionMode(false);
+      setSelectedItems(new Set());
+
+      try {
         await batchDelete({
           categories: details.categories.map((c) => c.id),
           prompts: details.prompts.map((a) => ({
@@ -225,28 +232,26 @@ export function useSelection({
           })),
           images: details.images.map((img) => ({ path: img.path })),
         });
-        showToast('批量删除成功', 'success');
-        setShowBatchConfirm(false);
-        setSelectionMode(false);
-        setSelectedItems(new Set());
-        await loadData();
-        await refreshCategories();
-        if (currentPrompt) {
-          const updatedData = await fetch(`/prompt_gallery/data?category=${currentCategory}`);
-          const result = await updatedData.json();
-          const updatedPrompt = result.prompts?.find(
-            (a) => a.categoryId === currentPrompt.categoryId && a.value === currentPrompt.value,
-          );
-          if (updatedPrompt) {
-            setCurrentPrompt(updatedPrompt);
+        // 历史视图（仅图片）已通过 onBatchDeleteComplete 本地乐观移除，无需刷新；
+        // 涉及分类/Prompt 或处于 Prompt 详情视图时才需要刷新画廊数据
+        if (details.categories.length > 0 || details.prompts.length > 0 || currentPrompt) {
+          await loadData();
+          await refreshCategories();
+          if (currentPrompt) {
+            const updatedData = await fetch(`/prompt_gallery/data?category=${currentCategory}`);
+            const result = await updatedData.json();
+            const updatedPrompt = result.prompts?.find(
+              (a) => a.categoryId === currentPrompt.categoryId && a.value === currentPrompt.value,
+            );
+            if (updatedPrompt) {
+              setCurrentPrompt(updatedPrompt);
+            }
           }
         }
-        // 历史视图：通知外层刷新分组图片数据
-        if (onBatchDeleteComplete) await onBatchDeleteComplete();
+      } catch (error) {
+        console.error('批量操作失败:', error);
+        showToast(`批量删除失败: ${error.message}`, 'error');
       }
-    } catch (error) {
-      console.error('批量操作失败:', error);
-      showToast(`批量${operation}失败: ${error.message}`, 'error');
     }
   };
 

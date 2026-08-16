@@ -121,7 +121,7 @@ function GroupSidebar({ groupList, groupCountMap, currentGroupIndex, onJumpToGro
  * @param {Set} [props.selectedItems]
  * @param {Function} [props.onSelectItem]
  * @param {Function} [props.onDeleteSuccess] - 删除后的额外回调
- * @param {number} [props.reloadSignal] - 外部触发重新加载的信号（变化且大于 0 时重载）
+ * @param {Set} [props.removedPaths] - 已本地移除（乐观删除）的图片路径集合，渲染时排除
  * @param {number} props.cardSize
  * @param {boolean} [props.includeComfyOutput] - 是否包含 comfy_output 导入的图片
  * @param {Function} props.openLightbox
@@ -144,7 +144,7 @@ export function ImageGroupView({
   selectedItems = null,
   onSelectItem = null,
   onDeleteSuccess,
-  reloadSignal = 0,
+  removedPaths = null,
   cardSize,
   cardLayoutMode = 'fixed',
   openLightbox,
@@ -247,21 +247,24 @@ export function ImageGroupView({
     reloadData();
   }, [onDeleteSuccess, reloadData]);
 
-  // 外部信号触发重载（如历史视图批量删除后）
-  useEffect(() => {
-    if (reloadSignal > 0) {
-      loadGroupedData(searchQuery);
-    }
-  }, [reloadSignal]);
-
   // ============ 可见分组 ============
   const groups = groupData?.groups || [];
   const groupList = groupData?.dateList || [];
 
+  // 过滤乐观删除的图片：不重载数据、保持滚动位置，仅在前端渲染层排除
+  const filteredGroups = useMemo(() => {
+    if (!removedPaths || removedPaths.size === 0) return groups;
+    return groups.map((g) => {
+      const images = (g.images || []).filter((i) => !removedPaths.has(i.path));
+      if (images.length === (g.images || []).length) return g;
+      return { ...g, images, count: images.length };
+    });
+  }, [groups, removedPaths]);
+
   const visibleGroups = useMemo(() => {
     const { start, end } = visibleRange;
-    return groups.slice(start, end + 1);
-  }, [groups, visibleRange]);
+    return filteredGroups.slice(start, end + 1);
+  }, [filteredGroups, visibleRange]);
 
   // 视口内全部图片（打平）+ 每组起始偏移，供 Lightbox 索引用；提到 useMemo 避免逐项重算
   const allVisibleImages = useMemo(
@@ -276,9 +279,9 @@ export function ImageGroupView({
 
   const groupCountMap = useMemo(() => {
     const map = {};
-    for (const g of groups) map[g.date] = g.count;
+    for (const g of filteredGroups) map[g.date] = g.count;
     return map;
-  }, [groups]);
+  }, [filteredGroups]);
 
   // ============ 滚动边缘检测 + debounce ============
   const handleScroll = useCallback(() => {
@@ -408,7 +411,7 @@ export function ImageGroupView({
     ]);
   }
 
-  if (groups.length === 0) {
+  if (groups.length === 0 || filteredGroups.every((g) => g.count === 0)) {
     return h('div', { class: 'image-group-view-empty' }, '暂无图片');
   }
 

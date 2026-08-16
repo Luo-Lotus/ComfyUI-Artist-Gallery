@@ -14,6 +14,16 @@ export function HistoryView() {
   const ctx = useGallery();
   const { showContextMenu } = useContextMenu();
 
+  // 必须稳定（useCallback），否则每次渲染产生新引用，
+  // 会导致 ImageGroupView 的 loadGroupedData 重新创建并反复请求
+  const handleDataLoaded = useCallback(
+    (total) => {
+      ctx.setImageTotalCount(total);
+      ctx.clearHistoryRemovedPaths();
+    },
+    [ctx.setImageTotalCount, ctx.clearHistoryRemovedPaths],
+  );
+
   const getContextMenuItems = useCallback(
     (img, { flatIndex, allVisibleImages, onDeleteSuccess }) => [
       {
@@ -24,14 +34,12 @@ export function HistoryView() {
       {
         icon: 'trash-2',
         label: '删除图片',
-        action: async () => {
-          try {
-            await deleteImage(img.path);
-            showToast('图片已删除', 'success');
-            await onDeleteSuccess();
-          } catch (error) {
+        action: () => {
+          // 乐观删除：本地立即移除，接口失败仅提示不回退
+          ctx.handleHistoryImagesRemoved([img.path]);
+          deleteImage(img.path).catch((error) => {
             showToast('删除失败: ' + error.message, 'error');
-          }
+          });
         },
       },
     ],
@@ -43,14 +51,14 @@ export function HistoryView() {
     searchQuery: ctx.imageSearchQuery,
     customFilters: ctx.activeCustomFilters.length > 0 ? ctx.activeCustomFilters : null,
     includeComfyOutput: ctx.includeComfyOutput,
-    onDataLoaded: ctx.setImageTotalCount,
+    onDataLoaded: handleDataLoaded,
     onGroupedData: ctx.setHistoryGroups,
     getContextMenuItems,
     showContextMenu,
     selectionMode: ctx.selectionMode,
     selectedItems: ctx.selectedItems,
     onSelectItem: ctx.handleHistorySelect,
-    reloadSignal: ctx.historyReloadSignal,
+    removedPaths: ctx.historyRemovedPaths,
     cardSize: ctx.cardSize,
     cardLayoutMode: ctx.cardLayoutMode,
     openLightbox: ctx.openLightbox,
