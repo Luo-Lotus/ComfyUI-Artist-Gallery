@@ -649,14 +649,13 @@ class QuickSavePrompt:
 
 
 def _flatten_categories(categories, tree):
-    """将分类树扁平化为带缩进的名称列表，返回 (名称列表, 名称→ID映射)"""
+    """将分类树扁平化为名称列表，返回 (名称列表, 名称→ID映射)"""
     name_to_id = {}
 
-    def walk(nodes, depth=0):
+    def walk(nodes):
         for node in nodes:
-            display = "  " * depth + node["name"]
-            name_to_id[display] = node["id"]
-            walk(node.get("children", []), depth + 1)
+            name_to_id[node["name"]] = node["id"]
+            walk(node.get("children", []))
 
     walk(tree)
     return name_to_id
